@@ -1,6 +1,9 @@
 # TODO: Actually implement equality.
+# TODO: Look for an efficient method.
 ast_equals(ast1::SyntaxNode, ast2::SyntaxNode) = string(ast1) === string(ast2)
 
+# TODO: Make this tail-recursive?
+# TODO: Is it possible to remove recursivity?
 function search_ast(rule_ast::SyntaxNode, src_ast::SyntaxNode)::RuleMatches
     if ast_equals(rule_ast, src_ast)
         # @info "equal"
