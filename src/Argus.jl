@@ -3,7 +3,7 @@ module Argus
 export Pattern, PatternRegex
 export RuleMatch, RuleMatches
 
-using JuliaSyntax: SyntaxNode
+using JuliaSyntax: TreeNode, SyntaxNode, AbstractSyntaxData, SyntaxData
 using JuliaSyntax: parseatom, parsestmt, parseall
 using JuliaSyntax: source_location
 
@@ -11,20 +11,44 @@ include("utils.jl")
 
 
 #=
+    Rule AST interface
+=#
+
+struct RuleSyntaxData <: AbstractSyntaxData
+    raw::GreenNode{SyntaxData}
+    val::Any
+end
+
+const RuleSyntaxNode = TreeNode{RuleSyntaxData}
+
+
+#=
     Rules
 =#
 
+"""
+    AbstractRule
+
+Abstract supertype for all rules.
+"""
 abstract type AbstractRule end
 
-struct Pattern <: AbstractRule
-    ast::SyntaxNode
-end
-Pattern(text::String) = Pattern(parseall(SyntaxNode, text).children[1])
+"""
+    Pattern <: AbstractRule
 
-struct PatternRegex <: AbstractRule
-    regex::Regex
+Rule that searches for code matching its expression.
+"""
+struct Pattern <: AbstractRule
+    ast::RuleSyntaxNode
 end
-PatternRegex(regex_str::String) = PatternRegex(Regex(regex_str))
+function Pattern(text::String)
+    # TODO
+end
+
+# struct PatternRegex <: AbstractRule
+#     regex::Regex
+# end
+# PatternRegex(regex_str::String) = PatternRegex(Regex(regex_str))
 
 
 #=
@@ -57,29 +81,29 @@ Base.pushfirst!(v::RuleMatches, el::RuleMatch) = RuleMatches(pushfirst!(v.matche
 
 # TODO: Rename.
 function check(rule::AbstractRule, filename::String)::RuleMatches
-    src = read(filename, String)
+    # src = read(filename, String)
 
-    # Obtain ASTs.
-    rule_ast = rule.ast
-    source_ast = parseall(SyntaxNode, src; filename=filename)
+    # # Obtain ASTs.
+    # rule_ast = rule.ast
+    # source_ast = parseall(SyntaxNode, src; filename=filename)
 
-    # Compare ASTs.
-    matches = search_ast(rule_ast, source_ast)
+    # # Compare ASTs.
+    # matches = search_ast(rule_ast, source_ast)
 
-    return matches
+    # return matches
 end
 
-function check(rule::PatternRegex, filename::String)::RuleMatches
-    src = read(filename, String)
+# function check(rule::PatternRegex, filename::String)::RuleMatches
+#     src = read(filename, String)
 
-    # Get regex matches.
-    regex_matches, regex_ranges = ([m.match for m in eachmatch(rule.regex, src)], [m.offset:(m.offset + length(m.match)) for m in eachmatch(rule.regex, src)])
-    println(regex_matches)
-    println(regex_ranges)
+#     # Get regex matches.
+#     regex_matches, regex_ranges = ([m.match for m in eachmatch(rule.regex, src)], [m.offset:(m.offset + length(m.match)) for m in eachmatch(rule.regex, src)])
+#     println(regex_matches)
+#     println(regex_ranges)
 
-    # Find nodes at the matches' ranges.
+#     # Find nodes at the matches' ranges.
 
-    return RuleMatches()
-end
+#     return RuleMatches()
+# end
 
 end # Argus
