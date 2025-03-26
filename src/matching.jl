@@ -1,4 +1,3 @@
-
 #=
     Matches
 =#
@@ -27,20 +26,48 @@ Base.pushfirst!(v::RuleMatches, el::RuleMatch) = RuleMatches(pushfirst!(v.matche
     AST search and comparison.
 =#
 
-function ast_compare(rule::RuleSyntaxNode, source::JuliaSyntax.SyntaxNode)
-    # No match if the ASTs have different heads or if one has children
-    # and the other doesn't.
+function ast_compare!(rule::RuleSyntaxNode, source::JuliaSyntax.SyntaxNode)
+    if is_special_syntax(rule.data)
+        return ast_compare_special!(rule.data, source)
+    end
+
+    if has_special_syntax(rule)
+        # The node itself is not a special node, but it has a successor
+        # with some special syntax.
+        head(rule) != head(source) && return false
+
+        if length(children(rule)) == length(children(source))
+            zipped_children = zip(children(rule), children(source))
+            return all(p -> ast_compare!(p[1], p[2]), zipped_children)
+        else
+            # The rule might have an ellipsis.
+            # TODO.
+            return false
+        end
+    end
+
+    # No special syntax.
     head(rule) != head(source) && return false
-    xor(haschildren(rule), haschildren(source)) && return false # Is this ever necessary?
+    rule.data.val != source.data.val && return false
+    length(children(rule)) != length(children(source)) && return false
+    zipped_children = zip(children(rule), children(source))
 
-    # TODO
+    # TODO.
 
+    return all(p -> ast_compare!(p[1], p[2]), zipped_children)
+end
+
+function ast_compare_special!(data::RuleSyntaxData{Metavariable}, source_ast::JuliaSyntax.SyntaxNode)
+    # TODO: Change to `is_identifier`?
+    !is_valid_identifier(source_ast) && return false
+    data.special_syntax.binding = source_ast.data
     return true
 end
 
+
 # TODO: Rename.
-function search_ast(rule_ast::RuleSyntaxNode, src_ast::JuliaSyntax.SyntaxNode)::RuleMatches
-    if ast_compare(rule_ast, src_ast)
+function search_ast!(rule_ast::RuleSyntaxNode, src_ast::JuliaSyntax.SyntaxNode)::RuleMatches
+    if ast_compare!(rule_ast, src_ast)
         return RuleMatches([RuleMatch(src_ast)])
     end
 
@@ -51,14 +78,14 @@ function search_ast(rule_ast::RuleSyntaxNode, src_ast::JuliaSyntax.SyntaxNode)::
     matched_nodes = RuleMatches()
 
     for child in src_ast.children
-        append!(matched_nodes, search_ast(rule_ast, child))
+        append!(matched_nodes, search_ast!(rule_ast, child))
     end
 
     return matched_nodes
 end
 
 # TODO: Rename.
-function check(rule::Pattern, filename::String)::RuleMatches
+function check!(rule::Pattern, filename::String)::RuleMatches
     src = read(filename, String)
 
     # Obtain ASTs.
@@ -66,7 +93,7 @@ function check(rule::Pattern, filename::String)::RuleMatches
     source_ast = parseall(SyntaxNode, src; filename=filename)
 
     # Compare ASTs.
-    matches = search_ast(rule_ast, source_ast)
+    matches = search_ast!(rule_ast, source_ast)
 
     return matches
 end

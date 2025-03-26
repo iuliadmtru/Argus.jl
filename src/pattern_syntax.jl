@@ -23,8 +23,9 @@ end
     Special pattern syntax
 =#
 
-struct Metavariable
+mutable struct Metavariable
     name::Symbol
+    # Should this be bound to something else?
     binding::Union{Nothing, JuliaSyntax.SyntaxData}
 end
 Metavariable(name::Symbol) = Metavariable(name, nothing)

@@ -12,7 +12,7 @@ I am working on this project as part of my thesis for the Computer
 Science and Engineering Bachelor's at Politehnica University of
 Bucharest.
 
-Status: _barely beginning_
+Status: _barely beginning_. Working on metavariables.
 
 Currently the package is able to:
 
@@ -32,8 +32,8 @@ line:col│ tree
    -:-  |    x
    -:-  |  2
 
-julia> rule = Pattern("f(Metavariable(:X)) = 2")
-Pattern((= (call f M"X") 2))
+julia> rule = Pattern("f(Metavariable(:X)) = 2 + Metavariable(:Y)")
+Pattern((= (call f M"X") (call-i 2 + M"Y")))
 
 julia> rule.ast
 line:col│ tree
@@ -41,20 +41,18 @@ line:col│ tree
    -:-  |  [call]
    -:-  |    f
    -:-  |    M"X"
-   -:-  |  2
+   -:-  |  [call-i]
+   -:-  |    2
+   -:-  |    +
+   -:-  |    M"Y"
 
-julia> rule = Pattern("a + b")
-Pattern((call-i a + b))
 
-julia> Argus.check(rule, "test/test-file.jl")
-4-element RuleMatches:
- RuleMatch((call-i a + b), (2, 9))
- RuleMatch((call-i a + b), (6, 1))
- RuleMatch((call-i a + b c), (7, 1))
- RuleMatch((call-i c + a b), (8, 1))  # This should not match.
+julia> Argus.check!(rule, "test/test-file.jl")
+1-element RuleMatches:
+ RuleMatch((= (call f x) (call-i 2 + x)), (11, 1))
 ```
 
-The AST comparison mechanism used by `Argus.check` is currently a mock
+The AST comparison mechanism used by `Argus.check!` is currently a mock
 implementation (in `src/utils.jl`).
 
 
@@ -85,6 +83,16 @@ Semprep's
 [metavariables](https://semgrep.dev/docs/writing-rules/pattern-syntax#metavariables)
 and [ellipsis
 operator](https://semgrep.dev/docs/writing-rules/pattern-syntax#ellipsis-operator))
+
+There should be a different, custom representation for
+`RuleSyntaxNode`s.
+
+### Patterns
+
+#### Metavariables
+
+Metavariables currently only bind to whatever
+`JuliaSyntax.is_valid_identifier` returns `true` for.
 
 ### AST comparison
 

@@ -7,7 +7,7 @@ export RuleMatch, RuleMatches
 using JuliaSyntax
 # TODO: Reorder these, maybe remove some.
 using JuliaSyntax: haschildren, children, is_trivia, head, kind,
-                   source_location, untokenize, is_error
+                   source_location, untokenize, is_error, is_valid_identifier
 
 include("pattern_syntax.jl")
 
@@ -31,11 +31,26 @@ function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
     end
 end
 
+## `JuliaSyntax` overwrites.
+
 JuliaSyntax.head(node::RuleSyntaxNode) = is_special_syntax(node.data) ? nothing : head(node.data.syntax_data.raw)
 JuliaSyntax.kind(node::RuleSyntaxNode) = head(node).kind
 
 function JuliaSyntax.build_tree(::Type{RuleSyntaxNode}, stream::JuliaSyntax.ParseStream; kws...)
     return RuleSyntaxNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
+end
+
+## Utils.
+
+function has_special_syntax(node::RuleSyntaxNode)
+    is_special_syntax(node.data) && return true
+    # If it is not a special sytax node and it has no children then
+    # it is a regular leaf
+    !haschildren(node) && return false
+    # If any child has some special syntax then the node has special syntax.
+    any(c -> has_special_syntax(c), children(node)) && return true
+    # No child has special syntax.
+    return false
 end
 
 ## Display.
