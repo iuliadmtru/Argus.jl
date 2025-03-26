@@ -1,11 +1,11 @@
 module Argus
 
+export RuleSyntaxData, RuleSyntaxNode
 export Pattern, PatternRegex
 export RuleMatch, RuleMatches
 
-using JuliaSyntax: TreeNode, SyntaxNode, AbstractSyntaxData, SyntaxData
-using JuliaSyntax: parseatom, parsestmt, parseall
-using JuliaSyntax: source_location
+using JuliaSyntax
+using JuliaSyntax: haschildren, children, is_trivia
 
 include("utils.jl")
 
@@ -14,12 +14,33 @@ include("utils.jl")
     Rule AST interface
 =#
 
-struct RuleSyntaxData <: AbstractSyntaxData
-    raw::GreenNode{SyntaxData}
-    val::Any
+struct RuleSyntaxData <: JuliaSyntax.AbstractSyntaxData
+    data::JuliaSyntax.SyntaxData
 end
 
-const RuleSyntaxNode = TreeNode{RuleSyntaxData}
+function Base.getproperty(data::RuleSyntaxData, name::Symbol)
+    d = getfield(data, :data)
+    return getproperty(d, name)
+end
+
+const RuleSyntaxNode = JuliaSyntax.TreeNode{RuleSyntaxData}
+function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
+    data = RuleSyntaxData(node.data)
+
+    if !haschildren(node)
+        return RuleSyntaxNode(nothing, nothing, data)
+    else
+        children = [RuleSyntaxNode(c) for c in node.children]
+        rs_node = RuleSyntaxNode(nothing, children, data)
+        [child.parent = rs_node for child in children]
+
+        return rs_node
+    end
+end
+
+function JuliaSyntax.build_tree(::Type{RuleSyntaxNode}, stream::JuliaSyntax.ParseStream; kws...)
+    return RuleSyntaxNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
+end
 
 
 #=
@@ -80,14 +101,14 @@ Base.pushfirst!(v::RuleMatches, el::RuleMatch) = RuleMatches(pushfirst!(v.matche
 =#
 
 # TODO: Rename.
-function check(rule::AbstractRule, filename::String)::RuleMatches
-    # src = read(filename, String)
+function check(rule::Pattern, filename::String)::RuleMatches
+    src = read(filename, String)
 
-    # # Obtain ASTs.
-    # rule_ast = rule.ast
-    # source_ast = parseall(SyntaxNode, src; filename=filename)
+    # Obtain ASTs.
+    rule_ast = rule.ast
+    source_ast = parseall(SyntaxNode, src; filename=filename)
 
-    # # Compare ASTs.
+    # Compare ASTs.
     # matches = search_ast(rule_ast, source_ast)
 
     # return matches

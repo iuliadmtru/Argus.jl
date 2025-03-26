@@ -14,6 +14,25 @@ Bucharest.
 
 Status: _barely beginning_
 
+Currently the package is able to:
+
+```julia
+julia> using Argus
+
+julia> using JuliaSyntax
+
+julia> text = "f(x) = 2";
+
+julia> rule = parseall(RuleSyntaxNode, text)
+line:col│ tree                                   │ file_name
+   1:1  │[toplevel]
+   1:1  │  [=]
+   1:1  │    [call]
+   1:1  │      f
+   1:3  │      x
+   1:8  │    2
+```
+
 
 ## Design choices
 
