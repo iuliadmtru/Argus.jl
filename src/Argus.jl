@@ -62,9 +62,7 @@ Rule that searches for code matching its expression.
 struct Pattern <: AbstractRule
     ast::RuleSyntaxNode
 end
-function Pattern(text::String)
-    # TODO
-end
+Pattern(text::String) = Pattern(JuliaSyntax.parsestmt(RuleSyntaxNode, text))
 
 # struct PatternRegex <: AbstractRule
 #     regex::Regex
