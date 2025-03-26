@@ -3,6 +3,8 @@
 
 # TODO: Rename!!!
 struct RuleSyntaxData{SpecialSyntax}
+    # TODO: Keep only one field which can be either a `JuliaSyntax.SyntaxData`
+    #       or some special syntax.
     syntax_data::Union{Nothing, JuliaSyntax.SyntaxData}
     special_syntax::SpecialSyntax
 end

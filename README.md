@@ -21,19 +21,41 @@ julia> using Argus
 
 julia> using JuliaSyntax
 
-julia> text = "f(x) = 2";
-
-julia> rule = parsestmt(RuleSyntaxNode, text)
-line:col│ tree                                   │ file_name
-   1:1  │[=]
-   1:1  │  [call]
-   1:1  │    f
-   1:3  │    x
-   1:8  │  2
-
-julia> p = Pattern(text)
+julia> rule = Pattern("f(x) = 2")
 Pattern((= (call f x) 2))
+
+julia> rule.ast
+line:col│ tree
+   -:-  |[=]
+   -:-  |  [call]
+   -:-  |    f
+   -:-  |    x
+   -:-  |  2
+
+julia> rule = Pattern("f(Metavariable(:X)) = 2")
+Pattern((= (call f M"X") 2))
+
+julia> rule.ast
+line:col│ tree
+   -:-  |[=]
+   -:-  |  [call]
+   -:-  |    f
+   -:-  |    M"X"
+   -:-  |  2
+
+julia> rule = Pattern("a + b")
+Pattern((call-i a + b))
+
+julia> Argus.check(rule, "test/test-file.jl")
+4-element RuleMatches:
+ RuleMatch((call-i a + b), (2, 9))
+ RuleMatch((call-i a + b), (6, 1))
+ RuleMatch((call-i a + b c), (7, 1))
+ RuleMatch((call-i c + a b), (8, 1))  # This should not match.
 ```
+
+The AST comparison mechanism used by `Argus.check` is currently a mock
+implementation (in `src/utils.jl`).
 
 
 ## Design choices
@@ -51,33 +73,32 @@ am more familiar with it than with other similar tools. The basic
 element of a rule should be `Pattern`, which allows matching code
 corresponding to a given expression.
 
-**Current problems:**
+`Pattern` is defined in `src/rule_syntax.jl`. It contains the
+rule-specific AST, `RuleSyntaxNode`, defined in `src/Argus.jl`. This
+AST is built `JuliaSyntax`'s AST interface (i.e. it is a
+`JuliaSyntax.TreeNode{RuleSyntaxData}`). `RuleSyntaxData` is a custom
+syntax data type which can either mimic a regular
+[`JuliaSyntax.SyntaxNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.SyntaxNode)
+by storing data as `JuliaSyntax.SyntaxData`, or it can contain some
+special syntax such as metavariables or ellipsis (inspired from
+Semprep's
+[metavariables](https://semgrep.dev/docs/writing-rules/pattern-syntax#metavariables)
+and [ellipsis
+operator](https://semgrep.dev/docs/writing-rules/pattern-syntax#ellipsis-operator))
 
-- What should `Pattern` look like?  My idea so far is to make use of
-  [`JuliaSyntax`'s AST
-  interface](https://github.com/JuliaLang/JuliaSyntax.jl/blob/main/src/syntax_tree.jl)
-  in order to make AST comparison easier later. (That is, the
-  comparison between the rule's AST and the source code's AST.)
+### AST comparison
 
-- What should a `RuleSyntaxNode` look like? I would like a result similar to this:
-	- `f(x)` -> `(:call f::SyntaxNode x::SyntaxNode)`
-	- `f(...)` -> `(:call f::SyntaxNode ellipsis::SpecialSyntaxNode)`
-	- `f(M"x")` -> `(:call f::SyntaxNode metavar::SpecialSyntaxNode)`
+This is probably the most difficult part of the project. For now I am
+using a mock implementation for testing purposes. I keep adding to
+it/changing it as I go because I need to constantly ask myself what
+design choices to make in order to be able to compare the rules' AST
+to the source code AST.
 
-  The `SyntaxNode`s and `SpecialSyntaxNode`s would actually all be
-  `RuleSyntaxNode`s. I only wrote them this way for clarity. The
-  ellipsis should probably be wrapped around `M""` as well?
+**Current questions/decisions to make:**
 
-**Related questions:**
-
-- What should the node data in `Argus` look like? I'm thinking it should
-  have a
-  [`GreenNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.GreenNode)
-  and a value. (Similar to `JuliaSyntax`'s `SyntaxData`, but without
-  the source and position.)
-
-- If it has a `GreenNode` field, should it parametrized (something
-  like `GreenNode{RuleSyntaxHead}`) or should I keep it as
-  `GreenNode{SyntaxHead}` and add custom
-  [`Kind`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.Kind)s?
-  I am inclined to choose the latter.
+- HOW DO I COMPARE THE ASTS??
+- How should metavariables be represented?
+- How do source code expressions bind to metavariables?
+- How should the ellipsis operator be implemented? Is `JuliaLowering`
+  necessary for implementing it? (This is likely much harder than
+  metavariables so I'll leave it for later.)
