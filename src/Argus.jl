@@ -1,31 +1,22 @@
 module Argus
 
-export RuleSyntaxData, RuleSyntaxNode
-export Pattern, PatternRegex
+export RuleSyntaxData, Metavariable, RuleSyntaxNode
+export Pattern
 export RuleMatch, RuleMatches
 
 using JuliaSyntax
-using JuliaSyntax: haschildren, children, is_trivia
+using JuliaSyntax: haschildren, children, is_trivia, head, kind, source_location
 
-include("utils.jl")
+include("pattern_syntax.jl")
 
 
 #=
     Rule AST interface
 =#
 
-struct RuleSyntaxData <: JuliaSyntax.AbstractSyntaxData
-    data::JuliaSyntax.SyntaxData
-end
-
-function Base.getproperty(data::RuleSyntaxData, name::Symbol)
-    d = getfield(data, :data)
-    return getproperty(d, name)
-end
-
 const RuleSyntaxNode = JuliaSyntax.TreeNode{RuleSyntaxData}
 function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
-    data = RuleSyntaxData(node.data)
+    data = is_metavariable(node) ? RuleSyntaxData(nothing, Metavariable(get_metavar_name(node))) : RuleSyntaxData(node.data, nothing)
 
     if !haschildren(node)
         return RuleSyntaxNode(nothing, nothing, data)
@@ -40,6 +31,19 @@ end
 
 function JuliaSyntax.build_tree(::Type{RuleSyntaxNode}, stream::JuliaSyntax.ParseStream; kws...)
     return RuleSyntaxNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
+end
+
+# This horrible thing is for compatibility with `JuliaSyntax._show_syntax_node`.
+JuliaSyntax.SyntaxNode(node::RuleSyntaxNode) = node.data.syntax_data
+
+function Base.show(io::IO, ::MIME"text/plain", node::RuleSyntaxNode)
+    println(io, "line:col│ tree                                   │ file_name")
+
+    if is_special_syntax(node.data)
+        _show_special_syntax(io, node.data)
+    else
+        JuliaSyntax._show_syntax_node(io, Ref{Union{Nothing,String}}(nothing), JuliaSyntax.SyntaxNode(node), "", false)
+    end
 end
 
 
@@ -76,8 +80,8 @@ Pattern(text::String) = Pattern(JuliaSyntax.parsestmt(RuleSyntaxNode, text))
 
 struct RuleMatch
     # text::String
-    ast::SyntaxNode
-    source_location # Change to byte range? Keep both?
+    ast::JuliaSyntax.SyntaxNode
+    source_location # Change to byte range? Keep both? Is this field necessary? A: It depends on what the `ast` above is.
 end
 RuleMatch(ast::SyntaxNode) = RuleMatch(ast, source_location(ast))
 
@@ -98,6 +102,8 @@ Base.pushfirst!(v::RuleMatches, el::RuleMatch) = RuleMatches(pushfirst!(v.matche
     Checks
 =#
 
+include("utils.jl")
+
 # TODO: Rename.
 function check(rule::Pattern, filename::String)::RuleMatches
     src = read(filename, String)
@@ -107,9 +113,9 @@ function check(rule::Pattern, filename::String)::RuleMatches
     source_ast = parseall(SyntaxNode, src; filename=filename)
 
     # Compare ASTs.
-    # matches = search_ast(rule_ast, source_ast)
+    matches = search_ast(rule_ast, source_ast)
 
-    # return matches
+    return matches
 end
 
 # function check(rule::PatternRegex, filename::String)::RuleMatches
