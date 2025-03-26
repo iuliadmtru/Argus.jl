@@ -39,11 +39,11 @@ end
 
 ## Display.
 
-# TODO: Improve this.
-function _show_special_syntax(io::IO, data::RuleSyntaxData{Metavariable})
+# TODO: Change `posstr` to something useful.
+function _show_special_syntax(io::IO, data::RuleSyntaxData{Metavariable}, indent)
     posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
     val = data.special_syntax.name  # Metavariable name.
-    nodestr = string(val)
+    nodestr = "M\"$val\""
     treestr = string(indent, nodestr)
 
     println(io, posstr, treestr)

@@ -5,7 +5,7 @@ export Pattern
 export RuleMatch, RuleMatches
 
 using JuliaSyntax
-using JuliaSyntax: haschildren, children, is_trivia, head, kind, source_location
+using JuliaSyntax: haschildren, children, is_trivia, head, kind, source_location, untokenize
 
 include("pattern_syntax.jl")
 
@@ -29,21 +29,35 @@ function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
     end
 end
 
+JuliaSyntax.head(node::RuleSyntaxNode) = is_special_syntax(node.data) ? nothing : head(node.data.syntax_data.raw)
+
 function JuliaSyntax.build_tree(::Type{RuleSyntaxNode}, stream::JuliaSyntax.ParseStream; kws...)
     return RuleSyntaxNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
 end
 
-# This horrible thing is for compatibility with `JuliaSyntax._show_syntax_node`.
-JuliaSyntax.SyntaxNode(node::RuleSyntaxNode) = node.data.syntax_data
+function _show_rule_syntax_node(io::IO, node::RuleSyntaxNode, indent)
+    if is_special_syntax(node.data)
+        _show_special_syntax(io, node.data, indent)
+    else
+        # TODO: Change `posstr` to something useful.
+        posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
+        val = node.val
+        nodestr = haschildren(node) ? "[$(untokenize(head(node)))]" :
+            isa(val, Symbol)  ? string(val)                   : repr(val)
+        treestr = string(indent, nodestr)
+        println(io, posstr, treestr)
+        if haschildren(node)
+            new_indent = indent * "  "
+            for c in children(node)
+                _show_rule_syntax_node(io, c, new_indent)
+            end
+        end
+    end
+end
 
 function Base.show(io::IO, ::MIME"text/plain", node::RuleSyntaxNode)
-    println(io, "line:col│ tree                                   │ file_name")
-
-    if is_special_syntax(node.data)
-        _show_special_syntax(io, node.data)
-    else
-        JuliaSyntax._show_syntax_node(io, Ref{Union{Nothing,String}}(nothing), JuliaSyntax.SyntaxNode(node), "", false)
-    end
+    println(io, "line:col│ tree")
+    _show_rule_syntax_node(io, node, "")
 end
 
 
