@@ -98,31 +98,8 @@ function Base.show(io::IO, node::RuleSyntaxNode)
 end
 
 
-#=
-    Rules
-=#
-
 include("rule_syntax.jl")
+include("matching.jl")
 
-
-#=
-    Checks
-=#
-
-include("utils.jl")
-
-# TODO: Rename.
-function check(rule::Pattern, filename::String)::RuleMatches
-    src = read(filename, String)
-
-    # Obtain ASTs.
-    rule_ast = rule.ast
-    source_ast = parseall(SyntaxNode, src; filename=filename)
-
-    # Compare ASTs.
-    matches = search_ast(rule_ast, source_ast)
-
-    return matches
-end
 
 end # Argus
