@@ -5,7 +5,9 @@ export Pattern
 export RuleMatch, RuleMatches
 
 using JuliaSyntax
-using JuliaSyntax: haschildren, children, is_trivia, head, kind, source_location, untokenize
+# TODO: Reorder these, maybe remove some.
+using JuliaSyntax: haschildren, children, is_trivia, head, kind,
+                   source_location, untokenize, is_error
 
 include("pattern_syntax.jl")
 
@@ -30,6 +32,7 @@ function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
 end
 
 JuliaSyntax.head(node::RuleSyntaxNode) = is_special_syntax(node.data) ? nothing : head(node.data.syntax_data.raw)
+JuliaSyntax.kind(node::RuleSyntaxNode) = head(node).kind
 
 function JuliaSyntax.build_tree(::Type{RuleSyntaxNode}, stream::JuliaSyntax.ParseStream; kws...)
     return RuleSyntaxNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
@@ -55,9 +58,41 @@ function _show_rule_syntax_node(io::IO, node::RuleSyntaxNode, indent)
     end
 end
 
+function _show_rule_syntax_node_sexpr(io, node::RuleSyntaxNode)
+    if is_special_syntax(node.data)
+        _show_special_syntax_sexpr(io, node.data)
+    else
+        if !haschildren(node)
+            if is_error(node)
+                print(io, "(", untokenize(head(node)), ")")
+            else
+                val = node.val
+                print(io, val isa Symbol ? string(val) : repr(val))
+            end
+        else
+            print(io, "(", untokenize(head(node)))
+            first = true
+            for n in children(node)
+                print(io, ' ')
+                _show_rule_syntax_node_sexpr(io, n)
+                first = false
+            end
+            print(io, ')')
+        end
+    end
+end
+
 function Base.show(io::IO, ::MIME"text/plain", node::RuleSyntaxNode)
     println(io, "line:col│ tree")
     _show_rule_syntax_node(io, node, "")
+end
+
+function Base.show(io::IO, ::MIME"text/x.sexpression", node::RuleSyntaxNode)
+    _show_rule_syntax_node_sexpr(io, node)
+end
+
+function Base.show(io::IO, node::RuleSyntaxNode)
+    _show_rule_syntax_node_sexpr(io, node)
 end
 
 

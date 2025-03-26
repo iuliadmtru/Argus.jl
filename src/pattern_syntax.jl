@@ -49,3 +49,7 @@ function _show_special_syntax(io::IO, data::RuleSyntaxData{Metavariable}, indent
     println(io, posstr, treestr)
 end
 
+function _show_special_syntax_sexpr(io::IO, data::RuleSyntaxData{Metavariable})
+    print(io, "M\"$(data.special_syntax.name)\"")
+end
+
