@@ -16,6 +16,7 @@ include("pattern_syntax.jl")
     Rule AST interface
 =#
 
+# TODO: Rename to `SyntaxTemplate`?
 const RuleSyntaxNode = JuliaSyntax.TreeNode{RuleSyntaxData}
 function RuleSyntaxNode(node::JuliaSyntax.SyntaxNode)
     data = is_metavariable(node) ? RuleSyntaxData(nothing, Metavariable(get_metavar_name(node))) : RuleSyntaxData(node.data, nothing)

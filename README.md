@@ -179,6 +179,22 @@ to the source code AST.
   metavariables so I'll leave it for later.)
 
 
+## Future ideas
+
+- Instead of using ellipsis as a match-all operator like Semgrep does,
+  I'd like to use it as a repeater of homogeneous syntax ("Kleene
+  star") like Racket does. Ellipsis nesting is also interesting.
+- It would be cool to make this tool highly configurable. For example,
+  let metavariables match any kind of syntactic behaviour. (They
+  currently match for `n -> is_valid_identifier(n)` but why not let
+  them match for any predicate that checks a property for a syntax
+  node?)
+- I really like Racket's [pattern based
+  macros](https://docs.racket-lang.org/guide/pattern-macros.html),
+  maybe this tool can go more towards that? Rules can be seen as
+  templates which should match source code.
+
+
 ## Inspiration
 
 (In random order.)
