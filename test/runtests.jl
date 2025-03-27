@@ -1,11 +1,5 @@
 using Test
 using Argus
+using JuliaSyntax
 
-@testset "Pattern" begin
-    src = """
-function f(a, b)
-    y = a + b
-    return y
-end
-"""
-end
+include("pattern_syntax.jl")

@@ -6,6 +6,7 @@ struct RuleMatch
     # text::String
     ast::JuliaSyntax.SyntaxNode
     source_location # Change to byte range? Keep both? Is this field necessary? A: It depends on what the `ast` above is.
+    # TODO: Add metavariables here.
 end
 RuleMatch(ast::SyntaxNode) = RuleMatch(ast, source_location(ast))
 
