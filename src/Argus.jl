@@ -65,6 +65,8 @@ function _show_rule_syntax_node(io::IO, node::RuleSyntaxNode, indent)
         nodestr = haschildren(node) ? "[$(untokenize(head(node)))]" :
             isa(val, Symbol)  ? string(val)                   : repr(val)
         treestr = string(indent, nodestr)
+        # No metadata
+        treestr = string(rpad(treestr, 40), "|")
         println(io, posstr, treestr)
         if haschildren(node)
             new_indent = indent * "  "
@@ -100,7 +102,7 @@ function _show_rule_syntax_node_sexpr(io, node::RuleSyntaxNode)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", node::RuleSyntaxNode)
-    println(io, "line:col│ tree")
+    println(io, "line:col│ tree                                   │ metadata")
     _show_rule_syntax_node(io, node, "")
 end
 

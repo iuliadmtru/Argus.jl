@@ -48,6 +48,10 @@ function _show_special_syntax(io::IO, data::RuleSyntaxData{Metavariable}, indent
     val = data.special_syntax.name  # Metavariable name.
     nodestr = "M\"$val\""
     treestr = string(indent, nodestr)
+    binding = data.special_syntax.binding
+    binding_val_str = isnothing(binding)       ? "nothing"           :
+                      isa(binding.val, Symbol) ? string(binding.val) : repr(binding.val)
+    treestr = string(rpad(treestr, 40), "| $binding_val_str")
 
     println(io, posstr, treestr)
 end
