@@ -16,44 +16,103 @@ Status: _barely beginning_. Working on metavariables.
 
 Currently the package is able to:
 
+- **Create a rule based on a `Pattern`;**
+
 ```julia
 julia> using Argus
 
 julia> using JuliaSyntax
 
-julia> rule = Pattern("f(x) = 2")
+julia> simple_rule = Pattern("f(x) = 2")
 Pattern((= (call f x) 2))
 
-julia> rule.ast
-line:col│ tree
-   -:-  |[=]
-   -:-  |  [call]
-   -:-  |    f
-   -:-  |    x
-   -:-  |  2
+julia> simple_rule.ast
+line:col│ tree                                   │ metadata
+   -:-  |[=]                                     |
+   -:-  |  [call]                                |
+   -:-  |    f                                   |
+   -:-  |    x                                   |
+   -:-  |  2                                     |
+```
 
-julia> rule = Pattern("f(Metavariable(:X)) = 2 + Metavariable(:Y)")
+_Note_: You need to load `JuliaSyntax` as well.
+
+- **Create patterns that contain metavariables that bind to the match;**
+
+_Note_: This is the intended behaviour, but not completely
+implemented. I am currently working on attaching `Metavariable`s to
+each match.
+
+```julia
+julia> two_metavar_rule = Pattern("f(Metavariable(:X)) = 2 + Metavariable(:Y)")
 Pattern((= (call f M"X") (call-i 2 + M"Y")))
 
-julia> rule.ast
-line:col│ tree
-   -:-  |[=]
-   -:-  |  [call]
-   -:-  |    f
-   -:-  |    M"X"
-   -:-  |  [call-i]
-   -:-  |    2
-   -:-  |    +
-   -:-  |    M"Y"
+julia> two_metavar_rule.ast
+line:col│ tree                                   │ metadata
+   -:-  |[=]                                     |
+   -:-  |  [call]                                |
+   -:-  |    f                                   |
+   -:-  |    M"X"                                | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    2                                   |
+   -:-  |    +                                   |
+   -:-  |    M"Y"                                | nothing
+```
 
+- **Search for rule matches inside a source AST;**
 
-julia> Argus.check!(rule, "test/test-file.jl")
+_Note_: Special behaviour is implemented for `Pattern`s with
+`Metavariable`s. Both the special implementation and the regular
+implementation are very rudimentary.
+
+```julia
+julia> src = """
+       function f(a, b)
+           y = a + b
+           return y
+       end
+
+       a = 2
+       b = 3
+       f(a + b, b)
+
+       let x = 2, y = 3
+           z = x + b
+           a = 1
+           b = 2
+           b + a
+       end
+       """;
+
+julia> src_ast = parseall(JuliaSyntax.SyntaxNode, src);
+
+julia> single_metavar_rule = Pattern("Metavariable(:A) + b")
+Pattern((call-i M"A" + b))
+
+julia> Argus.search_ast!(single_metavar_rule.ast, src_ast)
+3-element RuleMatches:
+ RuleMatch((call-i a + b), (2, 9))
+ RuleMatch((call-i a + b), (8, 3))
+ RuleMatch((call-i x + b), (11, 9))
+
+julia> single_metavar_rule.ast
+line:col│ tree                                   │ metadata
+   -:-  |[call-i]                                |
+   -:-  |  M"A"                                  | b
+   -:-  |  +                                     |
+   -:-  |  b                                     |
+```
+
+_Note_: Notice the wrong binding for the metavariable. I am currently
+working on fixing it. This info should not be here anyway.
+
+- **Run a rule against a file to get `RuleMatches`.**
+
+```julia
+julia> Argus.check!(two_metavar_rule, "test/test-file.jl")
 1-element RuleMatches:
  RuleMatch((= (call f x) (call-i 2 + x)), (11, 1))
 ```
-
-The AST comparison mechanism used by `Argus.check!` is currently a mock
-implementation (in `src/utils.jl`).
 
 
 ## Design choices
@@ -89,10 +148,18 @@ There should be a different, custom representation for
 
 ### Patterns
 
+#### Special syntax
+
+The goal is to permit special syntax for non-trivial matching
+(e.g. match a function call with an arbitrary number of arguments). As
+a start, I would like to have some rudimentary implementation of
+metavariables and ellipsis.
+
 #### Metavariables
 
-Metavariables currently only bind to whatever
-`JuliaSyntax.is_valid_identifier` returns `true` for.
+Metavariables currently only (should) bind to whatever
+`JuliaSyntax.is_valid_identifier` returns `true` for. This is NOT
+working yet.
 
 ### AST comparison
 
@@ -110,3 +177,18 @@ to the source code AST.
 - How should the ellipsis operator be implemented? Is `JuliaLowering`
   necessary for implementing it? (This is likely much harder than
   metavariables so I'll leave it for later.)
+
+
+## Inspiration
+
+(In random order.)
+
+- [Semgrep](https://semgrep.dev/docs/writing-rules/overview) as a
+  generic tool.
+- [Resyntax](https://docs.racket-lang.org/resyntax/index.html) for
+  Racket.
+- [Clippy](https://doc.rust-lang.org/clippy/) for Rust.
+- [Fortifying
+  macros](https://www2.ccs.neu.edu/racket/pubs/c-jfp12.pdf), a 2012
+  paper by Ryan Culpepper on Racket's macro system. (Thank you
+  [@AndreiDuma](https://github.com/AndreiDuma)!!!)
