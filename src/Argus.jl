@@ -53,6 +53,26 @@ function has_special_syntax(node::RuleSyntaxNode)
     # No child has special syntax.
     return false
 end
+function all_special_syntax(node::RuleSyntaxNode)
+    special_syntax_v = []
+    if is_special_syntax(node.data)
+        push!(special_syntax_v, copy(node.data.special_syntax))
+    else
+        for c in children(node)
+            if is_special_syntax(c.data)
+                push!(special_syntax_v, copy(c.data.special_syntax))
+            end
+        end
+    end
+
+    return special_syntax_v
+end
+function clean_up_special_syntax!(node::RuleSyntaxNode)
+    clean_up_special_syntax!(node.data)
+    for c in children(node)
+        clean_up_special_syntax!(c)
+    end
+end
 
 ## Display.
 

@@ -13,7 +13,7 @@
     match = matches[1]
     @test kind(match.ast) == K"call"
     @test length(match.ast.children) == 3
-    @test match.source_location == (2, 9)
+    @test source_location(match) == (2, 9)
 
 
     # Simple expression, multiple matches.
@@ -38,9 +38,9 @@
     rule = Pattern("a + b")
     matches = Argus.search_ast!(rule.ast, src_ast)
     @test length(matches) == 3
-    @test matches[1].source_location == (2, 9)
-    @test matches[2].source_location == (8, 3)
-    @test matches[3].source_location == (14, 5)
+    @test source_location(matches[1]) == (2, 9)
+    @test source_location(matches[2]) == (8, 3)
+    @test source_location(matches[3]) == (14, 5)
 
     src = """
     function f(a, b)
@@ -65,13 +65,13 @@
     rule = Pattern("a = 2")
     matches = Argus.search_ast!(rule.ast, src_ast)
     @test length(matches) == 2
-    @test matches[1].source_location == (6, 1)
-    @test matches[2].source_location == (16, 10)
+    @test source_location(matches[1]) == (6, 1)
+    @test source_location(matches[2]) == (16, 10)
 end
 
 @testset "Special syntax" begin
     @testset "Metavariable" begin
-        # Simple expression, single match.
+        # Single metavariable, single match.
         src = """
         function f(a, b)
             y = a + b
@@ -80,18 +80,19 @@ end
         """
         src_ast = parsestmt(JuliaSyntax.SyntaxNode, src)
         rule = Pattern("Metavariable(:A) + b")
-        metavar = rule.ast.children[1].data.special_syntax
-        @test isnothing(metavar.binding)
+        rule_metavar = rule.ast.children[1].data.special_syntax
+        @test isnothing(rule_metavar.binding)
         matches = Argus.search_ast!(rule.ast, src_ast)
         @test length(matches) == 1
         match = matches[1]
-        @test match.source_location == (2, 9)
-        @test metavar.name === :A
-        @test !isnothing(metavar.binding)
+        @test source_location(match) == (2, 9)
+        @test !isnothing(match.metavariables)
+        @test length(match.metavariables) == 1
+        metavar = match.metavariables[1]
         @test metavar.binding.val === :a
         @test metavar.binding.position == ncodeunits("function f(a, b)\n    y = ") + 1
         
-        # Simple expression, multiple matches.
+        # Single metavariable, multiple matches.
         src = """
         function f(a, b)
             y = a + b
@@ -111,14 +112,20 @@ end
         """
         src_ast = parseall(JuliaSyntax.SyntaxNode, src)
         rule = Pattern("Metavariable(:A) + b")
-        metavar = rule.ast.children[1].data.special_syntax
-        @test isnothing(metavar.binding)
         matches = Argus.search_ast!(rule.ast, src_ast)
+        # Check for three matches with one metavariable each.
         @test length(matches) == 3
-        @test matches[1].source_location == (2, 9)
-        @test matches[2].source_location == (8, 3)
-        @test matches[3].source_location == (11, 9)
-        # TODO.
+        @test !any(m -> isnothing(m.metavariables), matches)
+        @test !any(m -> length(m.metavariables) != 1, matches)
+        # Check each match.
+        @test source_location(matches[1]) == (2, 9)
+        metavar1 = matches[1].metavariables[1]
+        @test metavar1.binding.val === :a
+        @test source_location(matches[2]) == (8, 3)
+        metavar2 = matches[2].metavariables[1]
+        @test metavar2.binding.val === :a
+        @test source_location(matches[3]) == (11, 9)
+        metavar3 = matches[3].metavariables[1]
+        @test metavar3.binding.val === :x
     end
 end
-

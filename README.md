@@ -91,28 +91,21 @@ Pattern((call-i M"A" + b))
 
 julia> Argus.search_ast!(single_metavar_rule.ast, src_ast)
 3-element RuleMatches:
- RuleMatch((call-i a + b), (2, 9))
- RuleMatch((call-i a + b), (8, 3))
- RuleMatch((call-i x + b), (11, 9))
-
-julia> single_metavar_rule.ast
-line:col│ tree                                   │ metadata
-   -:-  |[call-i]                                |
-   -:-  |  M"A"                                  | b
-   -:-  |  +                                     |
-   -:-  |  b                                     |
+ RuleMatch((call-i a + b), Metavariable[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 26, :a))])
+ RuleMatch((call-i a + b), Metavariable[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 64, :a))])
+ RuleMatch((call-i x + b), Metavariable[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 100, :x))])
 ```
-
-_Note_: Notice the wrong binding for the metavariable. I am currently
-working on fixing it. This info should not be here anyway.
 
 - **Run a rule against a file to get `RuleMatches`.**
 
 ```julia
 julia> Argus.check!(two_metavar_rule, "test/test-file.jl")
 1-element RuleMatches:
- RuleMatch((= (call f x) (call-i 2 + x)), (11, 1))
+ RuleMatch((= (call f x) (call-i 2 + x)), Metavariable[])
 ```
+
+_Note_: I don't know why there is no metavariable info here. I'm still
+working on metavariables.
 
 
 ## Design choices

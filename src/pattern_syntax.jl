@@ -1,6 +1,3 @@
-# TODO: Rename.
-# abstract type SpecialSyntax end
-
 # TODO: Rename!!!
 struct RuleSyntaxData{SpecialSyntax}
     # TODO: Keep only one field which can be either a `JuliaSyntax.SyntaxData`
@@ -10,6 +7,7 @@ struct RuleSyntaxData{SpecialSyntax}
 end
 
 is_special_syntax(data::RuleSyntaxData) = !isnothing(data.special_syntax)
+clean_up_special_syntax!(data::RuleSyntaxData{Nothing}) = nothing
 
 function Base.getproperty(data::RuleSyntaxData, name::Symbol)
     name === :special_syntax && return getfield(data, :special_syntax)
@@ -25,10 +23,27 @@ end
 
 mutable struct Metavariable
     name::Symbol
-    # Should this be bound to something else?
+    # Should this be bound to something else? Only value and position
+    # are necessary.
     binding::Union{Nothing, JuliaSyntax.SyntaxData}
 end
 Metavariable(name::Symbol) = Metavariable(name, nothing)
+
+# TODO: `has_binding`
+
+function set_binding!(m::Metavariable, b::JuliaSyntax.SyntaxData)
+    # There is no binding yet.
+    if isnothing(m.binding)
+        m.binding = b
+        return true
+    end
+    # The metavariable is already bound to the same value; do nothing.
+    m.binding.val == b.val && return true
+    # The metavariable is bound to a different value; no match.
+    return false
+end
+remove_binding!(m::Metavariable) = m.binding = nothing
+clean_up_special_syntax!(data::RuleSyntaxData{Metavariable}) = remove_binding!(data.special_syntax)
 
 function is_metavariable(node::JuliaSyntax.SyntaxNode)
     return kind(node) == K"call" && node.children[1].data.val == :Metavariable
@@ -39,6 +54,8 @@ function get_metavar_name(node::JuliaSyntax.SyntaxNode)
 
     return node.children[2].children[1].data.val
 end
+
+Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
 
 ## Display.
 
