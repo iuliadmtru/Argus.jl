@@ -1,9 +1,60 @@
 # Argus.jl
 
-This package aims to be a static analysis tool for Julia. It is
-inspired by [Semgrep](https://github.com/semgrep/semgrep),
+This package aims to be a static analysis tool for Julia. It takes
+inspiration from [Semgrep](https://github.com/semgrep/semgrep),
 [Clippy](https://github.com/rust-lang/rust-clippy) and
 [Resyntax](https://docs.racket-lang.org/resyntax/).
+
+
+## Ideal result
+
+I would like the user to be able to write syntax very similar to
+actual Julia syntax.
+
+~~~julia
+@syntax_template ```
+	function %F(%X, %Y::Int)
+		%_...
+	end
+```
+~~~
+
+`@syntax_template` should create a kind of `SyntaxNode` that can have
+"holes". These "holes" are pieces of syntax that can be "filled" by
+actual Julia syntax that matches the template. Something like
+```julia
+function my_func(arg1, arg2::Int)
+	println(arg1)
+	arg2 + 1
+end
+```
+should match the above template and should bind `my_func` to the
+metavariable `%F`, `arg1` to `%X`, `arg2` to `%Y` and the expressions
+in the function body to the anonymous metavariable `%_` (which would
+actually discard the binding).
+
+The result should be a first-class object wich can later be used in
+other templates.
+
+~~~julia
+func_template = @syntax_template ```
+	function %F(%X, %Y::Int)
+		%_...
+	end
+```
+
+func_with_docs_template(t::SyntaxTemplate) = @syntax_template ```
+	"""%_..."""
+	t
+```
+~~~
+
+Rules should be created using templates.
+
+```julia
+simple_rule = Pattern(func_template)
+either_rule = PatternEither(func_template, func_with_docs_template(func_template))
+```
 
 
 ## Status
@@ -106,6 +157,10 @@ julia> Argus.check!(two_metavar_rule, "test/test-file.jl")
 
 _Note_: I don't know why there is no metavariable info here. I'm still
 working on metavariables.
+
+_Note_: All of this was built before getting the ideas written in the
+[Ideal result](#ideal-result) section. I will probably change
+everything.
 
 
 ## Design choices
