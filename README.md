@@ -1,6 +1,4 @@
-<a href='https://coveralls.io/github/iuliadmtru/Argus.jl?branch=main'><img src='https://coveralls.io/repos/github/iuliadmtru/Argus.jl/badge.svg?branch=main' alt='Coverage Status'/></a>
-
-[![bundle size](https://codecov.io/github/iuliadmtru/Argus.jl/graph/bundle/codecov-badge/badge.svg)](https://app.codecov.io/github/iuliadmtru/Argus.jl/bundles/main/codecov-badge)
+[![codecov](https://codecov.io/gh/iuliadmtru/Argus.jl/graph/badge.svg?token=Z79DY1TSL4)](https://codecov.io/gh/iuliadmtru/Argus.jl)
 
 # Argus.jl
 
