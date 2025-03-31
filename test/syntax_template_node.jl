@@ -1,5 +1,3 @@
-using JuliaSyntax: children
-
 @testset "SyntaxTemplateNode" begin
 
     @testset "Without placeholders" begin
