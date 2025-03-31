@@ -37,14 +37,14 @@ if the placeholder had already been filled. Return `true` otherwise.
 function placeholder_fill!(p::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode) end
 
 """
-    unbind_placeholder!(p::AbstractSyntaxPlaceholder)
+    placeholder_unbind!(p::AbstractSyntaxPlaceholder)
 
-Remove binding from the given placeholder.
+Remove binding from the given placeholder, if any. Return the placeholder.
 """
 function placeholder_unbind!(p::AbstractSyntaxPlaceholder) end
 
 # No placeholder for regular `SyntaxData`.
-placeholder_unbind!(p::JuliaSyntax.SyntaxData) = nothing
+placeholder_unbind!(p::JuliaSyntax.SyntaxData) = p
 
 ## ------------------------------------------------------------------
 
@@ -66,7 +66,10 @@ function set_binding!(m::Metavariable, b::JuliaSyntax.SyntaxData)
     m.binding = b
     return true
 end
-remove_binding!(m::Metavariable) = m.binding = nothing
+function remove_binding!(m::Metavariable)
+    m.binding = nothing
+    return m
+end
 
 ## Wrappers for supertype compatibility.
 
