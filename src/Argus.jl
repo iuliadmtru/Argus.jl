@@ -13,6 +13,7 @@ export SyntaxMatch, SyntaxMatches
 export is_placeholder, placeholder, contains_placeholders, placeholders,
     placeholder_fill!, placeholder_unbind!,
     has_binding, set_binding!
+export pattern_match!
 
 ## -------------------------------------------
 
@@ -58,7 +59,8 @@ function Base.getproperty(node::SyntaxTemplateNode, name::Symbol)
     name === :parent && return getfield(node, :parent)
     name === :children && return getfield(node, :children)
     d = getfield(node, :data)
-    name === :data && return getfield(d, :data)  # Don't like this; internals of `SyntaxTemplateData` are spilled.
+    # Don't like this; internals of `SyntaxTemplateData` are spilled.
+    name === :data && return getfield(d, :data)
     return getproperty(d, name)
 end
 
