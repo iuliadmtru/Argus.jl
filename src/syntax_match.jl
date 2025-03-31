@@ -25,6 +25,11 @@ end
 
 ## -------------------------------------------
 
+"""
+    SyntaxMatches <: AbstractVector{SyntaxMatch}
+
+Vector of `SyntaxMatch`es.
+"""
 struct SyntaxMatches <: AbstractVector{SyntaxMatch}
     matches::AbstractVector{SyntaxMatch}
 end
