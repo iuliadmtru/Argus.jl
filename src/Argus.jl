@@ -11,9 +11,10 @@ export SyntaxMatch, SyntaxMatches
 
 ## Utils
 export is_placeholder, placeholder, contains_placeholders, placeholders,
-    placeholder_fill!, placeholder_unbind!,
+    placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
     has_binding, set_binding!
 export pattern_match!
+export template_compare!, template_match!
 
 ## -------------------------------------------
 
@@ -52,6 +53,24 @@ JuliaSyntax.kind(node::SyntaxTemplateNode) = head(node).kind
 
 JuliaSyntax.build_tree(::Type{SyntaxTemplateNode}, stream::JuliaSyntax.ParseStream; kws...) =
     SyntaxTemplateNode(JuliaSyntax.build_tree(SyntaxNode, stream; kws...))
+
+function JuliaSyntax.source_location(node::SyntaxTemplateNode)
+    if is_placeholder(node)
+        # TODO: Treat other placeholders.
+        # The node contains a `Metavariable`.
+        if (has_binding(node.data))
+            source_file = node.data.binding.source
+            byte_idx = node.data.binding.position
+            return JuliaSyntax.source_location(source_file, byte_idx)
+        else
+            return (0, 0)
+        end
+    end
+    # The node contains regular `SyntaxData`.
+    source_file = node.data.source
+    byte_idx = node.data.position
+    return JuliaSyntax.source_location(source_file, byte_idx)
+end
 
 ## `Base` overwrites.
 
@@ -195,7 +214,7 @@ end
 
 include("syntax_pattern.jl")
 include("syntax_match.jl")
-include("template_compare.jl")
+include("template_match.jl")
 
 ## -----------------------------------------------------------------------------------------
 
