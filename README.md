@@ -1,3 +1,7 @@
+<a href='https://coveralls.io/github/iuliadmtru/Argus.jl?branch=main'><img src='https://coveralls.io/repos/github/iuliadmtru/Argus.jl/badge.svg?branch=main' alt='Coverage Status'/></a>
+
+[![bundle size](https://codecov.io/github/iuliadmtru/Argus.jl/graph/bundle/codecov-badge/badge.svg)](https://app.codecov.io/github/iuliadmtru/Argus.jl/bundles/main/codecov-badge)
+
 # Argus.jl
 
 This package aims to be a static analysis tool for Julia. It takes
