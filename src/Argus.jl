@@ -2,6 +2,7 @@ module Argus
 
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
+export placeholder_fill!, placeholder_unbind!, has_binding, set_binding!
 export Pattern
 export SyntaxMatch, SyntaxMatches
 
@@ -101,14 +102,14 @@ function contains_placeholder(node::SyntaxTemplateNode)
 end
 
 """
-    unbind_placeholders!(node::SyntaxTemplateNode)
+    placeholders_unbind!(node::SyntaxTemplateNode)
 
 Remove bindings from all placeholders within `node` and its children.
 """
-function unbind_placeholders!(node::SyntaxTemplateNode)
-    unbind_placeholder!(node.data)
+function placeholders_unbind!(node::SyntaxTemplateNode)
+    placeholder_unbind!(node.data)
     for c in children(node)
-        unbind_placeholders!(c)
+        placeholders_unbind!(c)
     end
 end
 
