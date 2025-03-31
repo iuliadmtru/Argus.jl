@@ -18,16 +18,13 @@ jobs:
       - name: Setup julia
         uses: julia-actions/setup-julia@v1
 
-      - name: Cache
-        uses: julia-actions/cache@v1
-
       - name: Test
         uses: julia-actions/julia-runtest@v1
 
       - name: Code Coverage Report
         uses: julia-actions/julia-processcoverage@v1
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload Coverage Reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
