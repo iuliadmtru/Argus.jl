@@ -9,7 +9,7 @@
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
         pattern = Pattern("a + b")
-        template = pattern.templ
+        template = pattern.template
         @test !contains_placeholders(template)
         @test !template_compare!(template, syntax_node)
         @test !template_compare!(template, children(syntax_node)[1])
@@ -26,7 +26,7 @@
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
         pattern = Pattern("Metavariable(:A) + Metavariable(:B)")
-        template = pattern.templ
+        template = pattern.template
         @test contains_placeholders(template)
         @test !template_compare!(template, syntax_node)
         @test !template_compare!(template, children(syntax_node)[1])
@@ -64,7 +64,7 @@ end
         """
         syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
         pattern = Pattern("a + b")
-        template = pattern.templ
+        template = pattern.template
         @test !contains_placeholders(template)
         matches = template_match!(template, syntax_node)
         @test length(matches) == 1
@@ -95,7 +95,7 @@ end
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
         pattern = Pattern("a + b")
-        matches = template_match!(pattern.templ, syntax_node)
+        matches = template_match!(pattern.template, syntax_node)
         @test length(matches) == 3
         @test source_location(matches[1]) == (2, 9)
         @test source_location(matches[2]) == (8, 3)
@@ -122,7 +122,7 @@ end
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
         pattern = Pattern("a = 2")
-        matches = template_match!(pattern.templ, syntax_node)
+        matches = template_match!(pattern.template, syntax_node)
         @test length(matches) == 2
         @test source_location(matches[1]) == (6, 1)
         @test source_location(matches[2]) == (16, 10)
@@ -141,7 +141,7 @@ end
             """
             syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
             pattern = Pattern("Metavariable(:A) + b")
-            template = pattern.templ
+            template = pattern.template
             metavar = children(template)[1].data
             @test !has_binding(metavar)
             matches = template_match!(template, syntax_node)
@@ -177,7 +177,7 @@ end
             """
             syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
             pattern = Pattern("Metavariable(:A) + b")
-            template = pattern.templ
+            template = pattern.template
             matches = template_match!(template, syntax_node)
             # Check for three matches with one metavariable each.
             @test length(matches) == 3

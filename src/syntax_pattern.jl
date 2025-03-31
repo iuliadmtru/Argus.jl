@@ -30,17 +30,17 @@ function pattern_match!(p::AbstractSyntaxPattern, file::AbstractString)::SyntaxM
 Basic pattern that searches for code matching its expression.
 """
 struct Pattern <: AbstractSyntaxPattern
-    templ::SyntaxTemplateNode
+    template::SyntaxTemplateNode
 end
 # TODO: Remove qualifier from `parsestmt`?
 Pattern(text::String) = Pattern(JuliaSyntax.parsestmt(SyntaxTemplateNode, text))
 
 pattern_match!(pattern::Pattern, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
-    template_match!(pattern.templ, src)
+    template_match!(pattern.template, src)
 
 function pattern_match!(pattern::Pattern, src_file::AbstractString)::SyntaxMatches
     src_txt = read(src_file, String)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
 
-    return pattern_match!(pattern.templ, src)
+    return pattern_match!(pattern.template, src)
 end
