@@ -28,6 +28,24 @@ Supertype for syntax placeholders.
 """
 abstract type AbstractSyntaxPlaceholder end
 
+"""
+    placeholder_fill(placeholder::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode)
+
+Fill the placeholder with the data contained within `ast`. Return `false`
+if the placeholder had already been filled. Return `true` otherwise.
+"""
+function placeholder_fill(p::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode) end
+
+"""
+    unbind_placeholder!(p::AbstractSyntaxPlaceholder)
+
+Remove binding from the given placeholder.
+"""
+function unbind_placeholder!(p::AbstractSyntaxPlaceholder) end
+
+# No placeholder for regular `SyntaxData`.
+unbind_placeholder!(p::JuliaSyntax.SyntaxData) = nothing
+
 ## ------------------------------------------------------------------
 
 """
@@ -45,17 +63,15 @@ Metavariable(name::Symbol) = Metavariable(name, nothing)
 has_binding(m::Metavariable) = !isnothing(m.binding)
 function set_binding!(m::Metavariable, b::JuliaSyntax.SyntaxData)
     !isnothing(m.binding) && return false
-    m.binding = ast.data && return true
+    m.binding = b
+    return true
 end
 remove_binding!(m::Metavariable) = m.binding = nothing
 
-"""
-    placeholder_fill(placeholder, ast::JuliaSyntax.SyntaxNode)
+## Wrappers for supertype compatibility.
 
-Fill the placeholder with the data contained within `ast`. Return `false`
-if the placeholder had already been filled. Return `true` otherwise.
-"""
 placeholder_fill!(m::Metavariable, ast::JuliaSyntax.SyntaxNode) = set_binding!(m, ast.data)
+unbind_placeholder!(m::Metavariable) = remove_binding!(m)
 
 ## `Base` overwrites.
 
@@ -75,7 +91,7 @@ function _is_metavariable(node::JuliaSyntax.SyntaxNode)
     return kind(node) == K"call" && node.children[1].data.val == :Metavariable
 end
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
-    !is_metavariable(node) &&
+    !_is_metavariable(node) &&
         @error "Trying to get metavariable name from non-Metavariable node"
     return node.children[2].children[1].data.val
 end
@@ -84,13 +100,14 @@ end
 
 ## Display.
 
+# TODO: Rename "special syntax".
 # TODO: Change `posstr` to something useful.
-function _show_special_syntax(io::IO, data::SyntaxTemplateData{Metavariable}, indent)
+function _show_special_syntax(io::IO, m::Metavariable, indent)
     posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
-    val = data.name  # Metavariable name.
+    val = m.name  # Metavariable name.
     nodestr = "M\"$val\""
     treestr = string(indent, nodestr)
-    binding = data.binding
+    binding = m.binding
     binding_val_str = isnothing(binding)       ? "nothing"           :
                       isa(binding.val, Symbol) ? string(binding.val) : repr(binding.val)
     treestr = string(rpad(treestr, 40), "| $binding_val_str")
@@ -98,8 +115,9 @@ function _show_special_syntax(io::IO, data::SyntaxTemplateData{Metavariable}, in
     println(io, posstr, treestr)
 end
 
-function _show_special_syntax_sexpr(io::IO, data::SyntaxTemplateData{Metavariable})
-    print(io, "M\"$(data.name)\"")
+# TODO: Rename "special syntax".
+function _show_special_syntax_sexpr(io::IO, m::Metavariable)
+    print(io, "M\"$(m.name)\"")
 end
 
 ## ------------------------------------------------------------------

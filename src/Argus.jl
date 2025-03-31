@@ -2,7 +2,7 @@ module Argus
 
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
-export SyntaxPattern
+export Pattern
 export SyntaxMatch, SyntaxMatches
 
 using JuliaSyntax
@@ -24,9 +24,9 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
     if !haschildren(node)
         return SyntaxTemplateNode(nothing, nothing, data)
     else
-        children = [SyntaxTemplateNode(c) for c in children(node)]
-        templ_node = SyntaxTemplateNode(nothing, children, data)
-        [c.parent = templ_node for c in children]
+        cs = [SyntaxTemplateNode(c) for c in children(node)]
+        templ_node = SyntaxTemplateNode(nothing, cs, data)
+        [c.parent = templ_node for c in cs]
 
         return templ_node
     end
@@ -36,7 +36,7 @@ end
 
 # TODO: Add `head` for placeholders.
 JuliaSyntax.head(node::SyntaxTemplateNode) =
-    is_placeholder(node.data) ? nothing : head(node.data.raw)
+    is_placeholder(node) ? nothing : head(node.data.raw)
 JuliaSyntax.kind(node::SyntaxTemplateNode) = head(node).kind
 
 JuliaSyntax.build_tree(::Type{SyntaxTemplateNode}, stream::JuliaSyntax.ParseStream; kws...) =
@@ -56,8 +56,39 @@ end
 
 ## Utils.
 
+"""
+    placeholders(templ::SyntaxTemplateNode)
+
+Return an array with copies of all the placeholders contained within the template.
+"""
+function placeholders(templ::SyntaxTemplateNode)
+    ps = AbstractSyntaxPlaceholder[]
+    if is_placeholder(templ)
+        push!(ps, copy(templ.data))
+    else
+        for c in children(templ)
+            append!(ps, placeholders(c))
+        end
+    end
+
+    return ps
+end
+
 is_placeholder(node::SyntaxTemplateNode) = isa(node.data, AbstractSyntaxPlaceholder)
 
+"""
+    placeholder(node::SyntaxTemplateNode)
+
+If the template node has placeholder data, return the placeholder. Else, return `nothing`.
+"""
+placeholder(node::SyntaxTemplateNode) = is_placeholder(node) ? node.data : nothing
+
+"""
+    contains_placeholder(node::SyntaxTemplateNode)
+
+Return `true` if the node or its children contain one or more placeholders. Return `false`
+otherwise.
+"""
 function contains_placeholder(node::SyntaxTemplateNode)
     is_placeholder(node) && return true
     # If it is not a special sytax node and it has no children then
@@ -69,13 +100,25 @@ function contains_placeholder(node::SyntaxTemplateNode)
     return false
 end
 
+"""
+    unbind_placeholders!(node::SyntaxTemplateNode)
+
+Remove bindings from all placeholders within `node` and its children.
+"""
+function unbind_placeholders!(node::SyntaxTemplateNode)
+    unbind_placeholder!(node.data)
+    for c in children(node)
+        unbind_placeholders!(c)
+    end
+end
+
 ## -------------------------------------------
 
 ## Display.
 
 # TODO: Improve these. For now, they are basically copy-pasted from `JuliaSyntax`.
 
-function _show_syntax_template_node(io::IO, node:SyntaxTemplateNode, indent)
+function _show_syntax_template_node(io::IO, node::SyntaxTemplateNode, indent)
     if is_placeholder(node)
         _show_special_syntax(io, node.data, indent)
     else
@@ -98,7 +141,7 @@ function _show_syntax_template_node(io::IO, node:SyntaxTemplateNode, indent)
 end
 
 function _show_syntax_template_node_sexpr(io, node::SyntaxTemplateNode)
-    if is_special_syntax(node.data)
+    if is_placeholder(node)
         _show_special_syntax_sexpr(io, node.data)
     else
         if !haschildren(node)

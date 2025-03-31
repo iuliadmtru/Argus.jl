@@ -56,12 +56,12 @@ function template_match!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
         return SyntaxMatches()
     end
     # Clean up bound placeholders.
-    # TODO: Should this be done here?
+    # TODO: Should this be done elsewhere?
     unbind_placeholders!(templ)
     # Search for matches within children.
     matches = SyntaxMatches()
     for c in children(src)
-        append!(matched_nodes, template_match!(templ, c))
+        append!(matches, template_match!(templ, c))
     end
 
     return matches
