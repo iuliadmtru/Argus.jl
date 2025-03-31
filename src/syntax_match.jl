@@ -8,7 +8,7 @@ struct SyntaxMatch
     ast::JuliaSyntax.SyntaxNode
     placeholders::Union{Nothing, Vector{AbstractSyntaxPlaceholder}}
 end
-# SyntaxMatch(src::JuliaSyntax.SyntaxNode) = SyntaxMatch(src, nothing)
+SyntaxMatch(src::JuliaSyntax.SyntaxNode) = SyntaxMatch(src, nothing)
 
 ## `JuliaSyntax` overwrites.
 
