@@ -2,8 +2,8 @@ module Argus
 
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
-# TODO: Change.
 export Pattern
+# TODO: Change.
 export RuleMatch, RuleMatches
 
 using JuliaSyntax
@@ -137,6 +137,7 @@ end
 ## -----------------------------------------------------------------------------------------
 
 include("syntax_pattern.jl")
+include("syntax_match.jl")
 include("ast_compare.jl")
 
 
