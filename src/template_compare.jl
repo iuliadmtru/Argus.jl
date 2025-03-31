@@ -17,7 +17,7 @@ function template_compare!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNod
 
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
-    if contains_placeholder(templ)
+    if contains_placeholders(templ)
         head(templ) != head(src) && return false
         if length(children(templ)) == length(children(src))
             zipped_children = zip(children(templ), children(src))
