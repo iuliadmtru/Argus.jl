@@ -2,7 +2,7 @@
 
 # TODO: Needs more work.
 """
-    template_compare!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
+    template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
 
 Compare a given template to a source AST. If the template contains placeholders, fill them.
 The comparison fails if the source doesn't fit the template or if the placeholders' bindings
@@ -10,17 +10,17 @@ don't agree with each other.
 
 Return `true` if the template matches the source AST, `false` otherwise.
 """
-function template_compare!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
+function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
     # The node is a placeholder that needs to be filled.
     # TODO: Take into account repetitions with ellipses.
-    is_placeholder(templ) && return placeholder_fill!(templ.data, src)
+    is_placeholder(template) && return placeholder_fill!(template.data, src)
 
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
-    if contains_placeholders(templ)
-        head(templ) != head(src) && return false
-        if length(children(templ)) == length(children(src))
-            zipped_children = zip(children(templ), children(src))
+    if contains_placeholders(template)
+        head(template) != head(src) && return false
+        if length(children(template)) == length(children(src))
+            zipped_children = zip(children(template), children(src))
             return all(p -> template_compare!(p[1], p[2]), zipped_children)
         else
             # The rule might have ellipses.
@@ -30,10 +30,10 @@ function template_compare!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNod
     end
 
     # No special syntax.
-    head(templ) != head(src) && return false
-    templ.data.val != src.data.val && return false
-    length(children(templ)) != length(children(src)) && return false
-    zipped_children = zip(children(templ), children(src))
+    head(template) != head(src) && return false
+    template.data.val != src.data.val && return false
+    length(children(template)) != length(children(src)) && return false
+    zipped_children = zip(children(template), children(src))
     # TODO: This doesn't seem finished.
     return all(p -> template_compare!(p[1], p[2]), zipped_children)
 end
@@ -43,25 +43,25 @@ end
 ## Template matching.
 
 """
-    template_match!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
+    template_match!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
 
-Try to match the given template with a source AST and all its children. If a match is found,
-bind the placeholders in the template, if any. Return an array of `RuleMatch`es.
+Try to match the given template with a source AST and all its children. When a match is
+found bind the placeholders in the template, if any. Return an array of `SyntaxMatch`es.
 """
-function template_match!(templ::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
-    if template_compare!(templ, src)
-        return SyntaxMatches([SyntaxMatch(src, placeholders(templ))])
+function template_match!(tp::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+    if template_compare!(tp, src)
+        return SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
     end
     if isnothing(children(src))
         return SyntaxMatches()
     end
     # Clean up bound placeholders.
     # TODO: Should this be done elsewhere?
-    unbind_placeholders!(templ)
+    placeholders_unbind!(tp)
     # Search for matches within children.
     matches = SyntaxMatches()
     for c in children(src)
-        append!(matches, template_match!(templ, c))
+        append!(matches, template_match!(tp, c))
     end
 
     return matches
