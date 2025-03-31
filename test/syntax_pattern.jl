@@ -8,7 +8,7 @@
         end
         """
         pattern = Pattern(src)
-        @test !contains_placeholders(pattern.templ)
+        @test !contains_placeholders(pattern.template)
         syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
         matches = pattern_match!(pattern, syntax_node)
         @test length(matches) == 1
