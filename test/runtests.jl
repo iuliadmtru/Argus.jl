@@ -3,4 +3,4 @@ using Argus
 using JuliaSyntax
 using JuliaSyntax: source_location
 
-include("pattern_syntax.jl")
+include("syntax_template.jl")

@@ -29,22 +29,22 @@ Supertype for syntax placeholders.
 abstract type AbstractSyntaxPlaceholder end
 
 """
-    placeholder_fill(placeholder::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode)
+    placeholder_fill!(placeholder::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode)
 
 Fill the placeholder with the data contained within `ast`. Return `false`
 if the placeholder had already been filled. Return `true` otherwise.
 """
-function placeholder_fill(p::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode) end
+function placeholder_fill!(p::AbstractSyntaxPlaceholder, ast::JuliaSyntax.SyntaxNode) end
 
 """
     unbind_placeholder!(p::AbstractSyntaxPlaceholder)
 
 Remove binding from the given placeholder.
 """
-function unbind_placeholder!(p::AbstractSyntaxPlaceholder) end
+function placeholder_unbind!(p::AbstractSyntaxPlaceholder) end
 
 # No placeholder for regular `SyntaxData`.
-unbind_placeholder!(p::JuliaSyntax.SyntaxData) = nothing
+placeholder_unbind!(p::JuliaSyntax.SyntaxData) = nothing
 
 ## ------------------------------------------------------------------
 
@@ -71,7 +71,7 @@ remove_binding!(m::Metavariable) = m.binding = nothing
 ## Wrappers for supertype compatibility.
 
 placeholder_fill!(m::Metavariable, ast::JuliaSyntax.SyntaxNode) = set_binding!(m, ast.data)
-unbind_placeholder!(m::Metavariable) = remove_binding!(m)
+placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 
 ## `Base` overwrites.
 
