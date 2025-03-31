@@ -1,14 +1,23 @@
 module Argus
 
+## -----------------------------------------------------------------------------------------
+
+## Types
+
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
-export placeholder_fill!, placeholder_unbind!, has_binding, set_binding!
 export Pattern
 export SyntaxMatch, SyntaxMatches
 
+## Utils
+export is_placeholder, placeholder, contains_placeholders, placeholders,
+    placeholder_fill!, placeholder_unbind!,
+    has_binding, set_binding!
+
+## -------------------------------------------
+
 using JuliaSyntax
-using JuliaSyntax: haschildren, children, head, kind, source_location,
-                   untokenize, is_error
+using JuliaSyntax: haschildren, children, head, kind, source_location, untokenize, is_error
 
 include("syntax_template.jl")
 
@@ -57,6 +66,32 @@ end
 
 ## Utils.
 
+is_placeholder(node::SyntaxTemplateNode) = isa(node.data, AbstractSyntaxPlaceholder)
+
+"""
+    placeholder(node::SyntaxTemplateNode)
+
+If the template node has placeholder data, return the placeholder. Else, return `nothing`.
+"""
+placeholder(node::SyntaxTemplateNode) = is_placeholder(node) ? node.data : nothing
+
+"""
+    contains_placeholders(node::SyntaxTemplateNode)
+
+Return `true` if the node or its children contain one or more placeholders. Return `false`
+otherwise.
+"""
+function contains_placeholders(node::SyntaxTemplateNode)
+    is_placeholder(node) && return true
+    # If it is not a special sytax node and it has no children then
+    # it is a regular leaf.
+    !haschildren(node) && return false
+    # If any child has some special syntax then the node has special syntax.
+    any(c -> contains_placeholders(c), children(node)) && return true
+    # No child has special syntax.
+    return false
+end
+
 """
     placeholders(templ::SyntaxTemplateNode)
 
@@ -75,42 +110,18 @@ function placeholders(templ::SyntaxTemplateNode)
     return ps
 end
 
-is_placeholder(node::SyntaxTemplateNode) = isa(node.data, AbstractSyntaxPlaceholder)
-
-"""
-    placeholder(node::SyntaxTemplateNode)
-
-If the template node has placeholder data, return the placeholder. Else, return `nothing`.
-"""
-placeholder(node::SyntaxTemplateNode) = is_placeholder(node) ? node.data : nothing
-
-"""
-    contains_placeholder(node::SyntaxTemplateNode)
-
-Return `true` if the node or its children contain one or more placeholders. Return `false`
-otherwise.
-"""
-function contains_placeholder(node::SyntaxTemplateNode)
-    is_placeholder(node) && return true
-    # If it is not a special sytax node and it has no children then
-    # it is a regular leaf.
-    !haschildren(node) && return false
-    # If any child has some special syntax then the node has special syntax.
-    any(c -> contains_placeholder(c), children(node)) && return true
-    # No child has special syntax.
-    return false
-end
-
 """
     placeholders_unbind!(node::SyntaxTemplateNode)
 
-Remove bindings from all placeholders within `node` and its children.
+Remove bindings from all placeholders within `node` and its children. Return the node.
 """
 function placeholders_unbind!(node::SyntaxTemplateNode)
     placeholder_unbind!(node.data)
     for c in children(node)
         placeholders_unbind!(c)
     end
+
+    return node
 end
 
 ## -------------------------------------------
@@ -183,5 +194,7 @@ end
 include("syntax_pattern.jl")
 include("syntax_match.jl")
 include("template_compare.jl")
+
+## -----------------------------------------------------------------------------------------
 
 end # Argus
