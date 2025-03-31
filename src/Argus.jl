@@ -2,16 +2,14 @@ module Argus
 
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
-export Pattern
-# TODO: Change.
-export RuleMatch, RuleMatches
+export SyntaxPattern
+export SyntaxMatch, SyntaxMatches
 
 using JuliaSyntax
 using JuliaSyntax: haschildren, children, head, kind, source_location,
                    untokenize, is_error
 
 include("syntax_template.jl")
-
 
 ## -----------------------------------------------------------------------------------------
 
@@ -74,6 +72,8 @@ end
 ## -------------------------------------------
 
 ## Display.
+
+# TODO: Improve these. For now, they are basically copy-pasted from `JuliaSyntax`.
 
 function _show_syntax_template_node(io::IO, node:SyntaxTemplateNode, indent)
     if is_placeholder(node)
@@ -138,7 +138,6 @@ end
 
 include("syntax_pattern.jl")
 include("syntax_match.jl")
-include("ast_compare.jl")
-
+include("template_compare.jl")
 
 end # Argus

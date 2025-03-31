@@ -17,7 +17,6 @@ function Base.getproperty(data::SyntaxTemplateData, name::Symbol)
     return getproperty(d, name)
 end
 
-
 ## -----------------------------------------------------------------------------------------
 
 ## Syntax placeholders
@@ -66,11 +65,18 @@ Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
 
 ## Utils
 
+"""
+    _is_metavariable(node::JuliaSyntax.SyntaxNode)
+
+Internal utility function for checking whether a syntax node corresponds to the
+`Argus`-specific syntax for a `Metavariable`.
+"""
 function _is_metavariable(node::JuliaSyntax.SyntaxNode)
     return kind(node) == K"call" && node.children[1].data.val == :Metavariable
 end
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
-    !is_metavariable(node) && @error "Trying to get metavariable name from non-Metavariable node"
+    !is_metavariable(node) &&
+        @error "Trying to get metavariable name from non-Metavariable node"
     return node.children[2].children[1].data.val
 end
 
