@@ -28,7 +28,7 @@ end
 struct SyntaxMatches <: AbstractVector{SyntaxMatch}
     matches::AbstractVector{SyntaxMatch}
 end
-# SyntaxMatches() = SyntaxMatches(SyntaxMatch[])
+SyntaxMatches() = SyntaxMatches(SyntaxMatch[])
 
 ## `Base` overwrites.
 
