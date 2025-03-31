@@ -1,5 +1,3 @@
-using JuliaSyntax: source_location
-
 @testset "SyntaxMatch" begin
     src = "f(x)"
     syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
