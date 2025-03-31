@@ -42,5 +42,5 @@ function pattern_match!(pattern::Pattern, src_file::AbstractString)::SyntaxMatch
     src_txt = read(src_file, String)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
 
-    return pattern_match!(pattern.template, src)
+    return pattern_match!(pattern, src)
 end
