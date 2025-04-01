@@ -14,11 +14,11 @@ I would like the user to be able to write syntax very similar to
 actual Julia syntax.
 
 ~~~julia
-@syntax_template ```
+@syntax_template quote
 	function %F(%X, %Y::Int)
 		%_...
 	end
-```
+end
 ~~~
 
 `@syntax_template` should create a kind of `SyntaxNode` that can have
@@ -39,16 +39,16 @@ The result should be a first-class object wich can later be used in
 other templates.
 
 ~~~julia
-func_template = @syntax_template ```
+func_template = @syntax_template quote
 	function %F(%X, %Y::Int)
 		%_...
 	end
-```
+end
 
-func_with_docs_template(t::SyntaxTemplate) = @syntax_template ```
+func_with_docs_template(t::SyntaxTemplate) = @syntax_template quote
 	"""%_..."""
-	t
-```
+	\$t
+end
 ~~~
 
 Rules should be created using templates.
