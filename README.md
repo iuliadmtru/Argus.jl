@@ -193,9 +193,6 @@ operator](https://docs.julialang.org/en/v1/base/base/#...) or to
 Racket's ellipsis used for [syntax
 matching](https://docs.racket-lang.org/reference/stx-patterns.html)).
 
-There should be a different, custom representation for
-`RuleSyntaxNode`s.
-
 ### Patterns
 
 #### Special syntax
