@@ -58,6 +58,27 @@ simple_rule = Pattern(func_template)
 either_rule = PatternEither(func_template, func_with_docs_template(func_template))
 ```
 
+### Alternatives/Ideas
+
+Rules should provide a way to add rule metadata such as rule
+descriptions. Resyntax does this with [directives passed as keyword
+arguments](https://docs.racket-lang.org/resyntax/Refactoring_Rules_and_Suites.html#%28form._%28%28lib._resyntax%2Fbase..rkt%29._define-refactoring-rule%29%29)
+(`#:description description`). Also, it would be nice to provide a
+refactoring template, like Resyntax does. Maybe a rule could look
+something like:
+
+```julia
+@define_rule useless_condition quote
+	description = "The condition is always false."
+
+	template = @syntax_template quote
+		if $COND %BODY... end
+	end where :($COND == (%KEEP && false) || (false && %KEEP))
+
+	refactor_template = @syntax_template :(if %KEEP %BODY... end)
+end
+```
+
 
 ## Status
 
