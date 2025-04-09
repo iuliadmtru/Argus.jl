@@ -61,7 +61,6 @@ placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
 
 ## -------------------------------------------
-
 ## Utils
 
 """
@@ -76,11 +75,11 @@ end
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
     !_is_metavariable(node) &&
         @error "Trying to get metavariable name from non-Metavariable node"
-    return node.children[2].children[1].data.val
+    @info node
+    return node.children[2].data.val
 end
 
 ## -------------------------------------------
-
 ## Display.
 
 # TODO: Rename "special syntax".
