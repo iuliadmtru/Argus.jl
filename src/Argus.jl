@@ -8,6 +8,7 @@ export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
 export Pattern
 export SyntaxMatch, SyntaxMatches
+export @define_rule
 
 ## Utils
 export is_placeholder, placeholder, contains_placeholders, placeholders,
@@ -20,18 +21,45 @@ export template_compare!, template_match!
 
 using JuliaSyntax
 using JuliaSyntax: haschildren, children, head, kind, source_location, untokenize, is_error
+using JuliaSyntax: @isexpr
+
+using MacroTools: MacroTools, striplines
+
+using Serialization: serialize, deserialize
+
+## -------------------------------------------
 
 include("syntax_template.jl")
 
 ## -----------------------------------------------------------------------------------------
+## Template AST interface.
 
-## Template AST interface
+## -------------------------------------------
+## Template data.
+
+"""
+    SyntaxTemplateData
+
+Light wrapper around either a `JuliaSyntax.SyntaxData` or an `AbstractSyntaxPlaceholder`.
+"""
+struct SyntaxTemplateData{NodeData}
+    data::NodeData
+end
+
+## `Base` overwrites.
+
+function Base.getproperty(data::SyntaxTemplateData, name::Symbol)
+    d = getfield(data, :data)
+    name === :data && return d
+    return getproperty(d, name)
+end
+
+## -------------------------------------------
+## Template tree.
 
 const SyntaxTemplateNode = JuliaSyntax.TreeNode{SyntaxTemplateData}
 function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
-    data = _is_metavariable(node)                                 ?
-        SyntaxTemplateData(Metavariable(_get_metavar_name(node))) :
-        SyntaxTemplateData(node.data)
+    data = SyntaxTemplateData(node.data)
 
     if !haschildren(node)
         return SyntaxTemplateNode(nothing, nothing, data)
@@ -43,12 +71,13 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
         return templ_node
     end
 end
+SyntaxTemplateNode(expr::Union{Expr, QuoteNode}) =
+    SyntaxTemplateNode(JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(expr)))
 
 ## `JuliaSyntax` overwrites.
 
 # TODO: Add `head` for placeholders.
-JuliaSyntax.head(node::SyntaxTemplateNode) =
-    is_placeholder(node) ? nothing : head(node.data.raw)
+JuliaSyntax.head(node::SyntaxTemplateNode) = head(node.data.raw)
 JuliaSyntax.kind(node::SyntaxTemplateNode) = head(node).kind
 
 JuliaSyntax.build_tree(::Type{SyntaxTemplateNode}, stream::JuliaSyntax.ParseStream; kws...) =
@@ -82,6 +111,101 @@ function Base.getproperty(node::SyntaxTemplateNode, name::Symbol)
     name === :data && return getfield(d, :data)
     return getproperty(d, name)
 end
+
+
+## -----------------------------------------------------------------------------------------
+
+## Rules.
+
+const DEFAULT_RULES_REGISTRY = "./rules-registry"
+
+function handle_define_rule(name, rule)
+    # TODO: Include position in error messages.
+    # TODO: Generally improve error messages.
+    isa(name, String) ||
+        error("Invalid rule name type $(typeof(name)) for $name. Expected String")
+    @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
+    # Get description.
+    description_node = rule.args[1]
+    @isexpr(description_node, :(=), 2) ||
+        error("Unrecognized description syntax: $description_node")
+    description = description_node.args[2]
+    isa(description, String) ||
+        error("Invalid description type $(typeof(description)) for $description")
+    # Get template.
+    template_node = rule.args[2]
+    @isexpr(template_node, :(=), 2) ||
+        error("Unrecognized template syntax: $template_node")
+    template = template_node.args[2]
+    @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
+        error("Unrecognized template pattern syntax: \"$template\"")
+    # Upload to rule registry.
+    rule = SyntaxTemplateNode(template)
+    register(rule, name)
+
+    return rule
+end
+
+macro define_rule(name, rule)
+    handle_define_rule(name, MacroTools.striplines(rule))
+end
+
+## Utils.
+
+# TODO: Should this receive `rule_name` and `registry_path` instead?
+function register(rule::SyntaxTemplateNode, name::String)
+    dir_name, file_name = splitdir(name)
+    registry_path = isempty(dir_name) ? DEFAULT_RULES_REGISTRY : dir_name
+    # TODO: Error handling.
+    ispath(registry_path) || mkpath(registry_path)
+    rule_path = joinpath(registry_path, file_name)
+    touch(rule_path)  # Create rule file if non-existent.
+    # Store rule.
+    serialize(rule_path, rule)
+    @info "Rule stored at $(abspath(rule_path))."
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## -----------------------------------------------------------------------------------------
+
 
 ## -------------------------------------------
 
