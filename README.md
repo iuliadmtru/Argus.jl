@@ -5,179 +5,112 @@
 This package aims to be a static analysis tool for Julia. It takes
 inspiration from [Semgrep](https://github.com/semgrep/semgrep),
 [Clippy](https://github.com/rust-lang/rust-clippy) and
-[Resyntax](https://docs.racket-lang.org/resyntax/).
+[Resyntax](https://docs.racket-lang.org/resyntax/) (mostly the
+latter).
 
 
 ## Ideal result
 
 I would like the user to be able to write syntax very similar to
-actual Julia syntax.
-
-~~~julia
-@syntax_template quote
-	function %F(%X, %Y::Int)
-		%_...
-	end
-end
-~~~
-
-`@syntax_template` should create a kind of `SyntaxNode` that can have
-"holes". These "holes" are pieces of syntax that can be "filled" by
-actual Julia syntax that matches the template. Something like
-```julia
-function my_func(arg1, arg2::Int)
-	println(arg1)
-	arg2 + 1
-end
-```
-should match the above template and should bind `my_func` to the
-metavariable `%F`, `arg1` to `%X`, `arg2` to `%Y` and the expressions
-in the function body to the anonymous metavariable `%_` (which would
-actually discard the binding).
-
-The result should be a first-class object wich can later be used in
-other templates.
-
-~~~julia
-func_template = @syntax_template quote
-	function %F(%X, %Y::Int)
-		%_...
-	end
-end
-
-func_with_docs_template(t::SyntaxTemplate) = @syntax_template quote
-	"""%_..."""
-	\$t
-end
-~~~
-
-Rules should be created using templates.
+actual Julia syntax for the rules. Some ideas:
 
 ```julia
-simple_rule = Pattern(func_template)
-either_rule = PatternEither(func_template, func_with_docs_template(func_template))
+@define_rule "my_rule" begin
+	description = "Don't print integers!"
+	template = :(
+		println(%X)
+	)
+	conditions = [
+		:(%X isa Int)
+	]
 ```
-
-### Alternatives/Ideas
-
-Rules should provide a way to add rule metadata such as rule
-descriptions. Resyntax does this with [directives passed as keyword
-arguments](https://docs.racket-lang.org/resyntax/Refactoring_Rules_and_Suites.html#%28form._%28%28lib._resyntax%2Fbase..rkt%29._define-refactoring-rule%29%29)
-(`#:description description`). Also, it would be nice to provide a
-refactoring template, like Resyntax does. Maybe a rule could look
-something like:
 
 ```julia
-@define_rule useless_condition quote
-	description = "The condition is always false."
-
-	template = @syntax_template quote
-		if $COND %BODY... end
-	end where :($COND == (%KEEP && false) || (false && %KEEP))
-
-	refactor_template = @syntax_template :(if %KEEP %BODY... end)
-end
+@define_rule "my_rule2" begin
+	description = "Don't print an integer and a negative number!"
+	template = :(
+		println(%X, %Y)
+	) where [
+		:(%X isa Int),
+		:(%Y < 0)
+	]
 ```
+
+I am currently working on implementing the first one. The second one
+could be added later as syntactic sugar over the first.
 
 
 ## Status
 
-I am working on this project as part of my thesis for the Computer
-Science and Engineering Bachelor's at Politehnica University of
-Bucharest.
+This project is part of my thesis for the Computer Science and
+Engineering Bachelor's at Politehnica University of Bucharest.
 
-Status: Working on metavariables.
+Status: Thinking/Rethinking...
 
-Currently the package is able to:
-
-- **Create a rule based on a `Pattern`;**
+Currently the package is able to define rules, upload them to a
+registry (the default is at `./rules-registry/`) and run them against
+some source code/file.
 
 ```julia
 julia> using Argus
 
+julia> test_rule = @define_rule "my_rule" begin
+           description = "My description"
+           template = """
+               f(Metavariable(:x)) = 2
+           """
+       end
+[ Info: Rule stored at .../Argus.jl/rules-registry/my_rule.
+line:col│ tree                                   │ metadata
+   -:-  |[function-=]                            |
+   -:-  |  [call]                                |
+   -:-  |    f                                   |
+   -:-  |    M"x"                                | nothing
+   -:-  |  2                                     |
+
 julia> using JuliaSyntax
 
-julia> simple_pattern = Pattern("f(x) = 2")
-Pattern((= (call f x) 2))
+julia> src = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "f(y) = 2")
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    y                                    :: Identifier
+  2
 
-julia> simple_pattern.template
-line:col│ tree                                   │ metadata
-   -:-  |[=]                                     |
-   -:-  |  [call]                                |
-   -:-  |    f                                   |
-   -:-  |    x                                   |
-   -:-  |  2                                     |
-```
-
-_Note_: You need to load `JuliaSyntax` as well.
-
-- **Create patterns that contain metavariables that bind to the match;**
-
-_Note_: The intended behaviour is for metavariables to bind to
-expressions. I have not tested this yet.
-
-```julia
-julia> two_metavar_pattern = Pattern("f(Metavariable(:X)) = 2 + Metavariable(:Y)")
-Pattern((= (call f M"X") (call-i 2 + M"Y")))
-
-julia> two_metavar_pattern.template
-line:col│ tree                                   │ metadata
-   -:-  |[=]                                     |
-   -:-  |  [call]                                |
-   -:-  |    f                                   |
-   -:-  |    M"X"                                | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    2                                   |
-   -:-  |    +                                   |
-   -:-  |    M"Y"                                | nothing
-```
-
-- **Search for rule matches inside a source AST;**
-
-_Note_: Special behaviour is implemented for `Pattern`s with
-`Metavariable`s. Both the special implementation and the regular
-implementation are very rudimentary.
-
-```julia
-julia> src = """
-       function f(a, b)
-           y = a + b
-           return y
-       end
-
-       a = 2
-       b = 3
-       f(a + b, b)
-
-       let x = 2, y = 3
-           z = x + b
-           a = 1
-           b = 2
-           b + a
-       end
-       """;
-
-julia> src_ast = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src);
-
-julia> single_metavar_pattern = Pattern("Metavariable(:A) + b")
-Pattern((call-i M"A" + b))
-
-julia> pattern_match!(single_metavar_pattern, src_ast)
-3-element SyntaxMatches:
- SyntaxMatch((call-i a + b), AbstractSyntaxPlaceholder[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 26, :a))])
- SyntaxMatch((call-i a + b), AbstractSyntaxPlaceholder[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 64, :a))])
- SyntaxMatch((call-i x + b), AbstractSyntaxPlaceholder[Metavariable(:A, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na = 2\nb = 3\nf(a + b, b)\n\nlet x = 2, y = 3\n    z = x + b\n    a = 1\n    b = 2\n    b + a\nend\n", 0, nothing, 1, [1, 18, 32, 45, 49, 50, 56, 62, 74, 75, 92, 106, 116, 126, 136, 140]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 100, :x))])
-```
-
-- **Run a rule against a file to get `SyntaxMatches`.**
-
-```julia
-julia> pattern_match!(two_metavar_pattern, "test/test-file.jl")
+julia> matches = rule_match!(test_rule, src)
 1-element SyntaxMatches:
- SyntaxMatch((= (call f x) (call-i 2 + x)), AbstractSyntaxPlaceholder[Metavariable(:X, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na + b\na + b + c # (call-i a + b c); 4 children, all leaves; Semgrep finds this\nc + a + b # (call-i c + a b); 4 children, all leaves; Semgrep doesn't find this\n\nf(x) = \"a\"\nf(x) = 2 + x\ng(x) = 2 + x\n", 0, "test/test-file.jl", 1, [1, 18, 32, 45, 49, 50, 56, 129, 209, 210, 221, 234, 247]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 223, :x)), Metavariable(:Y, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na + b\na + b + c # (call-i a + b c); 4 children, all leaves; Semgrep finds this\nc + a + b # (call-i c + a b); 4 children, all leaves; Semgrep doesn't find this\n\nf(x) = \"a\"\nf(x) = 2 + x\ng(x) = 2 + x\n", 0, "test/test-file.jl", 1, [1, 18, 32, 45, 49, 50, 56, 129, 209, 210, 221, 234, 247]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, ()), 232, :x))])
+ SyntaxMatch((function-= (call f y) 2), AbstractSyntaxPlaceholder[Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y))])
+
+julia> matches[1].ast
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    y                                    :: Identifier
+  2                                      :: Integer
+
+julia> matches[1].placeholders
+1-element Vector{AbstractSyntaxPlaceholder}:
+ Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y))
+
+julia> matches[1].placeholders[1].name
+:x
+
+julia> matches[1].placeholders[1].binding
+JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y)
 ```
 
-_Note_: Clearly I need to work on my `show`.
+Run against file:
+
+```julia
+julia> matches = rule_match!("my_rule", "test/test-file.jl")
+1-element SyntaxMatches:
+ SyntaxMatch((function-= (call f y) 2), AbstractSyntaxPlaceholder[Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na + b\na + b + c # (call-i a + b c); 4 children, all leaves; Semgrep finds this\nc + a + b # (call-i c + a b); 4 children, all leaves; Semgrep doesn't find this\n\nf(x) = \"a\"\nf(x) = 2 + x\ng(x) = 2 + x\nf(y) = 2\n", 0, "test/test-file.jl", 1, [1, 18, 32, 45, 49, 50, 56, 129, 209, 210, 221, 234, 247, 256]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 249, :y))])
+
+julia> JuliaSyntax.source_location(matches[1].ast)
+(13, 1)
+```
 
 
 ## Design choices
@@ -190,14 +123,15 @@ maybe also with
 
 ### Rules
 
-Most inspiration for rule design comes from Semgrep for now because I
-am more familiar with it than with other similar tools. The basic
-element of a rule should be `Pattern`, which allows matching code
-corresponding to a given expression.
+Rules can be defined in a similar way to Resyntax's
+[`define-refactoring-rule`](https://docs.racket-lang.org/resyntax/Refactoring_Rules_and_Suites.html#%28form._%28%28lib._resyntax%2Fbase..rkt%29._define-refactoring-rule%29%29). The
+goal is to make rule writing as intuitive as possible for Julia users
+and also as extendable and configurable as possible.
 
-`Pattern` is defined in `src/syntax_pattern.jl`. It contains the
-template AST, `SyntaxTemplateNode`, defined in `src/Argus.jl`. This
-AST is built on `JuliaSyntax`'s AST interface (i.e. it is a
+`@define_rule` registers a new rule in a rule registry, or updates an
+existing rule with the same name. It also returns the rule as a
+`SyntaxTemplateNode` (defined in `src/syntax_template_tree.jl`). This
+is an AST built on `JuliaSyntax`'s AST interface (i.e. it is a
 `JuliaSyntax.TreeNode{SyntaxTemplateData}`). `SyntaxTemplateData` is a
 custom syntax data type which can either mimic a regular
 [`JuliaSyntax.SyntaxNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.SyntaxNode)
@@ -214,9 +148,8 @@ operator](https://docs.julialang.org/en/v1/base/base/#...) or to
 Racket's ellipsis used for [syntax
 matching](https://docs.racket-lang.org/reference/stx-patterns.html)).
 
-### Patterns
 
-#### Special syntax
+### Special syntax
 
 The goal is to permit special syntax for non-trivial matching
 (e.g. match a function call with an arbitrary number of arguments). As
@@ -229,26 +162,27 @@ Metavariables should bind to expressions. I have not tested this
 yet. The ultimate goal is to have metavariables bind to something that
 can be chosen by the user. This could be accomplished by providing
 types to metavariables (either Julia built-in types or custom types
-that have some kind of corresponding predicate).
+that have some kind of corresponding predicate, or something like
+Racket's [syntax
+classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html))]).
 
 ### AST comparison
 
-This is probably the most difficult part of the project. For now I am
-using a mock implementation for testing purposes. I keep adding to
-it/changing it as I go because I need to constantly ask myself what
-design choices to make in order to be able to compare the patterns'
-AST to the source code AST.
+I implemented a rudimentary AST matching mechanism in
+`template_match!`. There are some existing pattern matching packages
+in Julia that I could have used, such as
+[Match.jl](https://github.com/JuliaServices/Match.jl/tree/cb25c8c686cbd94c46f05b91a6870dbba19e0acc)
+or [MLStyle.jl](https://github.com/thautwarm/MLStyle.jl). However,
+they seem to be focused on smaller patterns, not on full
+`SyntaxNode`s. I have only tried Match.jl and noticed that it does not
+work well with large ASTs, I have not tried MLStyle.jl yet. Another
+reason why I chose to implement it from scratch is that I would need
+special treatment for special syntax nodes and it seemed difficult to
+configure the packages I mentioned. I will look more into this though.
 
 
 ## Future ideas
 
-- Instead of using ellipsis as a match-all operator like Semgrep does,
-  I'd like to use it as a repeater of homogeneous syntax ("Kleene
-  star") like Racket does. Ellipsis nesting is also interesting.
-- It would be cool to make this tool highly configurable. For example,
-  let metavariables match any kind of syntactic behaviour. (They
-  currently (should) match for expressions but why not let them match
-  for any predicate that checks a property for a syntax node?)
 - I really like Racket's [pattern based
   macros](https://docs.racket-lang.org/guide/pattern-macros.html),
   maybe this tool can go more towards that? Rules can be seen as
