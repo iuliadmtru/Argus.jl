@@ -21,8 +21,8 @@ function handle_define_rule(name, rule)
     @isexpr(template_node, :(=), 2) ||
         error("Unrecognized template syntax: $template_node")
     template = template_node.args[2]
-    @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
-        error("Unrecognized template pattern syntax: \"$template\"")
+    # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
+    isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
     # Upload to rule registry.
     rule = SyntaxTemplateNode(template)
     register(rule, name)
