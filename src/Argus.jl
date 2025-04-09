@@ -6,7 +6,6 @@ module Argus
 
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
-export Pattern
 export SyntaxMatch, SyntaxMatches
 export @define_rule
 
@@ -14,7 +13,7 @@ export @define_rule
 export is_placeholder, placeholder, contains_placeholders, placeholders,
     placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
     has_binding, set_binding!
-export pattern_match!
+export rule_match!
 export template_compare!, template_match!
 
 ## -------------------------------------------
