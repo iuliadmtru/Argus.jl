@@ -75,3 +75,22 @@ function rule_match!(rule::SyntaxTemplateNode, src_file::AbstractString)::Syntax
 
     return rule_match!(rule, src)
 end
+
+"""
+    rule_match!(rule_path::AbstractString, src_file::AbstractString)::SyntaxMatches
+
+Try to match the rule found at `rule_path` to the source code contained in `src_file`.
+Return all matches as a `SyntaxMatches` array.
+"""
+function rule_match!(rule_path::AbstractString, src_file::AbstractString)::SyntaxMatches
+    # Get the correct path to the rule.
+    dir_name, file_name = splitdir(rule_path)
+    registry_path = isempty(dir_name) ? DEFAULT_RULES_REGISTRY : dir_name
+    ispath(registry_path) || error("Unexistent rule registry path $registry_path")
+    full_rule_path = joinpath(registry_path, file_name)
+    ispath(full_rule_path) || error("Unexistent rule path $full_rule_path")
+    # Read the rule.
+    rule = deserialize(full_rule_path)
+
+    return rule_match!(rule, src_file)
+end

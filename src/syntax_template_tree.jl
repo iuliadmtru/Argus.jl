@@ -40,8 +40,11 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
         return templ_node
     end
 end
-SyntaxTemplateNode(expr::Union{Expr, QuoteNode}) =
-    SyntaxTemplateNode(JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(expr)))
+function SyntaxTemplateNode(expr::Union{Expr, QuoteNode})
+    expr_ast = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(expr))
+    # Remove the quote.
+    return SyntaxTemplateNode(children(expr_ast)[1])
+end
 
 ## `JuliaSyntax` overwrites.
 
@@ -92,6 +95,7 @@ Try to match the given template with a source AST and all its children. When a m
 found bind the placeholders in the template, if any. Return an array of `SyntaxMatch`es.
 """
 function template_match!(tp::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+    # @info "Match" src
     if template_compare!(tp, src)
         return SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
     end
@@ -126,14 +130,17 @@ Return `true` if the template matches the source AST, `false` otherwise.
 function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
     # The node is a placeholder that needs to be filled.
     # TODO: Take into account repetitions with ellipses.
+    @info "compare" src template is_placeholder(template)
     is_placeholder(template) && return placeholder_fill!(template.data, src)
 
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
     if contains_placeholders(template)
+        @warn "Contains placeholders" template src
         head(template) != head(src) && return false
         if length(children(template)) == length(children(src))
             zipped_children = zip(children(template), children(src))
+            @info "children zipped" zipped_children
             return all(p -> template_compare!(p[1], p[2]), zipped_children)
         else
             # The rule might have ellipses.
@@ -145,6 +152,9 @@ function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.Syntax
     # No special syntax.
     head(template) != head(src) && return false
     template.data.val != src.data.val && return false
+    xor(haschildren(template), haschildren(src)) && return false
+    # Recurse on children if there are any.
+    !haschildren(src) && return true
     length(children(template)) != length(children(src)) && return false
     zipped_children = zip(children(template), children(src))
     # TODO: This doesn't seem finished.
@@ -205,6 +215,7 @@ Remove bindings from all placeholders within `node` and its children. Return the
 """
 function placeholders_unbind!(node::SyntaxTemplateNode)
     placeholder_unbind!(node.data)
+    isnothing(children(node)) && return node
     for c in children(node)
         placeholders_unbind!(c)
     end
