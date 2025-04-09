@@ -39,6 +39,34 @@ actual Julia syntax for the rules. Some ideas:
 I am currently working on implementing the first one. The second one
 could be added later as syntactic sugar over the first.
 
+Sadly it is quite difficult to manage templates passed as expressions,
+as much as I would like it. The reason is that I could't find a way to
+correctly transform an `Expr` into a `SyntaxNode`, without
+losing/adding any information to the AST. As an example, consider the
+simple function definition `f(x) = 2`:
+
+```julia
+julia> JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "f(x) = 2")
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  2                                      :: Integer
+
+
+julia> :(f(x) = 2)
+:(f(x) = begin
+          #= REPL[3]:1 =#
+          2
+      end)
+```
+
+The `Expr` transforms the function body into a block, while the
+`SyntaxNode` doesn't.
+
+This is why I settled for template strings.
+
 
 ## Status
 
