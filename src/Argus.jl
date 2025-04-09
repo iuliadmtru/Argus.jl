@@ -31,10 +31,8 @@ using Serialization: serialize, deserialize
 
 include("syntax_placeholders.jl")
 include("syntax_template_tree.jl")
-# include("syntax_pattern.jl")
 include("rules.jl")
 include("syntax_match.jl")
-include("template_match.jl")
 
 ## -----------------------------------------------------------------------------------------
 
