@@ -19,7 +19,7 @@ export template_compare!, template_match!
 ## -------------------------------------------
 
 using JuliaSyntax
-using JuliaSyntax: haschildren, children, head, kind, source_location, untokenize, is_error
+using JuliaSyntax: is_leaf, children, head, kind, source_location, untokenize, is_error
 using JuliaSyntax: @isexpr
 
 using MacroTools: MacroTools, striplines
