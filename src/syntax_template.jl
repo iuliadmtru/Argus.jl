@@ -1,22 +1,5 @@
 ## Syntax data.
 
-"""
-    SyntaxTemplateData
-
-Light wrapper around either a `JuliaSyntax.SyntaxData` or an `AbstractSyntaxPlaceholder`.
-"""
-struct SyntaxTemplateData{NodeData}
-    data::NodeData
-end
-
-## `Base` overwrites.
-
-function Base.getproperty(data::SyntaxTemplateData, name::Symbol)
-    d = getfield(data, :data)
-    name === :data && return d
-    return getproperty(d, name)
-end
-
 ## -----------------------------------------------------------------------------------------
 
 ## Syntax placeholders
