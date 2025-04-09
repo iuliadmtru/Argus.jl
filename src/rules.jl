@@ -48,3 +48,30 @@ function register(rule::SyntaxTemplateNode, name::String)
     serialize(rule_path, rule)
     @info "Rule stored at $(abspath(rule_path))."
 end
+
+## -------------------------------------------
+## Rule matching.
+
+# TODO: Why keep this?
+"""
+    rule_match!(rule::AbstractSyntaxPattern, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+
+Try to match the given rule to the source AST `src`. Return all matches as a `SyntaxMatches`
+array.
+"""
+rule_match!(rule::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
+    template_match!(rule, src)
+
+# TODO: Move this functionality to `template_match!` instead?
+"""
+    rule_match!(rule::AbstractSyntaxPattern, src_file::AbstractString)::SyntaxMatches
+
+Try to match the given rule to the source code contained in `src_file`. Return all matches
+as a `SyntaxMatches` array.
+"""
+function rule_match!(rule::SyntaxTemplateNode, src_file::AbstractString)::SyntaxMatches
+    src_txt = read(src_file, String)
+    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
+
+    return rule_match!(rule, src)
+end
