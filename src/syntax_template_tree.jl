@@ -40,10 +40,11 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
         return templ_node
     end
 end
-function SyntaxTemplateNode(expr::Union{Expr, QuoteNode})
-    expr_ast = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(expr))
-    # Remove the quote.
-    return SyntaxTemplateNode(children(expr_ast)[1])
+function SyntaxTemplateNode(template_src::AbstractString)
+    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, template_src)
+    clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
+
+    return SyntaxTemplateNode(clean_node)
 end
 
 ## `JuliaSyntax` overwrites.
@@ -95,11 +96,10 @@ Try to match the given template with a source AST and all its children. When a m
 found bind the placeholders in the template, if any. Return an array of `SyntaxMatch`es.
 """
 function template_match!(tp::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
-    # @info "Match" src
     if template_compare!(tp, src)
         return SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
     end
-    if isnothing(children(src))
+    if !haschildren(src)
         return SyntaxMatches()
     end
     # Clean up bound placeholders.
@@ -130,17 +130,14 @@ Return `true` if the template matches the source AST, `false` otherwise.
 function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
     # The node is a placeholder that needs to be filled.
     # TODO: Take into account repetitions with ellipses.
-    @info "compare" src template is_placeholder(template)
     is_placeholder(template) && return placeholder_fill!(template.data, src)
 
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
     if contains_placeholders(template)
-        @warn "Contains placeholders" template src
         head(template) != head(src) && return false
         if length(children(template)) == length(children(src))
             zipped_children = zip(children(template), children(src))
-            @info "children zipped" zipped_children
             return all(p -> template_compare!(p[1], p[2]), zipped_children)
         else
             # The rule might have ellipses.
@@ -199,7 +196,7 @@ function placeholders(templ::SyntaxTemplateNode)
     ps = AbstractSyntaxPlaceholder[]
     if is_placeholder(templ)
         push!(ps, copy(templ.data))
-    else
+    elseif haschildren(templ)
         for c in children(templ)
             append!(ps, placeholders(c))
         end

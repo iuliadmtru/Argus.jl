@@ -75,7 +75,6 @@ end
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
     !_is_metavariable(node) &&
         @error "Trying to get metavariable name from non-Metavariable node"
-    @info node
     return node.children[2].data.val
 end
 
