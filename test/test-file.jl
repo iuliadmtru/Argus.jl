@@ -10,3 +10,4 @@ c + a + b # (call-i c + a b); 4 children, all leaves; Semgrep doesn't find this
 f(x) = "a"
 f(x) = 2 + x
 g(x) = 2 + x
+f(y) = 2

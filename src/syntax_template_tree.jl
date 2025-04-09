@@ -30,7 +30,7 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
         SyntaxTemplateData(Metavariable(_get_metavar_name(node))) :
         SyntaxTemplateData(node.data)
 
-    if !haschildren(node)
+    if is_leaf(node)
         return SyntaxTemplateNode(nothing, nothing, data)
     else
         cs = [SyntaxTemplateNode(c) for c in children(node)]
@@ -99,7 +99,7 @@ function template_match!(tp::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::S
     if template_compare!(tp, src)
         return SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
     end
-    if !haschildren(src)
+    if is_leaf(src)
         return SyntaxMatches()
     end
     # Clean up bound placeholders.
@@ -149,9 +149,9 @@ function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.Syntax
     # No special syntax.
     head(template) != head(src) && return false
     template.data.val != src.data.val && return false
-    xor(haschildren(template), haschildren(src)) && return false
+    xor(!is_leaf(template), !is_leaf(src)) && return false
     # Recurse on children if there are any.
-    !haschildren(src) && return true
+    is_leaf(src) && return true
     length(children(template)) != length(children(src)) && return false
     zipped_children = zip(children(template), children(src))
     # TODO: This doesn't seem finished.
@@ -180,7 +180,7 @@ function contains_placeholders(node::SyntaxTemplateNode)
     is_placeholder(node) && return true
     # If it is not a special sytax node and it has no children then
     # it is a regular leaf.
-    !haschildren(node) && return false
+    is_leaf(node) && return false
     # If any child has some special syntax then the node has special syntax.
     any(c -> contains_placeholders(c), children(node)) && return true
     # No child has special syntax.
@@ -196,7 +196,7 @@ function placeholders(templ::SyntaxTemplateNode)
     ps = AbstractSyntaxPlaceholder[]
     if is_placeholder(templ)
         push!(ps, copy(templ.data))
-    elseif haschildren(templ)
+    elseif !is_leaf(templ)
         for c in children(templ)
             append!(ps, placeholders(c))
         end
@@ -212,7 +212,7 @@ Remove bindings from all placeholders within `node` and its children. Return the
 """
 function placeholders_unbind!(node::SyntaxTemplateNode)
     placeholder_unbind!(node.data)
-    isnothing(children(node)) && return node
+    is_leaf(node) && return node
     for c in children(node)
         placeholders_unbind!(c)
     end
@@ -232,13 +232,13 @@ function _show_syntax_template_node(io::IO, node::SyntaxTemplateNode, indent)
         # TODO: Change `posstr` to something useful.
         posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
         val = node.val
-        nodestr = haschildren(node) ? "[$(untokenize(head(node)))]" :
-            isa(val, Symbol)        ? string(val)                   : repr(val)
+        nodestr = !is_leaf(node) ? "[$(untokenize(head(node)))]" :
+            isa(val, Symbol)     ? string(val)                   : repr(val)
         treestr = string(indent, nodestr)
         # No metadata.
         treestr = string(rpad(treestr, 40), "|")
         println(io, posstr, treestr)
-        if haschildren(node)
+        if !is_leaf(node)
             new_indent = indent * "  "
             for c in children(node)
                 _show_syntax_template_node(io, c, new_indent)
@@ -251,7 +251,7 @@ function _show_syntax_template_node_sexpr(io, node::SyntaxTemplateNode)
     if is_placeholder(node)
         _show_special_syntax_sexpr(io, node.data)
     else
-        if !haschildren(node)
+        if is_leaf(node)
             if is_error(node)
                 print(io, "(", untokenize(head(node)), ")")
             else
