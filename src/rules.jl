@@ -86,13 +86,26 @@ end
 ## -----------------------------------------------------------------------------------------
 ## Rule groups.
 
+const DEFAULT_RULE_GROUP_NAME = "default"
+
 struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
+    name::String
     rules::Dict{String, SyntaxTemplateNode}
-    RuleGroup() = new(Dict{String, SyntaxTemplateNode}())
-    RuleGroup(kvs) = new(Dict{String, SyntaxTemplateNode}(kvs))
+
+    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}())
+    RuleGroup(name::String) = new(name, Dict{String, SyntaxTemplateNode}())
+    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}(kvs))
+    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
 end
 
 ## Dict interface.
+
+Base.isempty(rg::RuleGroup) = isempty(rg.rules)
+Base.empty!(rg::RuleGroup) = empty!(rg.rules)
+Base.length(rg::RuleGroup) = length(rg.rules)
+
+Base.iterate(rg::RuleGroup) = iterate(rg.rules)
+Base.iterate(rg::RuleGroup, i::Int) = iterate(rg.rules, i)
 
 Base.haskey(rg::RuleGroup, k) = haskey(rg.rules, k)
 Base.get(rg::RuleGroup, k, d) = get(rg.rules, k, d)
@@ -117,11 +130,13 @@ Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
-## Overwrites necessary for `show`.
+## Display
 
-Base.iterate(rg::RuleGroup) = iterate(rg.rules)
-Base.iterate(rg::RuleGroup, i::Int) = iterate(rg.rules, i)
-Base.length(rg::RuleGroup) = length(rg.rules)
+function Base.summary(io::IO, rg::RuleGroup)
+    Base.showarg(io, rg, true)
+    n = length(rg)
+    print(io, " ", rg.name, " with ", n, (n==1 ? " entry" : " entries"))
+end
 
 ## -----------------------------------------------------------------------------------------
 ## Rule matching.

@@ -29,21 +29,12 @@ end
 ## -------------------------------------------
 
 """
-    SyntaxMatches <: AbstractVector{SyntaxMatch}
+    SyntaxMatches = Vector{SyntaxMatch}
 
 Vector of `SyntaxMatch`es.
 """
-struct SyntaxMatches <: AbstractVector{SyntaxMatch}
-    matches::AbstractVector{SyntaxMatch}
-end
-SyntaxMatches() = SyntaxMatches(SyntaxMatch[])
+const SyntaxMatches = Vector{SyntaxMatch}
 
-## `Base` overwrites.
+## Display.
 
-Base.size(v::SyntaxMatches) = size(v.matches)
-Base.getindex(v::SyntaxMatches, i::Int) = v.matches[i]
-Base.getindex(v::SyntaxMatches, r::UnitRange) = SyntaxMatches(view(v.matches, r))
-Base.setindex!(v::SyntaxMatches, el::SyntaxMatch, i::Int) =
-    SyntaxMatches(setindex!(v.matches, el, i))
-Base.push!(v::SyntaxMatches, el::SyntaxMatch) = SyntaxMatches(push!(v.matches, el))
-Base.pushfirst!(v::SyntaxMatches, el::SyntaxMatch) = SyntaxMatches(pushfirst!(v.matches, el))
+Base.show(io::IO, ::Type{SyntaxMatches}) = print(io, "SyntaxMatches")

@@ -275,11 +275,7 @@ function Base.show(io::IO, ::MIME"text/plain", node::SyntaxTemplateNode)
     println(io, "line:col│ tree                                   │ metadata")
     _show_syntax_template_node(io, node, "")
 end
-
-function Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxTemplateNode)
+Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxTemplateNode) =
     _show_syntax_template_node_sexpr(io, node)
-end
-
-function Base.show(io::IO, node::SyntaxTemplateNode)
-    _show_syntax_template_node_sexpr(io, node)
-end
+Base.show(io::IO, node::SyntaxTemplateNode) = _show_syntax_template_node_sexpr(io, node)
+Base.show(io::IO, ::Type{SyntaxTemplateNode}) = print(io, "SyntaxTemplateNode")
