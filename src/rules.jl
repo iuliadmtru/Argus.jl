@@ -1,7 +1,7 @@
 ## -----------------------------------------------------------------------------------------
 ## Rule definition.
 
-function define_rule(rule_name::String, rule::Expr)
+function create_rule(rule_name::String, rule::Expr)
     # TODO: Include position in error messages.
     # TODO: Generally improve error messages.
     @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
@@ -23,14 +23,8 @@ function define_rule(rule_name::String, rule::Expr)
     return SyntaxTemplateNode(template)
 end
 
-function handle_define_rule(rule_name, rule)
-    isa(rule_name, String) ||
-        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
-    return define_rule(rule_name, rule)
-end
-
-macro define_rule(rule_name, rule)
-    define_rule(rule_name, MacroTools.striplines(rule))
+macro rule(rule_name, rule)
+    create_rule(rule_name, MacroTools.striplines(rule))
 end
 
 ## -----------------------------------------------------------------------------------------
@@ -110,7 +104,7 @@ end
 #     return nothing
 # end
 
-function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group::RuleGroup)
+function register_rule!(group::RuleGroup, rule::SyntaxTemplateNode, rule_name::String)
     # TODO: Add interactive "overwrite?".
     group[rule_name] = rule
 end
@@ -126,26 +120,26 @@ end
 ## -------------------------------------------
 ## Rule definition in groups.
 
-function define_rule_in_group(rule_name::String, group::RuleGroup, rule::Expr)
-    rule_node = define_rule(rule_name, rule)
-    register_rule!(rule_node, rule_name, group)
+function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Expr)
+    rule_node = create_rule(rule_name, rule)
+    register_rule!(group, rule_node, rule_name)
 
     return rule_node
 end
 
 # TODO: Make internal.
-function define_rule_in_group(rule_name::String, group::RuleGroup, rule_str::String)
+function define_rule_in_group(group::RuleGroup, rule_name::String, rule_str::String)
     rule = MacroTools.striplines(Meta.parse(rule_str))
-    return define_rule_in_group(rule_name, group, rule)
+    return define_rule_in_group(group, rule_name, rule)
 end
 
 # TODO: Find a way to make this nicer...
-handle_define_rule_in_group(rule_name, group, rule_str) =
+handle_define_rule_in_group(group, rule_name, rule_str) =
     esc( :($define_rule_in_group($rule_name, $group, $rule_str)) )
 
-macro define_rule_in_group(rule_name, group, rule)
+macro define_rule_in_group(group, rule_name, rule)
     rule_str = string(rule)
-    handle_define_rule_in_group(rule_name, group, rule_str)
+    handle_define_rule_in_group(group, rule_name, rule_str)
 end
 
 ## -----------------------------------------------------------------------------------------
