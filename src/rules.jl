@@ -1,8 +1,6 @@
 ## -----------------------------------------------------------------------------------------
 ## Rule groups.
 
-const DEFAULT_RULE_GROUP_NAME = "default"
-
 struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
     name::String
     rules::Dict{String, SyntaxTemplateNode}
@@ -13,6 +11,14 @@ struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
     RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
 end
 
+ACTIVE_RULE_GROUPS = RuleGroup[]
+
+Base.in(item::RuleGroup, ACTIVE_RULE_GROUPS) =
+    !isnothing(findfirst(g -> g.name == item.name, ACTIVE_RULE_GROUPS))
+
+const DEFAULT_RULE_GROUP_NAME = "default"
+DEFAULT_RULE_GROUP = RuleGroup()
+
 ## Dict interface.
 
 Base.isempty(rg::RuleGroup) = isempty(rg.rules)
@@ -21,6 +27,7 @@ Base.length(rg::RuleGroup) = length(rg.rules)
 
 Base.iterate(rg::RuleGroup) = iterate(rg.rules)
 Base.iterate(rg::RuleGroup, i::Int) = iterate(rg.rules, i)
+Base.setindex!(rg::RuleGroup, v, k...) = setindex!(rg.rules, v, k...)
 
 Base.haskey(rg::RuleGroup, k) = haskey(rg.rules, k)
 Base.get(rg::RuleGroup, k, d) = get(rg.rules, k, d)
@@ -35,17 +42,30 @@ Base.keys(rg::RuleGroup) = keys(rg.rules)
 Base.values(rg::RuleGroup) = values(rg.rules)
 Base.pairs(rg::RuleGroup) = pairs(rg.rules)
 Base.merge(rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(merge(rg.rules, others.rules...))
+    RuleGroup(merge(rg.rules, others...))
 Base.mergewith(c, rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(mergewith(c, rg.rules, others.rules...))
+    RuleGroup(mergewith(c, rg.rules, others...))
 Base.merge!(rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(merge(rg.rules, others.rules...))
+    RuleGroup(merge(rg.rules, others...))
 Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(mergewith(c, rg.rules, others.rules...))
+    RuleGroup(mergewith(c, rg.rules, others...))
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
-## Display
+## Utils.
+
+function activate_group(group::RuleGroup)
+    if group in ACTIVE_RULE_GROUPS
+        @info "Rule group $(group.name) already active"
+    else
+        push!(ACTIVE_RULE_GROUPS, group)
+        @info "Activated rule group $(group.name)"
+    end
+
+    return nothing
+end
+
+## Display.
 
 function Base.summary(io::IO, rg::RuleGroup)
     Base.showarg(io, rg, true)
@@ -56,11 +76,16 @@ end
 ## -----------------------------------------------------------------------------------------
 ## Rule definition.
 
-function handle_define_rule(name, rule)
+handle_define_rule(rule_name, rule) =
+    handle_define_rule(rule_name, DEFAULT_RULE_GROUP, rule)
+
+function handle_define_rule(rule_name, group, rule)
     # TODO: Include position in error messages.
     # TODO: Generally improve error messages.
-    isa(name, String) ||
-        error("Invalid rule name type $(typeof(name)) for $name. Expected String")
+    isa(rule_name, String) ||
+        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
+    isa(group, String) || isa(group, RuleGroup) ||
+        error("Invalid group name type $(typeof(group)) for $group")
     @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
     # Get description.
     description_node = rule.args[1]
@@ -76,64 +101,30 @@ function handle_define_rule(name, rule)
     template = template_node.args[2]
     # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
     isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
-
-    return SyntaxTemplateNode(template)
-end
-
-function handle_define_rule(rule_name, rule_group, rule)
-    # TODO: Include position in error messages.
-    # TODO: Generally improve error messages.
-    isa(name, String) ||
-        error("Invalid rule name type $(typeof(name)) for $name. Expected String")
-    isa(registry, String) ||
-        error("Invalid registry type $(typeof(registry)) for $registry. Expected String")
-    @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
-    # Get description.
-    description_node = rule.args[1]
-    @isexpr(description_node, :(=), 2) ||
-        error("Unrecognized description syntax: $description_node")
-    description = description_node.args[2]
-    isa(description, String) ||
-        error("Invalid description type $(typeof(description)) for $description")
-    # Get template.
-    template_node = rule.args[2]
-    @isexpr(template_node, :(=), 2) ||
-        error("Unrecognized template syntax: $template_node")
-    template = template_node.args[2]
-    # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
-    isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
-    # Upload to rule registry.
+    # Upload to rule group.
     template_node = SyntaxTemplateNode(template)
-    register(rule, name, registry)
+    register!(template_node, rule_name, group)
 
     return template_node
 end
 
-macro define_rule(name, rule)
-    handle_define_rule(name, MacroTools.striplines(rule))
+macro define_rule(rule_name, rule)
+    handle_define_rule(rule_name, MacroTools.striplines(rule))
 end
 
-macro define_rule(name, registry, rule)
-    handle_define_rule(name, registry, MacroTools.striplines(rule))
+macro define_rule(rule_name, group, rule)
+    handle_define_rule(rule_name, group, MacroTools.striplines(rule))
 end
 
 ## Utils.
 
-# TODO: Should this receive `rule_name` and `registry_path` instead?
-function register(rule::Expr, rule_name::String, registry_path::String)
-    println(string(rule))
-    # TODO: Error handling.
-    ispath(registry_path) || mkpath(registry_path)
-    rule_path = joinpath(registry_path, rule_name)
-    touch(rule_path)  # Create rule file if non-existent.
-    # Store rule.
-    serialize(rule_path, rule)
-    
-    @info "Rule stored at $(abspath(rule_path))."
+function register!(rule::SyntaxTemplateNode, rule_name::String, group::RuleGroup)
+    # TODO: Add interactive "overwrite?".
+    group[rule_name] = rule
 end
-
-function _reassemble_rule(rule::Expr, rule_name::String)
-    rule_str = "@define_rule \"$rule_name\""
+function register!(rule::SyntaxTemplateNode, rule_name::String, group_name::String)
+    # TODO: Add interactive "overwrite?".
+    group[rule_name] = rule
 end
 
 ## -----------------------------------------------------------------------------------------
