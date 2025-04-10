@@ -41,10 +41,10 @@ struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
     RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
 end
 
-ACTIVE_RULE_GROUPS = RuleGroup[]
+# ACTIVE_RULE_GROUPS = RuleGroup[]
 
-Base.in(item::RuleGroup, ACTIVE_RULE_GROUPS) =
-    !isnothing(findfirst(g -> g.name == item.name, ACTIVE_RULE_GROUPS))
+# Base.in(item::RuleGroup, ACTIVE_RULE_GROUPS) =
+#    !isnothing(findfirst(g -> g.name == item.name, ACTIVE_RULE_GROUPS))
 
 const DEFAULT_RULE_GROUP_NAME = "default"
 DEFAULT_RULE_GROUP = RuleGroup()
@@ -136,7 +136,7 @@ end
 
 # TODO: Find a way to make this nicer...
 handle_define_rule_in_group(group, rule_name, rule_str) =
-    esc( :($define_rule_in_group($rule_name, $group, $rule_str)) )
+    esc( :($define_rule_in_group($group, $rule_name, $rule_str)) )
 
 macro define_rule_in_group(group, rule_name, rule)
     rule_str = string(rule)
