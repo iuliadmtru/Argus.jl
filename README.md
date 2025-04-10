@@ -11,11 +11,13 @@ latter).
 
 ## Ideal result
 
+### Rules
+
 I would like the user to be able to write syntax very similar to
 actual Julia syntax for the rules. Some ideas:
 
 ```julia
-@define_rule "my_rule" begin
+@rule "my_rule" begin
 	description = "Don't print integers!"
 	template = :(
 		println(%X)
@@ -23,10 +25,11 @@ actual Julia syntax for the rules. Some ideas:
 	conditions = [
 		:(%X isa Int)
 	]
+end
 ```
 
 ```julia
-@define_rule "my_rule2" begin
+@rule "my_rule2" begin
 	description = "Don't print an integer and a negative number!"
 	template = :(
 		println(%X, %Y)
@@ -34,6 +37,7 @@ actual Julia syntax for the rules. Some ideas:
 		:(%X isa Int),
 		:(%Y < 0)
 	]
+end
 ```
 
 I am currently working on implementing the first one. The second one
@@ -67,6 +71,26 @@ The `Expr` transforms the function body into a block, while the
 
 This is why I settled for template strings.
 
+TODO: Meta.unblock/Meta.unescape?
+
+### Rule groups
+
+The user should be able to group rules together.
+
+```julia
+julia> style_rules = RuleGroup("style")
+
+julia> @define_rule_in_group style_rules "useless-bool" begin
+           description = "Useless boolean in if condition"
+           template = """
+               if true Metavariable(:body) end
+           """
+       end
+
+julia> style_rules
+RuleGroup "style" with 1 entry:
+  "useless-bool" => (if true (block M"body"))
+```
 
 ## Status
 
@@ -75,69 +99,104 @@ Engineering Bachelor's at Politehnica University of Bucharest.
 
 Status: Thinking/Rethinking...
 
-Currently the package is able to define rules, upload them to a
-registry (the default is at `./rules-registry/`) and run them against
-some source code/file.
+Currently the package is able to define rules, define rule groups,
+store rules in groups and run rules against some source code/file. The
+rules can contain metavariables, but the implementation is still in
+the very early stages.
 
 ```julia
 julia> using Argus
 
-julia> test_rule = @define_rule "my_rule" begin
-           description = "My description"
+julia> useless_bool = @rule "useless-bool" begin
+           description = "Useless boolean in if condition"
            template = """
-               f(Metavariable(:x)) = 2
+               if true Metavariable(:body) end
            """
        end
-[ Info: Rule stored at .../Argus.jl/rules-registry/my_rule.
 line:col│ tree                                   │ metadata
-   -:-  |[function-=]                            |
-   -:-  |  [call]                                |
-   -:-  |    f                                   |
-   -:-  |    M"x"                                | nothing
-   -:-  |  2                                     |
+   -:-  |[if]                                    |
+   -:-  |  true                                  |
+   -:-  |  [block]                               |
+   -:-  |    M"body"                             | nothing
 
 julia> using JuliaSyntax
 
-julia> src = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "f(y) = 2")
-SyntaxNode:
-[function-=]
-  [call]
-    f                                    :: Identifier
-    y                                    :: Identifier
-  2
+julia> test_src_match = """
+       if true
+           do_something()
+       end
+       """;
 
-julia> matches = rule_match!(test_rule, src)
+julia> test_expr_match = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, test_src_match);
+
+julia> matches = rule_match!(useless_bool, test_expr_match)
 1-element SyntaxMatches:
- SyntaxMatch((function-= (call f y) 2), AbstractSyntaxPlaceholder[Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y))])
+ SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(:body, JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing))])
 
 julia> matches[1].ast
 SyntaxNode:
-[function-=]
-  [call]
-    f                                    :: Identifier
-    y                                    :: Identifier
-  2                                      :: Integer
+[if]
+  true                                   :: Bool
+  [block]
+    [call]
+      do_something                       :: Identifier
+
 
 julia> matches[1].placeholders
 1-element Vector{AbstractSyntaxPlaceholder}:
- Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y))
+ Metavariable(:body, JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing))
 
 julia> matches[1].placeholders[1].name
-:x
+:body
 
 julia> matches[1].placeholders[1].binding
-JuliaSyntax.SyntaxData(SourceFile("f(y) = 2", 0, nothing, 1, [1, 9]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 3, :y)
+JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing)
 ```
+
+After this, the rule's placeholders are bound and it wouldn't match
+again. (I need to fix this.) So we need to create the rule again to
+test it with some other source code. This time we will load it in a
+group.
+
+```julia
+julia> test_src_no_match = """
+       if cond
+           do_something()
+       end
+       """;
+
+julia> test_expr_no_match = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, test_src_no_match);
+
+julia> style_rules = RuleGroup("style")
+RuleGroup()
+
+julia> @define_rule_in_group style_rules "useless-bool" begin
+                  description = "Useless boolean in if condition"
+                  template = """
+                      if true Metavariable(:body) end
+                  """
+              end
+line:col│ tree                                   │ metadata
+   -:-  |[if]                                    |
+   -:-  |  true                                  |
+   -:-  |  [block]                               |
+   -:-  |    M"body"                             | nothing
+
+julia> style_rules
+RuleGroup style with 1 entry:
+  "useless-bool" => (if true (block M"body"))
+
+julia> rule_match!(style_rules["useless-bool"], test_expr_no_match)
+SyntaxMatch[]
+```
+
+This time we get no match.
 
 Run against file:
 
 ```julia
-julia> matches = rule_match!("my_rule", "test/test-file.jl")
-1-element SyntaxMatches:
- SyntaxMatch((function-= (call f y) 2), AbstractSyntaxPlaceholder[Metavariable(:x, JuliaSyntax.SyntaxData(SourceFile("function f(a, b)\n    y = a + b\n    return y\nend\n\na + b\na + b + c # (call-i a + b c); 4 children, all leaves; Semgrep finds this\nc + a + b # (call-i c + a b); 4 children, all leaves; Semgrep doesn't find this\n\nf(x) = \"a\"\nf(x) = 2 + x\ng(x) = 2 + x\nf(y) = 2\n", 0, "test/test-file.jl", 1, [1, 18, 32, 45, 49, 50, 56, 129, 209, 210, 221, 234, 247, 256]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x00000001, nothing), 249, :y))])
-
-julia> JuliaSyntax.source_location(matches[1].ast)
-(13, 1)
+julia> matches = rule_match!(style_rules["useless-bool"], "test/test-file.jl")
+SyntaxMatch[]
 ```
 
 
@@ -156,10 +215,9 @@ Rules can be defined in a similar way to Resyntax's
 goal is to make rule writing as intuitive as possible for Julia users
 and also as extendable and configurable as possible.
 
-`@define_rule` registers a new rule in a rule registry, or updates an
-existing rule with the same name. It also returns the rule as a
-`SyntaxTemplateNode` (defined in `src/syntax_template_tree.jl`). This
-is an AST built on `JuliaSyntax`'s AST interface (i.e. it is a
+`@rule` creates a rule as a `SyntaxTemplateNode` (defined in
+`src/syntax_template_tree.jl`). This is an AST built on
+`JuliaSyntax`'s AST interface (i.e. it is a
 `JuliaSyntax.TreeNode{SyntaxTemplateData}`). `SyntaxTemplateData` is a
 custom syntax data type which can either mimic a regular
 [`JuliaSyntax.SyntaxNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.SyntaxNode)
@@ -176,6 +234,9 @@ operator](https://docs.julialang.org/en/v1/base/base/#...) or to
 Racket's ellipsis used for [syntax
 matching](https://docs.racket-lang.org/reference/stx-patterns.html)).
 
+Rules can also be created with `create_rule`. They can also be created
+inside `RuleGroup`s with `@define_rule_in_group` (or
+`define_rule_in_group`).
 
 ### Special syntax
 
