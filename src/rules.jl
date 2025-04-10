@@ -2,6 +2,7 @@
 ## Rule definition.
 
 function create_rule(rule_name::String, rule::Expr)
+    rule = MacroTools.striplines(rule)
     # TODO: Include position in error messages.
     # TODO: Generally improve error messages.
     @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
@@ -24,7 +25,7 @@ function create_rule(rule_name::String, rule::Expr)
 end
 
 macro rule(rule_name, rule)
-    create_rule(rule_name, MacroTools.striplines(rule))
+    create_rule(rule_name, rule)
 end
 
 ## -----------------------------------------------------------------------------------------
@@ -129,7 +130,7 @@ end
 
 # TODO: Make internal.
 function define_rule_in_group(group::RuleGroup, rule_name::String, rule_str::String)
-    rule = MacroTools.striplines(Meta.parse(rule_str))
+    rule = Meta.parse(rule_str)
     return define_rule_in_group(group, rule_name, rule)
 end
 

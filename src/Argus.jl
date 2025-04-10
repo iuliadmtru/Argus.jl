@@ -9,9 +9,10 @@ export AbstractSyntaxPlaceholder, Metavariable
 export SyntaxMatch, SyntaxMatches
 export RuleGroup
 
-export @rule, @define_rule_in_group, define_rule_in_group
+export @rule, create_rule, @define_rule_in_group, define_rule_in_group
 
 ## Utils
+export register_rule!
 export is_placeholder, placeholder, contains_placeholders, placeholders,
     placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
     has_binding, set_binding!
