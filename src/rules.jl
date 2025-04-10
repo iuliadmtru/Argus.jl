@@ -1,7 +1,60 @@
 ## -----------------------------------------------------------------------------------------
-## Rules.
+## Rule groups.
 
-const DEFAULT_RULES_REGISTRY = "./rules-registry"
+const DEFAULT_RULE_GROUP_NAME = "default"
+
+struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
+    name::String
+    rules::Dict{String, SyntaxTemplateNode}
+
+    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}())
+    RuleGroup(name::String) = new(name, Dict{String, SyntaxTemplateNode}())
+    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}(kvs))
+    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
+end
+
+## Dict interface.
+
+Base.isempty(rg::RuleGroup) = isempty(rg.rules)
+Base.empty!(rg::RuleGroup) = empty!(rg.rules)
+Base.length(rg::RuleGroup) = length(rg.rules)
+
+Base.iterate(rg::RuleGroup) = iterate(rg.rules)
+Base.iterate(rg::RuleGroup, i::Int) = iterate(rg.rules, i)
+
+Base.haskey(rg::RuleGroup, k) = haskey(rg.rules, k)
+Base.get(rg::RuleGroup, k, d) = get(rg.rules, k, d)
+Base.get(f::Union{Function, Type}, rg::RuleGroup, k) = get(f, rg.rules, k)
+Base.get!(rg::RuleGroup, k, d) = get!(rg.rules, k, d)
+Base.get!(f::Union{Function, Type}, rg::RuleGroup, k) = get!(f, rg.rules, k)
+Base.getkey(rg::RuleGroup, k, d) = getkey(rg.rules, k, d)
+Base.delete!(rg::RuleGroup, k) = delete!(rg.rules, k)
+Base.pop!(rg::RuleGroup, k) = pop!(rg.rules, k)
+Base.pop!(rg::RuleGroup, k, d) = pop!(rg.rules, k, d)
+Base.keys(rg::RuleGroup) = keys(rg.rules)
+Base.values(rg::RuleGroup) = values(rg.rules)
+Base.pairs(rg::RuleGroup) = pairs(rg.rules)
+Base.merge(rg::RuleGroup, others::RuleGroup...) =
+    RuleGroup(merge(rg.rules, others.rules...))
+Base.mergewith(c, rg::RuleGroup, others::RuleGroup...) =
+    RuleGroup(mergewith(c, rg.rules, others.rules...))
+Base.merge!(rg::RuleGroup, others::RuleGroup...) =
+    RuleGroup(merge(rg.rules, others.rules...))
+Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
+    RuleGroup(mergewith(c, rg.rules, others.rules...))
+Base.keytype(rg::RuleGroup) = keytype(rg.rules)
+Base.valtype(rg::RuleGroup) = valtype(rg.rules)
+
+## Display
+
+function Base.summary(io::IO, rg::RuleGroup)
+    Base.showarg(io, rg, true)
+    n = length(rg)
+    print(io, " ", rg.name, " with ", n, (n==1 ? " entry" : " entries"))
+end
+
+## -----------------------------------------------------------------------------------------
+## Rule definition.
 
 function handle_define_rule(name, rule)
     # TODO: Include position in error messages.
@@ -81,61 +134,6 @@ end
 
 function _reassemble_rule(rule::Expr, rule_name::String)
     rule_str = "@define_rule \"$rule_name\""
-end
-
-## -----------------------------------------------------------------------------------------
-## Rule groups.
-
-const DEFAULT_RULE_GROUP_NAME = "default"
-
-struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
-    name::String
-    rules::Dict{String, SyntaxTemplateNode}
-
-    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}())
-    RuleGroup(name::String) = new(name, Dict{String, SyntaxTemplateNode}())
-    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}(kvs))
-    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
-end
-
-## Dict interface.
-
-Base.isempty(rg::RuleGroup) = isempty(rg.rules)
-Base.empty!(rg::RuleGroup) = empty!(rg.rules)
-Base.length(rg::RuleGroup) = length(rg.rules)
-
-Base.iterate(rg::RuleGroup) = iterate(rg.rules)
-Base.iterate(rg::RuleGroup, i::Int) = iterate(rg.rules, i)
-
-Base.haskey(rg::RuleGroup, k) = haskey(rg.rules, k)
-Base.get(rg::RuleGroup, k, d) = get(rg.rules, k, d)
-Base.get(f::Union{Function, Type}, rg::RuleGroup, k) = get(f, rg.rules, k)
-Base.get!(rg::RuleGroup, k, d) = get!(rg.rules, k, d)
-Base.get!(f::Union{Function, Type}, rg::RuleGroup, k) = get!(f, rg.rules, k)
-Base.getkey(rg::RuleGroup, k, d) = getkey(rg.rules, k, d)
-Base.delete!(rg::RuleGroup, k) = delete!(rg.rules, k)
-Base.pop!(rg::RuleGroup, k) = pop!(rg.rules, k)
-Base.pop!(rg::RuleGroup, k, d) = pop!(rg.rules, k, d)
-Base.keys(rg::RuleGroup) = keys(rg.rules)
-Base.values(rg::RuleGroup) = values(rg.rules)
-Base.pairs(rg::RuleGroup) = pairs(rg.rules)
-Base.merge(rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(merge(rg.rules, others.rules...))
-Base.mergewith(c, rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(mergewith(c, rg.rules, others.rules...))
-Base.merge!(rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(merge(rg.rules, others.rules...))
-Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(mergewith(c, rg.rules, others.rules...))
-Base.keytype(rg::RuleGroup) = keytype(rg.rules)
-Base.valtype(rg::RuleGroup) = valtype(rg.rules)
-
-## Display
-
-function Base.summary(io::IO, rg::RuleGroup)
-    Base.showarg(io, rg, true)
-    n = length(rg)
-    print(io, " ", rg.name, " with ", n, (n==1 ? " entry" : " entries"))
 end
 
 ## -----------------------------------------------------------------------------------------
