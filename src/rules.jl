@@ -1,11 +1,9 @@
 ## -----------------------------------------------------------------------------------------
 ## Rule definition.
 
-function handle_define_rule(rule_name, rule)
+function define_rule(rule_name::String, rule::Expr)
     # TODO: Include position in error messages.
     # TODO: Generally improve error messages.
-    isa(rule_name, String) ||
-        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
     @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
     # Get description.
     description_node = rule.args[1]
@@ -25,8 +23,14 @@ function handle_define_rule(rule_name, rule)
     return SyntaxTemplateNode(template)
 end
 
+function handle_define_rule(rule_name, rule)
+    isa(rule_name, String) ||
+        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
+    return define_rule(rule_name, rule)
+end
+
 macro define_rule(rule_name, rule)
-    handle_define_rule(rule_name, MacroTools.striplines(rule))
+    define_rule(rule_name, MacroTools.striplines(rule))
 end
 
 ## -----------------------------------------------------------------------------------------
@@ -93,17 +97,18 @@ end
 
 ## -------------------------------------------
 ## Utils.
+# active_rule_groups() = ACTIVE_RULE_GROUPS
 
-function activate_group(group::RuleGroup)
-    if group in ACTIVE_RULE_GROUPS
-        @info "Rule group $(group.name) already active"
-    else
-        push!(ACTIVE_RULE_GROUPS, group)
-        @info "Activated rule group $(group.name)"
-    end
+# function activate_rule_group(group::RuleGroup)
+#     if group in active_rule_groups()
+#         @info "Rule group $(group.name) already active"
+#     else
+#         push!(ACTIVE_RULE_GROUPS, group)
+#         @info "Activated rule group $(group.name)"
+#     end
 
-    return nothing
-end
+#     return nothing
+# end
 
 function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group::RuleGroup)
     # TODO: Add interactive "overwrite?".
@@ -111,8 +116,37 @@ function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group::Rule
 end
 # function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group_name::String)
 #     # TODO: Add interactive "overwrite?".
-#     group[rule_name] = rule
+#     group_idx = findfirst(g -> g.name == group_name, ACTIVE_RULE_GROUPS)
+#     isnothing(group_idx) &&
+#         error("Could not register rule $rule_name. No active group $group_name")
+#     group = active_rule_groups()[group_idx]
+#     register_rule!(rule, rule_name, group)
 # end
+
+## -------------------------------------------
+## Rule definition in groups.
+
+function define_rule_in_group(rule_name::String, group::RuleGroup, rule::Expr)
+    rule_node = define_rule(rule_name, rule)
+    register_rule!(rule_node, rule_name, group)
+
+    return rule_node
+end
+
+# TODO: Make internal.
+function define_rule_in_group(rule_name::String, group::RuleGroup, rule_str::String)
+    rule = MacroTools.striplines(Meta.parse(rule_str))
+    return define_rule_in_group(rule_name, group, rule)
+end
+
+# TODO: Find a way to make this nicer...
+handle_define_rule_in_group(rule_name, group, rule_str) =
+    esc( :($define_rule_in_group($rule_name, $group, $rule_str)) )
+
+macro define_rule_in_group(rule_name, group, rule)
+    rule_str = string(rule)
+    handle_define_rule_in_group(rule_name, group, rule_str)
+end
 
 ## -----------------------------------------------------------------------------------------
 ## Rule matching.

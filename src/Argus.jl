@@ -7,9 +7,11 @@ module Argus
 export SyntaxTemplateNode, SyntaxTemplateData
 export AbstractSyntaxPlaceholder, Metavariable
 export SyntaxMatch, SyntaxMatches
-export @define_rule, RuleGroup, activate_group
+export RuleGroup
 
 ## Utils
+export @define_rule, @define_rule_in_group, define_rule, define_rule_in_group,
+    active_rule_groups, activate_rule_group
 export is_placeholder, placeholder, contains_placeholders, placeholders,
     placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
     has_binding, set_binding!
@@ -23,8 +25,6 @@ using JuliaSyntax: is_leaf, children, head, kind, source_location, untokenize, i
 using JuliaSyntax: @isexpr
 
 using MacroTools: MacroTools, striplines
-
-using Serialization: serialize, deserialize
 
 ## -------------------------------------------
 
