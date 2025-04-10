@@ -1,4 +1,35 @@
 ## -----------------------------------------------------------------------------------------
+## Rule definition.
+
+function handle_define_rule(rule_name, rule)
+    # TODO: Include position in error messages.
+    # TODO: Generally improve error messages.
+    isa(rule_name, String) ||
+        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
+    @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
+    # Get description.
+    description_node = rule.args[1]
+    @isexpr(description_node, :(=), 2) ||
+        error("Unrecognized description syntax: $description_node")
+    description = description_node.args[2]
+    isa(description, String) ||
+        error("Invalid description type $(typeof(description)) for $description")
+    # Get template.
+    template_node = rule.args[2]
+    @isexpr(template_node, :(=), 2) ||
+        error("Unrecognized template syntax: $template_node")
+    template = template_node.args[2]
+    # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
+    isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
+
+    return SyntaxTemplateNode(template)
+end
+
+macro define_rule(rule_name, rule)
+    handle_define_rule(rule_name, MacroTools.striplines(rule))
+end
+
+## -----------------------------------------------------------------------------------------
 ## Rule groups.
 
 struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
@@ -52,6 +83,15 @@ Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
+## Display.
+
+function Base.summary(io::IO, rg::RuleGroup)
+    Base.showarg(io, rg, true)
+    n = length(rg)
+    print(io, " ", rg.name, " with ", n, (n==1 ? " entry" : " entries"))
+end
+
+## -------------------------------------------
 ## Utils.
 
 function activate_group(group::RuleGroup)
@@ -65,67 +105,14 @@ function activate_group(group::RuleGroup)
     return nothing
 end
 
-## Display.
-
-function Base.summary(io::IO, rg::RuleGroup)
-    Base.showarg(io, rg, true)
-    n = length(rg)
-    print(io, " ", rg.name, " with ", n, (n==1 ? " entry" : " entries"))
-end
-
-## -----------------------------------------------------------------------------------------
-## Rule definition.
-
-handle_define_rule(rule_name, rule) =
-    handle_define_rule(rule_name, DEFAULT_RULE_GROUP, rule)
-
-function handle_define_rule(rule_name, group, rule)
-    # TODO: Include position in error messages.
-    # TODO: Generally improve error messages.
-    isa(rule_name, String) ||
-        error("Invalid rule name type $(typeof(rule_name)) for $name. Expected String")
-    isa(group, String) || isa(group, RuleGroup) ||
-        error("Invalid group name type $(typeof(group)) for $group")
-    @isexpr(rule, :block) || error("Unrecognized @define_rule syntax: $rule")
-    # Get description.
-    description_node = rule.args[1]
-    @isexpr(description_node, :(=), 2) ||
-        error("Unrecognized description syntax: $description_node")
-    description = description_node.args[2]
-    isa(description, String) ||
-        error("Invalid description type $(typeof(description)) for $description")
-    # Get template.
-    template_node = rule.args[2]
-    @isexpr(template_node, :(=), 2) ||
-        error("Unrecognized template syntax: $template_node")
-    template = template_node.args[2]
-    # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
-    isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
-    # Upload to rule group.
-    template_node = SyntaxTemplateNode(template)
-    register!(template_node, rule_name, group)
-
-    return template_node
-end
-
-macro define_rule(rule_name, rule)
-    handle_define_rule(rule_name, MacroTools.striplines(rule))
-end
-
-macro define_rule(rule_name, group, rule)
-    handle_define_rule(rule_name, group, MacroTools.striplines(rule))
-end
-
-## Utils.
-
-function register!(rule::SyntaxTemplateNode, rule_name::String, group::RuleGroup)
+function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group::RuleGroup)
     # TODO: Add interactive "overwrite?".
     group[rule_name] = rule
 end
-function register!(rule::SyntaxTemplateNode, rule_name::String, group_name::String)
-    # TODO: Add interactive "overwrite?".
-    group[rule_name] = rule
-end
+# function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group_name::String)
+#     # TODO: Add interactive "overwrite?".
+#     group[rule_name] = rule
+# end
 
 ## -----------------------------------------------------------------------------------------
 ## Rule matching.
