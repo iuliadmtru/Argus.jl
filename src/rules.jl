@@ -52,36 +52,22 @@ end
 ## -------------------------------------------
 ## Rule matching.
 
-# TODO: Why keep this?
 """
     rule_match!(rule::AbstractSyntaxPattern, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
 
-Try to match the given rule to the source AST `src`. Return all matches as a `SyntaxMatches`
-array.
+Try to match a rule to source code. Return all matches as a `SyntaxMatches` array.
 """
+function rule_match!(rule, src) end
+# TODO: Keep this?
 rule_match!(rule::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
     template_match!(rule, src)
-
 # TODO: Move this functionality to `template_match!` instead?
-"""
-    rule_match!(rule::AbstractSyntaxPattern, src_file::AbstractString)::SyntaxMatches
-
-Try to match the given rule to the source code contained in `src_file`. Return all matches
-as a `SyntaxMatches` array.
-"""
 function rule_match!(rule::SyntaxTemplateNode, src_file::AbstractString)::SyntaxMatches
     src_txt = read(src_file, String)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
 
     return rule_match!(rule, src)
 end
-
-"""
-    rule_match!(rule_path::AbstractString, src_file::AbstractString)::SyntaxMatches
-
-Try to match the rule found at `rule_path` to the source code contained in `src_file`.
-Return all matches as a `SyntaxMatches` array.
-"""
 function rule_match!(rule_path::AbstractString, src_file::AbstractString)::SyntaxMatches
     # Get the correct path to the rule.
     dir_name, file_name = splitdir(rule_path)
@@ -94,7 +80,6 @@ function rule_match!(rule_path::AbstractString, src_file::AbstractString)::Synta
 
     return rule_match!(rule, src_file)
 end
-
 function rule_match!(rule_path::AbstractString, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
     # Get the correct path to the rule.
     dir_name, file_name = splitdir(rule_path)
