@@ -119,7 +119,8 @@ function Base.show(io::IO, m::Metavariable)
         str *= "nothing)"
     else
         b = m.binding
-        b_name = isa(b.val, Symbol) ? string(b.val) : repr(b.val)
+        b_name = isnothing(b.val)   ? string(kind(b.raw)) :
+                 isa(b.val, Symbol) ? string(b.val)       : repr(b.val)
         str *= "$b_name@$(b.position))"
     end
     print(io, str)
@@ -133,8 +134,10 @@ function _show_special_syntax(io::IO, m::Metavariable, indent)
     nodestr = "%$val"
     treestr = string(indent, nodestr)
     binding = m.binding
-    binding_val_str = isnothing(binding)       ? "nothing"           :
-                      isa(binding.val, Symbol) ? string(binding.val) : repr(binding.val)
+    binding_val_str = isnothing(binding)       ? "nothing"                      :
+                      isnothing(binding.val)   ? _green_node_sexpr(binding.raw) :
+                      isa(binding.val, Symbol) ? string(binding.val)            :
+                      repr(binding.val)
     treestr = string(rpad(treestr, 40), "| $binding_val_str")
 
     println(io, posstr, treestr)
@@ -143,6 +146,28 @@ end
 # TODO: Rename "special syntax".
 function _show_special_syntax_sexpr(io::IO, m::Metavariable)
     print(io, "%$(m.name)")
+end
+
+function _green_node_sexpr(node::JuliaSyntax.GreenNode)
+    str = ""
+    if is_leaf(node)
+        if is_error(node)
+            return string("(", untokenize(head(node)), ")")
+        elseif is_trivia(node)
+            return ""
+        else
+            return string(kind(node))
+        end
+    else
+        str *= string("(", untokenize(head(node)))
+        first = true
+        for n in children(node)
+            str *= ' '
+            str *= _green_node_sexpr(n)
+            first = false
+        end
+        str *= ')'
+    end
 end
 
 ## ------------------------------------------------------------------
