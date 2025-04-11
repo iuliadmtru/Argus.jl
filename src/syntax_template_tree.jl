@@ -32,13 +32,20 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
     return pattern_node
 end
 function SyntaxTemplateNode(template_src::AbstractString)
-    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, template_src)
+    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, template_src; ignore_errors=true)
     clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
 
     return SyntaxTemplateNode(clean_node)
 end
 
 function _SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
+    ret = _is_metavariable_sugared(node)
+    # TODO: This is not always the correct error. This probably needs to pass through
+    #       JuliaSyntax.
+    ret == err && error("Invalid metavariable name")
+    if ret == sugar
+        node = _desugar_metavariable(node)
+    end
     data = _is_metavariable(node)                                 ?
         SyntaxTemplateData(Metavariable(_get_metavar_name(node))) :
         SyntaxTemplateData(node.data)
@@ -199,6 +206,7 @@ end
 Return an array with all placeholders contained within the given pattern.
 """
 function placeholders(templ::SyntaxTemplateNode)
+    # TODO: Does this make sense to be anything else than a `Metavariable` vector?
     ps = AbstractSyntaxPlaceholder[]
     _placeholders!(templ, ps)
 
