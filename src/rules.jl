@@ -87,12 +87,12 @@ Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 function Base.summary(io::IO, rg::RuleGroup)
     Base.showarg(io, rg, true)
     n = length(rg)
-    print(io, " \"", rg.name, "\" with ", n, (n==1 ? " entry" : " entries"))
+    print(io, "(\"", rg.name, "\") with ", n, (n==1 ? " entry" : " entries"))
 end
 
 Base.show(io::IO, rg::RuleGroup) =
     isempty(rg)                                   ?
-    print(io, "RuleGroup(\"", rg.name, "\", {})") :
+    print(io, "RuleGroup(\"", rg.name, "\")") :
     invoke(show, AbstractDict, io, rg)
 
 ## -------------------------------------------
