@@ -9,15 +9,15 @@
 
 Light wrapper around either a `JuliaSyntax.SyntaxData` or an `AbstractSyntaxPlaceholder`.
 """
-struct SyntaxTemplateData{NodeData}
-    data::NodeData
+mutable struct SyntaxTemplateData{NodeData}
+    pattern_data::NodeData
 end
 
 ## `Base` overwrites.
 
 function Base.getproperty(data::SyntaxTemplateData, name::Symbol)
-    d = getfield(data, :data)
-    name === :data && return d
+    d = getfield(data, :pattern_data)
+    name === :pattern_data && return d
     return getproperty(d, name)
 end
 
@@ -26,6 +26,19 @@ end
 
 const SyntaxTemplateNode = JuliaSyntax.TreeNode{SyntaxTemplateData}
 function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
+    pattern_node = _SyntaxTemplateNode(node)
+    _unify_placeholders!(pattern_node)
+
+    return pattern_node
+end
+function SyntaxTemplateNode(template_src::AbstractString)
+    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, template_src)
+    clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
+
+    return SyntaxTemplateNode(clean_node)
+end
+
+function _SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
     data = _is_metavariable(node)                                 ?
         SyntaxTemplateData(Metavariable(_get_metavar_name(node))) :
         SyntaxTemplateData(node.data)
@@ -39,12 +52,6 @@ function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
 
         return templ_node
     end
-end
-function SyntaxTemplateNode(template_src::AbstractString)
-    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, template_src)
-    clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
-
-    return SyntaxTemplateNode(clean_node)
 end
 
 ## `JuliaSyntax` overwrites.
@@ -81,8 +88,7 @@ function Base.getproperty(node::SyntaxTemplateNode, name::Symbol)
     name === :parent && return getfield(node, :parent)
     name === :children && return getfield(node, :children)
     d = getfield(node, :data)
-    # Don't like this; internals of `SyntaxTemplateData` are spilled.
-    name === :data && return getfield(d, :data)
+    name === :data && return d
     return getproperty(d, name)
 end
 
@@ -130,7 +136,7 @@ Return `true` if the template matches the source AST, `false` otherwise.
 function template_compare!(template::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)
     # The node is a placeholder that needs to be filled.
     # TODO: Take into account repetitions with ellipses.
-    is_placeholder(template) && return placeholder_fill!(template.data, src)
+    is_placeholder(template) && return placeholder_fill!(template.pattern_data, src)
 
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
@@ -161,14 +167,14 @@ end
 ## -----------------------------------------------------------------------------------------
 ## Utils.
 
-is_placeholder(node::SyntaxTemplateNode) = isa(node.data, AbstractSyntaxPlaceholder)
+is_placeholder(node::SyntaxTemplateNode) = isa(node.pattern_data, AbstractSyntaxPlaceholder)
 
 """
     placeholder(node::SyntaxTemplateNode)
 
 If the template node has placeholder data, return the placeholder. Else, return `nothing`.
 """
-placeholder(node::SyntaxTemplateNode) = is_placeholder(node) ? node.data : nothing
+placeholder(node::SyntaxTemplateNode) = is_placeholder(node) ? node.pattern_data : nothing
 
 """
     contains_placeholders(node::SyntaxTemplateNode)
@@ -188,21 +194,24 @@ function contains_placeholders(node::SyntaxTemplateNode)
 end
 
 """
-    placeholders(templ::SyntaxTemplateNode)
+    placeholders(pattern::SyntaxTemplateNode)
 
-Return an array with copies of all the placeholders contained within the template.
+Return an array with all placeholders contained within the given pattern.
 """
 function placeholders(templ::SyntaxTemplateNode)
     ps = AbstractSyntaxPlaceholder[]
-    if is_placeholder(templ)
-        push!(ps, copy(templ.data))
-    elseif !is_leaf(templ)
-        for c in children(templ)
-            append!(ps, placeholders(c))
-        end
-    end
+    _placeholders!(templ, ps)
 
     return ps
+end
+function _placeholders!(pat::SyntaxTemplateNode, ps::Vector{AbstractSyntaxPlaceholder})
+    if is_placeholder(pat) && isnothing(findfirst(p -> isequal(p, pat.pattern_data), ps))
+        push!(ps, pat.pattern_data)
+    elseif !is_leaf(pat)
+        for c in children(pat)
+            _placeholders!(c, ps)
+        end
+    end
 end
 
 """
@@ -211,13 +220,33 @@ end
 Remove bindings from all placeholders within `node` and its children. Return the node.
 """
 function placeholders_unbind!(node::SyntaxTemplateNode)
-    placeholder_unbind!(node.data)
+    placeholder_unbind!(node.pattern_data)
     is_leaf(node) && return node
     for c in children(node)
         placeholders_unbind!(c)
     end
 
     return node
+end
+
+function _unify_placeholders!(node::SyntaxTemplateNode)
+    metavars = Metavariable[]
+    _unify_placeholders!(node, metavars)
+end
+function _unify_placeholders!(node::SyntaxTemplateNode, metavars::Vector{Metavariable})
+    if isa(node.pattern_data, Metavariable)
+        m_idx = findfirst(m -> isequal(m, node.pattern_data), metavars)
+        if !isnothing(m_idx)
+            # Replace the current metavariable with the existing one.
+            node.pattern_data = metavars[m_idx]
+        else
+            push!(metavars, node.pattern_data)
+        end
+    elseif !is_leaf(node)
+        for c in children(node)
+            _unify_placeholders!(c, metavars)
+        end
+    end
 end
 
 ## -------------------------------------------
@@ -227,7 +256,7 @@ end
 
 function _show_syntax_template_node(io::IO, node::SyntaxTemplateNode, indent)
     if is_placeholder(node)
-        _show_special_syntax(io, node.data, indent)
+        _show_special_syntax(io, node.pattern_data, indent)
     else
         # TODO: Change `posstr` to something useful.
         posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
@@ -249,7 +278,7 @@ end
 
 function _show_syntax_template_node_sexpr(io, node::SyntaxTemplateNode)
     if is_placeholder(node)
-        _show_special_syntax_sexpr(io, node.data)
+        _show_special_syntax_sexpr(io, node.pattern_data)
     else
         if is_leaf(node)
             if is_error(node)

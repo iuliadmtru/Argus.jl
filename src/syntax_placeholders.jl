@@ -41,9 +41,12 @@ Metavariable(name::Symbol) = Metavariable(name, nothing)
 
 has_binding(m::Metavariable) = !isnothing(m.binding)
 function set_binding!(m::Metavariable, b::JuliaSyntax.SyntaxData)
-    !isnothing(m.binding) && return false
-    m.binding = b
-    return true
+    if isnothing(m.binding)
+        m.binding = b
+        return true
+    end
+    # Check if the metavariable is bound to the same expression
+    return _isequal(m.binding, b) ? true : false
 end
 function remove_binding!(m::Metavariable)
     m.binding = nothing
@@ -58,20 +61,8 @@ placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 ## `Base` overwrites.
 
 Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
-
-## Display
-
-function Base.show(io::IO, m::Metavariable)
-    str = "Metavariable($(m.name), "
-    if isnothing(m.binding)
-        str *= "nothing)"
-    else
-        b = m.binding
-        b_name = isa(b.val, Symbol) ? string(b.val) : repr(b.val)
-        str *= "$b_name@$(b.position))"
-    end
-    print(io, str)
-end
+Base.isequal(m1::Metavariable, m2::Metavariable) =
+    isequal(m1.name, m2.name) && _isequal(m1.binding, m2.binding)
 
 ## -------------------------------------------
 ## Utils
@@ -88,11 +79,28 @@ end
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
     !_is_metavariable(node) &&
         @error "Trying to get metavariable name from non-Metavariable node"
+    # TODO: Error handling for wrong syntax.
     return node.children[2].children[1].data.val
 end
 
+_isequal(b1::JuliaSyntax.SyntaxData, b2::JuliaSyntax.SyntaxData) =
+    isequal(b1.raw, b2.raw) && isequal(b1.val, b2.val)
+_isequal(::Nothing, ::Nothing) = true
+
 ## -------------------------------------------
 ## Display.
+
+function Base.show(io::IO, m::Metavariable)
+    str = "Metavariable($(m.name), "
+    if isnothing(m.binding)
+        str *= "nothing)"
+    else
+        b = m.binding
+        b_name = isa(b.val, Symbol) ? string(b.val) : repr(b.val)
+        str *= "$b_name@$(b.position))"
+    end
+    print(io, str)
+end
 
 # TODO: Rename "special syntax".
 # TODO: Change `posstr` to something useful.
