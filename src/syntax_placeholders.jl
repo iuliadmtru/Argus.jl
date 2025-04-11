@@ -35,7 +35,6 @@ Syntax placeholder in the form of a metavariable that can be bound to an express
 """
 mutable struct Metavariable <: AbstractSyntaxPlaceholder
     name::Symbol
-    # Should this be bound to something else?
     binding::Union{Nothing, JuliaSyntax.SyntaxData}
 end
 Metavariable(name::Symbol) = Metavariable(name, nothing)
@@ -59,6 +58,20 @@ placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 ## `Base` overwrites.
 
 Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
+
+## Display
+
+function Base.show(io::IO, m::Metavariable)
+    str = "Metavariable($(m.name), "
+    if isnothing(m.binding)
+        str *= "nothing)"
+    else
+        b = m.binding
+        b_name = isa(b.val, Symbol) ? string(b.val) : repr(b.val)
+        str *= "$b_name@$(b.position))"
+    end
+    print(io, str)
+end
 
 ## -------------------------------------------
 ## Utils
@@ -86,7 +99,7 @@ end
 function _show_special_syntax(io::IO, m::Metavariable, indent)
     posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
     val = m.name  # Metavariable name.
-    nodestr = "M\"$val\""
+    nodestr = "%$val"
     treestr = string(indent, nodestr)
     binding = m.binding
     binding_val_str = isnothing(binding)       ? "nothing"           :
@@ -98,7 +111,7 @@ end
 
 # TODO: Rename "special syntax".
 function _show_special_syntax_sexpr(io::IO, m::Metavariable)
-    print(io, "M\"$(m.name)\"")
+    print(io, "%$(m.name)")
 end
 
 ## ------------------------------------------------------------------
