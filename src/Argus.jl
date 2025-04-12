@@ -4,7 +4,7 @@ module Argus
 
 ## Types
 
-export SyntaxTemplateNode, SyntaxTemplateData
+export SyntaxPatternNode, SyntaxPatternData
 export AbstractSyntaxPlaceholder, Metavariable
 export SyntaxMatch, SyntaxMatches
 export RuleGroup
@@ -17,7 +17,7 @@ export is_placeholder, placeholder, contains_placeholders, placeholders,
     placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
     has_binding, set_binding!
 export rule_match!
-export template_compare!, template_match!
+export pattern_compare!, pattern_match!
 
 ## -------------------------------------------
 
@@ -31,7 +31,7 @@ using MacroTools: MacroTools, striplines
 ## -------------------------------------------
 
 include("syntax_placeholders.jl")
-include("syntax_template_tree.jl")
+include("syntax_pattern_tree.jl")
 include("rules.jl")
 include("syntax_match.jl")
 

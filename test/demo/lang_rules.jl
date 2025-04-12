@@ -7,7 +7,7 @@ lang_group = RuleGroup("lang")
     Do not chain assignments with const. The right hand side is not constant here.
     """
 
-    template = """
+    pattern = """
     const %x = %y = %_
     """
 end

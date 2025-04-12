@@ -13,15 +13,15 @@ function create_rule(rule_name::String, rule::Expr)
     description = description_node.args[2]
     isa(description, String) ||
         error("Invalid description type $(typeof(description)) for $description")
-    # Get template.
-    template_node = rule.args[2]
-    @isexpr(template_node, :(=), 2) ||
-        error("Unrecognized template syntax: $template_node")
-    template = template_node.args[2]
-    # @isexpr(template, :quote) || @isexpr(template, :where) || isa(template, QuoteNode) ||
-    isa(template, String) || error("Unrecognized template pattern syntax: \"$template\"")
+    # Get pattern.
+    pattern_node = rule.args[2]
+    @isexpr(pattern_node, :(=), 2) ||
+        error("Unrecognized pattern syntax: $pattern_node")
+    pattern = pattern_node.args[2]
+    # @isexpr(pattern, :quote) || @isexpr(pattern, :where) || isa(pattern, QuoteNode) ||
+    isa(pattern, String) || error("Unrecognized pattern pattern syntax: \"$pattern\"")
 
-    return SyntaxTemplateNode(template)
+    return SyntaxPatternNode(pattern)
 end
 
 macro rule(rule_name, rule)
@@ -33,14 +33,14 @@ end
 
 const DEFAULT_RULE_GROUP_NAME = "default"
 
-struct RuleGroup <: AbstractDict{String, SyntaxTemplateNode}
+struct RuleGroup <: AbstractDict{String, SyntaxPatternNode}
     name::String
-    rules::Dict{String, SyntaxTemplateNode}
+    rules::Dict{String, SyntaxPatternNode}
 
-    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}())
-    RuleGroup(name::String) = new(name, Dict{String, SyntaxTemplateNode}())
-    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxTemplateNode}(kvs))
-    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxTemplateNode}(kvs))
+    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxPatternNode}())
+    RuleGroup(name::String) = new(name, Dict{String, SyntaxPatternNode}())
+    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxPatternNode}(kvs))
+    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxPatternNode}(kvs))
 end
 
 DEFAULT_RULE_GROUP = RuleGroup()
@@ -111,11 +111,11 @@ Base.show(io::IO, rg::RuleGroup) =
 #     return nothing
 # end
 
-function register_rule!(group::RuleGroup, rule::SyntaxTemplateNode, rule_name::String)
+function register_rule!(group::RuleGroup, rule::SyntaxPatternNode, rule_name::String)
     # TODO: Add interactive "overwrite?".
     group[rule_name] = rule
 end
-# function register_rule!(rule::SyntaxTemplateNode, rule_name::String, group_name::String)
+# function register_rule!(rule::SyntaxPatternNode, rule_name::String, group_name::String)
 #     # TODO: Add interactive "overwrite?".
 #     group_idx = findfirst(g -> g.name == group_name, ACTIVE_RULE_GROUPS)
 #     isnothing(group_idx) &&
@@ -159,10 +159,10 @@ Try to match a rule to source code. Return all matches as a `SyntaxMatches` arra
 """
 function rule_match!(rule, src) end
 # TODO: Keep this?
-rule_match!(rule::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
-    template_match!(rule, src)
-# TODO: Move this functionality to `template_match!` instead?
-function rule_match!(rule::SyntaxTemplateNode, src_file::AbstractString)::SyntaxMatches
+rule_match!(rule::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
+    pattern_match!(rule, src)
+# TODO: Move this functionality to `pattern_match!` instead?
+function rule_match!(rule::SyntaxPatternNode, src_file::AbstractString)::SyntaxMatches
     src_txt = read(src_file, String)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
 

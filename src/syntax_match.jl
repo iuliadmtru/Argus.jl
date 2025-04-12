@@ -4,7 +4,7 @@
 """
     SyntaxMatch
 
-Type containing the matched source (sub-)AST and, if the template used for matching had
+Type containing the matched source (sub-)AST and, if the pattern used for matching had
 any special syntax, the bound placeholders.
 """
 struct SyntaxMatch

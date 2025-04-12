@@ -19,7 +19,7 @@ actual Julia syntax for the rules. Some ideas:
 ```julia
 @rule "my_rule" begin
 	description = "Don't print integers!"
-	template = :(
+	pattern = :(
 		println(%X)
 	)
 	conditions = [
@@ -31,7 +31,7 @@ end
 ```julia
 @rule "my_rule2" begin
 	description = "Don't print an integer and a negative number!"
-	template = :(
+	pattern = :(
 		println(%X, %Y)
 	) where [
 		:(%X isa Int),
@@ -43,7 +43,7 @@ end
 I am currently working on implementing the first one. The second one
 could be added later as syntactic sugar over the first.
 
-Sadly it is quite difficult to manage templates passed as expressions,
+Sadly it is quite difficult to manage patterns passed as expressions,
 as much as I would like it. The reason is that I could't find a way to
 correctly transform an `Expr` into a `SyntaxNode`, without
 losing/adding any information to the AST. As an example, consider the
@@ -69,7 +69,7 @@ julia> :(f(x) = 2)
 The `Expr` transforms the function body into a block, while the
 `SyntaxNode` doesn't.
 
-This is why I settled for template strings.
+This is why I settled for pattern strings.
 
 TODO: Meta.unblock/Meta.unescape?
 
@@ -82,7 +82,7 @@ julia> style_rules = RuleGroup("style")
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
            description = "Useless boolean in if condition"
-           template = """
+           pattern = """
                if true Metavariable(:body) end
            """
        end
@@ -109,7 +109,7 @@ julia> using Argus
 
 julia> useless_bool = @rule "useless-bool" begin
            description = "Useless boolean in if condition"
-           template = """
+           pattern = """
                if true Metavariable(:body) end
            """
        end
@@ -172,7 +172,7 @@ RuleGroup()
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
                   description = "Useless boolean in if condition"
-                  template = """
+                  pattern = """
                       if true Metavariable(:body) end
                   """
               end
@@ -215,10 +215,10 @@ Rules can be defined in a similar way to Resyntax's
 goal is to make rule writing as intuitive as possible for Julia users
 and also as extendable and configurable as possible.
 
-`@rule` creates a rule as a `SyntaxTemplateNode` (defined in
-`src/syntax_template_tree.jl`). This is an AST built on
+`@rule` creates a rule as a `SyntaxPatternNode` (defined in
+`src/syntax_pattern_tree.jl`). This is an AST built on
 `JuliaSyntax`'s AST interface (i.e. it is a
-`JuliaSyntax.TreeNode{SyntaxTemplateData}`). `SyntaxTemplateData` is a
+`JuliaSyntax.TreeNode{SyntaxPatternData}`). `SyntaxPatternData` is a
 custom syntax data type which can either mimic a regular
 [`JuliaSyntax.SyntaxNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.SyntaxNode)
 by storing data as `JuliaSyntax.SyntaxData`, or it can contain some
@@ -258,7 +258,7 @@ classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html))]).
 ### AST comparison
 
 I implemented a rudimentary AST matching mechanism in
-`template_match!`. There are some existing pattern matching packages
+`pattern_match!`. There are some existing pattern matching packages
 in Julia that I could have used, such as
 [Match.jl](https://github.com/JuliaServices/Match.jl/tree/cb25c8c686cbd94c46f05b91a6870dbba19e0acc)
 or [MLStyle.jl](https://github.com/thautwarm/MLStyle.jl). However,
@@ -275,7 +275,7 @@ configure the packages I mentioned. I will look more into this though.
 - I really like Racket's [pattern based
   macros](https://docs.racket-lang.org/guide/pattern-macros.html),
   maybe this tool can go more towards that? Rules can be seen as
-  templates which should match source code.
+  patterns which should match source code.
 
 
 ## Inspiration
