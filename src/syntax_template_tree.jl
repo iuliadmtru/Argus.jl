@@ -120,19 +120,19 @@ found bind the placeholders in the template, if any. Return an array of `SyntaxM
 """
 function template_match!(tp::SyntaxTemplateNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
     if template_compare!(tp, src)
-        return SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
+        matches = SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
+        placeholders_unbind!(tp)
+        return matches
     end
     if is_leaf(src)
         return SyntaxMatches()
     end
-    # Clean up bound placeholders.
-    # TODO: Should this be done elsewhere?
-    placeholders_unbind!(tp)
     # Search for matches within children.
     matches = SyntaxMatches()
     for c in children(src)
         append!(matches, template_match!(tp, c))
     end
+    placeholders_unbind!(tp)
 
     return matches
 end
@@ -244,7 +244,7 @@ function placeholders(templ::SyntaxTemplateNode)
 end
 function _placeholders!(pat::SyntaxTemplateNode, ps::Vector{AbstractSyntaxPlaceholder})
     if is_placeholder(pat) && isnothing(findfirst(p -> isequal(p, pat.pattern_data), ps))
-        push!(ps, pat.pattern_data)
+        push!(ps, copy(pat.pattern_data))
     elseif !is_leaf(pat)
         for c in children(pat)
             _placeholders!(c, ps)
