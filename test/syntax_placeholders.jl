@@ -1,4 +1,7 @@
-import Argus: has_binding, set_binding!, placeholder_unbind!, placeholder_fill!, _isequal
+using Base: ignore_compiled_cache
+import Argus: has_binding, set_binding!, placeholder_unbind!, placeholder_fill!, _isequal,
+    SugaredMetavariableRed, sugar, _is_metavariable_sugared, _get_metavar_name_sugared,
+    _desugar_metavariable
 
 @testset "Metavariable" begin
     metavar = Metavariable(:y)
@@ -28,4 +31,10 @@ import Argus: has_binding, set_binding!, placeholder_unbind!, placeholder_fill!,
     metavar_other_name = Metavariable(:z, syntax_node.data)
     @test !isequal(metavar, metavar_other_name)
     @test _isequal(metavar.binding, metavar_other_name.binding)
+
+    node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "%x"; ignore_errors=true)
+    @test _is_metavariable_sugared(node) === sugar
+    @test _get_metavar_name_sugared(node) === :x
+    unsugared_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:x)")
+    @test isequal(unsugared_node, _desugar_metavariable(node))
 end
