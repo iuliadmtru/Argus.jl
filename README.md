@@ -82,14 +82,14 @@ julia> style_rules = RuleGroup("style")
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
            description = "Useless boolean in if condition"
-           pattern = """
-               if true Metavariable(:body) end
-           """
+           pattern = :(
+               if true %body end
+           )
        end
 
 julia> style_rules
 RuleGroup "style" with 1 entry:
-  "useless-bool" => (if true (block M"body"))
+  "useless-bool" => (if true (block %body))
 ```
 
 ## Status
@@ -101,8 +101,8 @@ Status: Thinking/Rethinking...
 
 Currently the package is able to define rules, define rule groups,
 store rules in groups and run rules against some source code/file. The
-rules can contain metavariables, but the implementation is still in
-the very early stages.
+rules can contain metavariables which bind to expressions in the
+source code if the pattern matches.
 
 ```julia
 julia> using Argus
@@ -110,14 +110,16 @@ julia> using Argus
 julia> useless_bool = @rule "useless-bool" begin
            description = "Useless boolean in if condition"
            pattern = """
-               if true Metavariable(:body) end
+           if true
+               %body
+		   end
            """
        end
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
    -:-  |  [block]                               |
-   -:-  |    M"body"                             | nothing
+   -:-  |    %body                               | nothing
 
 julia> using JuliaSyntax
 
@@ -131,7 +133,7 @@ julia> test_expr_match = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, test_src_
 
 julia> matches = pattern_match!(useless_bool, test_expr_match)
 1-element SyntaxMatches:
- SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(:body, JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing))])
+ SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(body, call@13)])
 
 julia> matches[1].ast
 SyntaxNode:
@@ -144,7 +146,7 @@ SyntaxNode:
 
 julia> matches[1].placeholders
 1-element Vector{AbstractSyntaxPlaceholder}:
- Metavariable(:body, JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing))
+ Metavariable(body, call@13)
 
 julia> matches[1].placeholders[1].name
 :body
@@ -154,9 +156,8 @@ JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing
 ```
 
 After this, the rule's placeholders are bound and it wouldn't match
-again. (I need to fix this.) So we need to create the rule again to
-test it with some other source code. This time we will load it in a
-group.
+again. So we need to create the rule again to test it with some other
+source code. This time we will load it in a group.
 
 ```julia
 julia> test_src_no_match = """
@@ -168,23 +169,25 @@ julia> test_src_no_match = """
 julia> test_expr_no_match = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, test_src_no_match);
 
 julia> style_rules = RuleGroup("style")
-RuleGroup()
+RuleGroup("style")
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
-                  description = "Useless boolean in if condition"
-                  pattern = """
-                      if true Metavariable(:body) end
-                  """
-              end
+           description = "Useless boolean in if condition"
+           pattern = """
+           if true
+               %body
+           end
+           """
+       end
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
    -:-  |  [block]                               |
-   -:-  |    M"body"                             | nothing
+   -:-  |    %body                               | nothing
 
 julia> style_rules
-RuleGroup style with 1 entry:
-  "useless-bool" => (if true (block M"body"))
+RuleGroup("style") with 1 entry:
+  "useless-bool" => (if true (block %body))
 
 julia> pattern_match!(style_rules["useless-bool"], test_expr_no_match)
 SyntaxMatch[]
@@ -192,15 +195,56 @@ SyntaxMatch[]
 
 This time we get no match.
 
-Run against file:
+Inside `test/` there's a `demo/` directory where I try to rewrite some
+rules from the [`semgrep-rules-julia`
+repo](https://github.com/JuliaComputing/semgrep-rules-julia). `Argus`
+has only a minimal amount of features for now, so it's almost
+impossible to rewrite the rules yet. Still, I was able to rewrite the
+simple [`chained-const-assignment`
+rule](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/chained-const-assignment.yaml)
+completely. Other rules are also already rewritable, such as
+[`compare-nothing`](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml),
+but not with only one rule because `Argus` doesn't yet support rules
+with alternatives (similar to Semgrep's `pattern-either`).
+
+You can test the rules in the demo:
 
 ```julia
-julia> matches = pattern_match!(style_rules["useless-bool"], "test/test-file.jl")
-SyntaxMatch[]
+julia> include("test/demo/lang_rules.jl");
+
+julia> chained_const_assignment = lang_rules["chained-const-assignment"]
+line:col│ tree                                   │ metadata
+   -:-  |[const]                                 |
+   -:-  |  [=]                                   |
+   -:-  |    %x                                  | nothing
+   -:-  |    [=]                                 |
+   -:-  |      %y                                | nothing
+   -:-  |      %_                                | nothing
+
+julia> pattern_match!(chained_const_assignment, "test/demo/chained_const_assignment.jl")
+4-element SyntaxMatches:
+ SyntaxMatch((const (= a (= b 1))), AbstractSyntaxPlaceholder[Metavariable(x, a@23), Metavariable(y, b@27), Metavariable(_, 1@31)])
+ SyntaxMatch((const (= a (= b c))), AbstractSyntaxPlaceholder[Metavariable(x, a@56), Metavariable(y, b@60), Metavariable(_, c@64)])
+ SyntaxMatch((const (= a (= b (= c 1)))), AbstractSyntaxPlaceholder[Metavariable(x, a@89), Metavariable(y, b@93), Metavariable(_, =@97)])
+ SyntaxMatch((const (= a (= b (string "abc")))), AbstractSyntaxPlaceholder[Metavariable(x, a@126), Metavariable(y, b@130), Metavariable(_, string@134)])
+
+julia> useless_equals = lang_rules["useless-equals"]
+line:col│ tree                                   │ metadata
+   -:-  |[call-i]                                |
+   -:-  |  %x                                    | nothing
+   -:-  |  ==                                    |
+   -:-  |  %x                                    | nothing
+
+
+julia> pattern_match!(useless_equals, "../test/demo/useless_equals.jl")
+1-element SyntaxMatches:
+ SyntaxMatch((call-i x == x), AbstractSyntaxPlaceholder[Metavariable(x, x@20)])
 ```
 
 
-## Design choices
+## Design choices and ideas
+
+TODO: Rewrite this.
 
 `Argus` is built on top of
 [`JuliaSyntax.jl`](https://github.com/JuliaLang/JuliaSyntax.jl). The
