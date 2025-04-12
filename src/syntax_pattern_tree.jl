@@ -26,8 +26,17 @@ function Base.getproperty(data::SyntaxPatternData, name::Symbol)
     return getproperty(d, name)
 end
 
-Base.isequal(d1::SyntaxPatternData, d2::SyntaxPatternData) =
-    isequal(d1.pattern_data, d2.pattern_data)
+function Base.isequal(d1::SyntaxPatternData, d2::SyntaxPatternData)
+    if isa(d1.pattern_data, Metavariable)
+        isa(d2.pattern_data, Metavariable) || return false
+        # Both are metavariables.
+        return isequal(d1.pattern_data, d2.pattern_data)
+    elseif isa(d1.pattern_data, JuliaSyntax.SyntaxData)
+        isa(d2.pattern_data, JuliaSyntax.SyntaxData) || return false
+        # Both are syntax data.
+        return _isequal(d1.pattern_data, d2.pattern_data)
+    end
+end
 Base.isequal(::Nothing, ::SyntaxPatternData) = false
 Base.isequal(::SyntaxPatternData, ::Nothing) = false
 
@@ -167,6 +176,7 @@ _is_metavariable(node::SyntaxPatternNode) = isa(node.data.pattern_data, Metavari
 
 @enum SugaredMetavariableRet sugar no_sugar err
 function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
+    # TODO: Allow %f(x).
     is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
     is_error_call || return no_sugar
 
