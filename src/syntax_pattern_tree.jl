@@ -158,12 +158,36 @@ Internal utility function for checking whether a syntax node corresponds to the
 _is_metavariable(node::JuliaSyntax.SyntaxNode) =
     kind(node) == K"call" && node.children[1].data.val == :Metavariable
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
-    !_is_metavariable(node) &&
-        @error "Trying to get metavariable name from non-Metavariable node"
+    _is_metavariable(node) ||
+        error("Trying to get metavariable name from non-Metavariable node")
     # TODO: Error handling for wrong syntax.
     return node.children[2].children[1].data.val
 end
 _is_metavariable(node::SyntaxPatternNode) = isa(node.data.pattern_data, Metavariable)
+
+@enum SugaredMetavariableRet sugar no_sugar err
+function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
+    is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
+    is_error_call || return no_sugar
+
+    length(node.children) > 2 && return err
+    error_node = node.children[1]
+    (is_leaf(error_node) || length(error_node.children) > 1) && return err
+    !is_leaf(error_node.children[1]) && return err
+    error_node.children[1].val !== :% && return err
+    !is_leaf(node.children[2]) && return err
+
+    return sugar
+end
+function _get_metavar_name_sugared(node::JuliaSyntax.SyntaxNode)
+    _is_metavariable_sugared(node) !== sugar &&
+        @error "Trying to get metavariable name from non-Metavariable node"
+    return node.children[2].data.val
+end
+function _desugar_metavariable(node::JuliaSyntax.SyntaxNode)
+    name = string(_get_metavar_name_sugared(node))
+    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:$name)")
+end
 
 is_placeholder(node::SyntaxPatternNode) = isa(node.pattern_data, AbstractSyntaxPlaceholder)
 

@@ -58,6 +58,7 @@ end
 placeholder_fill!(m::Metavariable, ast::JuliaSyntax.SyntaxNode) = set_binding!(m, ast.data)
 placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 
+## -------------------------------------------
 ## `Base` overwrites.
 
 Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
@@ -66,30 +67,6 @@ Base.isequal(m1::Metavariable, m2::Metavariable) =
 
 ## -------------------------------------------
 ## Utils
-
-@enum SugaredMetavariableRet sugar no_sugar err
-function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
-    is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
-    is_error_call || return no_sugar
-
-    length(node.children) > 2 && return err
-    error_node = node.children[1]
-    (is_leaf(error_node) || length(error_node.children) > 1) && return err
-    !is_leaf(error_node.children[1]) && return err
-    error_node.children[1].val !== :% && return err
-    !is_leaf(node.children[2]) && return err
-
-    return sugar
-end
-function _get_metavar_name_sugared(node::JuliaSyntax.SyntaxNode)
-    _is_metavariable_sugared(node) !== sugar &&
-        @error "Trying to get metavariable name from non-Metavariable node"
-    return node.children[2].data.val
-end
-function _desugar_metavariable(node::JuliaSyntax.SyntaxNode)
-    name = string(_get_metavar_name_sugared(node))
-    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:$name)")
-end
 
 _isequal(b1::JuliaSyntax.SyntaxData, b2::JuliaSyntax.SyntaxData) =
     isequal(b1.raw, b2.raw) && isequal(b1.val, b2.val)
