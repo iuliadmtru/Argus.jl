@@ -13,6 +13,11 @@ mutable struct SyntaxPatternData{NodeData}
     pattern_data::NodeData
 end
 
+## `JuliaSyntax` overwrites.
+
+JuliaSyntax.head(d::SyntaxPatternData{JuliaSyntax.SyntaxData}) = head(d.pattern_data.raw)
+JuliaSyntax.head(d::SyntaxPatternData{Metavariable}) = nothing
+
 ## `Base` overwrites.
 
 function Base.getproperty(data::SyntaxPatternData, name::Symbol)
@@ -20,6 +25,11 @@ function Base.getproperty(data::SyntaxPatternData, name::Symbol)
     name === :pattern_data && return d
     return getproperty(d, name)
 end
+
+Base.isequal(d1::SyntaxPatternData, d2::SyntaxPatternData) =
+    isequal(d1.pattern_data, d2.pattern_data)
+Base.isequal(::Nothing, ::SyntaxPatternData) = false
+Base.isequal(::SyntaxPatternData, ::Nothing) = false
 
 ## -------------------------------------------
 ## Syntax pattern tree.
@@ -72,8 +82,7 @@ end
 ## `JuliaSyntax` overwrites.
 
 # TODO: Add `head` for placeholders.
-JuliaSyntax.head(node::SyntaxPatternNode) =
-    is_placeholder(node) ? nothing : head(node.data.raw)
+JuliaSyntax.head(node::SyntaxPatternNode) = head(node.data)
 JuliaSyntax.kind(node::SyntaxPatternNode) = head(node).kind
 
 JuliaSyntax.build_tree(::Type{SyntaxPatternNode}, stream::JuliaSyntax.ParseStream; kws...) =
