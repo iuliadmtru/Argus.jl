@@ -195,6 +195,8 @@ SyntaxMatch[]
 
 This time we get no match.
 
+### Demo
+
 Inside `test/` there's a `demo/` directory where I try to rewrite some
 rules from the [`semgrep-rules-julia`
 repo](https://github.com/JuliaComputing/semgrep-rules-julia). `Argus`
