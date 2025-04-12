@@ -67,23 +67,6 @@ Base.isequal(m1::Metavariable, m2::Metavariable) =
 ## -------------------------------------------
 ## Utils
 
-"""
-    _is_metavariable(node::JuliaSyntax.SyntaxNode)
-
-Internal utility function for checking whether a syntax node corresponds to the
-`Argus`-specific syntax for a `Metavariable`.
-"""
-_is_metavariable(node::JuliaSyntax.SyntaxNode) =
-    kind(node) == K"call" && node.children[1].data.val == :Metavariable
-function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
-    !_is_metavariable(node) &&
-        @error "Trying to get metavariable name from non-Metavariable node"
-    # TODO: Error handling for wrong syntax.
-    return node.children[2].children[1].data.val
-end
-
-_is_metavariable(node::SyntaxTemplateNode) = isa(node.data.pattern_data, Metavariable)
-
 @enum SugaredMetavariableRet sugar no_sugar err
 function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
     is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
