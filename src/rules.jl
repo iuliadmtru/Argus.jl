@@ -97,6 +97,31 @@ Base.show(io::IO, rg::RuleGroup) =
     invoke(show, AbstractDict, io, rg)
 
 ## -------------------------------------------
+## Rule definition in groups.
+
+function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Expr)
+    rule_node = create_rule(rule_name, rule)
+    register_rule!(group, rule_node, rule_name)
+
+    return rule_node
+end
+
+# TODO: Make internal.
+function define_rule_in_group(group::RuleGroup, rule_name::String, rule_str::String)
+    rule = Meta.parse(rule_str)
+    return define_rule_in_group(group, rule_name, rule)
+end
+
+# TODO: Find a way to make this nicer...
+handle_define_rule_in_group(group, rule_name, rule_str) =
+    esc( :($define_rule_in_group($group, $rule_name, $rule_str)) )
+
+macro define_rule_in_group(group, rule_name, rule)
+    rule_str = string(rule)
+    handle_define_rule_in_group(group, rule_name, rule_str)
+end
+
+## -------------------------------------------
 ## Utils.
 # active_rule_groups() = ACTIVE_RULE_GROUPS
 
@@ -122,73 +147,4 @@ end
 #         error("Could not register rule $rule_name. No active group $group_name")
 #     group = active_rule_groups()[group_idx]
 #     register_rule!(rule, rule_name, group)
-# end
-
-## -------------------------------------------
-## Rule definition in groups.
-
-function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Expr)
-    rule_node = create_rule(rule_name, rule)
-    register_rule!(group, rule_node, rule_name)
-
-    return rule_node
-end
-
-# TODO: Make internal.
-function define_rule_in_group(group::RuleGroup, rule_name::String, rule_str::String)
-    rule = Meta.parse(rule_str)
-    return define_rule_in_group(group, rule_name, rule)
-end
-
-# TODO: Find a way to make this nicer...
-handle_define_rule_in_group(group, rule_name, rule_str) =
-    esc( :($define_rule_in_group($group, $rule_name, $rule_str)) )
-
-macro define_rule_in_group(group, rule_name, rule)
-    rule_str = string(rule)
-    handle_define_rule_in_group(group, rule_name, rule_str)
-end
-
-## -----------------------------------------------------------------------------------------
-## Rule matching.
-
-"""
-    rule_match!(rule::AbstractSyntaxPattern, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
-
-Try to match a rule to source code. Return all matches as a `SyntaxMatches` array.
-"""
-function rule_match!(rule, src) end
-# TODO: Keep this?
-rule_match!(rule::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
-    pattern_match!(rule, src)
-# TODO: Move this functionality to `pattern_match!` instead?
-function rule_match!(rule::SyntaxPatternNode, src_file::AbstractString)::SyntaxMatches
-    src_txt = read(src_file, String)
-    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
-
-    return rule_match!(rule, src)
-end
-# function rule_match!(rule_path::AbstractString, src_file::AbstractString)::SyntaxMatches
-#     # Get the correct path to the rule.
-#     dir_name, file_name = splitdir(rule_path)
-#     registry_path = isempty(dir_name) ? DEFAULT_RULES_REGISTRY : dir_name
-#     ispath(registry_path) || error("Unexistent rule registry path $registry_path")
-#     full_rule_path = joinpath(registry_path, file_name)
-#     ispath(full_rule_path) || error("Unexistent rule path $full_rule_path")
-#     # Read the rule.
-#     rule = deserialize(full_rule_path)
-
-#     return rule_match!(rule, src_file)
-# end
-# function rule_match!(rule_path::AbstractString, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
-#     # Get the correct path to the rule.
-#     dir_name, file_name = splitdir(rule_path)
-#     registry_path = isempty(dir_name) ? DEFAULT_RULES_REGISTRY : dir_name
-#     ispath(registry_path) || error("Unexistent rule registry path $registry_path")
-#     full_rule_path = joinpath(registry_path, file_name)
-#     ispath(full_rule_path) || error("Unexistent rule path $full_rule_path")
-#     # Read the rule.
-#     rule = deserialize(full_rule_path)
-
-#     return rule_match!(rule, src)
 # end

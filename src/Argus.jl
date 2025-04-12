@@ -13,11 +13,7 @@ export @rule, create_rule, @define_rule_in_group, define_rule_in_group
 
 ## Utils
 export register_rule!
-# export is_placeholder, placeholder, contains_placeholders, placeholders,
-#     placeholder_fill!, placeholder_unbind!, placeholders_unbind!,
-#     has_binding, set_binding!
-export rule_match!
-export pattern_compare!, pattern_match!
+export pattern_match!, pattern_compare!
 
 ## -------------------------------------------
 
@@ -33,6 +29,7 @@ using MacroTools: MacroTools, striplines
 include("syntax_placeholders.jl")
 include("syntax_pattern_tree.jl")
 include("rules.jl")
+include("pattern_match.jl")
 include("syntax_match.jl")
 
 ## -----------------------------------------------------------------------------------------

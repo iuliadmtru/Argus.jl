@@ -129,7 +129,7 @@ julia> test_src_match = """
 
 julia> test_expr_match = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, test_src_match);
 
-julia> matches = rule_match!(useless_bool, test_expr_match)
+julia> matches = pattern_match!(useless_bool, test_expr_match)
 1-element SyntaxMatches:
  SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(:body, JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing))])
 
@@ -186,7 +186,7 @@ julia> style_rules
 RuleGroup style with 1 entry:
   "useless-bool" => (if true (block M"body"))
 
-julia> rule_match!(style_rules["useless-bool"], test_expr_no_match)
+julia> pattern_match!(style_rules["useless-bool"], test_expr_no_match)
 SyntaxMatch[]
 ```
 
@@ -195,7 +195,7 @@ This time we get no match.
 Run against file:
 
 ```julia
-julia> matches = rule_match!(style_rules["useless-bool"], "test/test-file.jl")
+julia> matches = pattern_match!(style_rules["useless-bool"], "test/test-file.jl")
 SyntaxMatch[]
 ```
 
