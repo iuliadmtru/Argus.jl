@@ -45,13 +45,6 @@ struct RuleGroup <: AbstractDict{String, SyntaxPatternNode}
     RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxPatternNode}(kvs))
 end
 
-DEFAULT_RULE_GROUP = RuleGroup()
-
-# ACTIVE_RULE_GROUPS = RuleGroup[]
-
-# Base.in(item::RuleGroup, ACTIVE_RULE_GROUPS) =
-#    !isnothing(findfirst(g -> g.name == item.name, ACTIVE_RULE_GROUPS))
-
 ## Dict interface.
 
 Base.isempty(rg::RuleGroup) = isempty(rg.rules)
@@ -125,28 +118,8 @@ end
 
 ## -------------------------------------------
 ## Utils.
-# active_rule_groups() = ACTIVE_RULE_GROUPS
-
-# function activate_rule_group(group::RuleGroup)
-#     if group in active_rule_groups()
-#         @info "Rule group $(group.name) already active"
-#     else
-#         push!(ACTIVE_RULE_GROUPS, group)
-#         @info "Activated rule group $(group.name)"
-#     end
-
-#     return nothing
-# end
 
 function register_rule!(group::RuleGroup, rule::SyntaxPatternNode, rule_name::String)
     # TODO: Add interactive "overwrite?".
     group[rule_name] = rule
 end
-# function register_rule!(rule::SyntaxPatternNode, rule_name::String, group_name::String)
-#     # TODO: Add interactive "overwrite?".
-#     group_idx = findfirst(g -> g.name == group_name, ACTIVE_RULE_GROUPS)
-#     isnothing(group_idx) &&
-#         error("Could not register rule $rule_name. No active group $group_name")
-#     group = active_rule_groups()[group_idx]
-#     register_rule!(rule, rule_name, group)
-# end
