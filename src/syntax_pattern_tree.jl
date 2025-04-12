@@ -9,7 +9,7 @@
 
 Light wrapper around either a `JuliaSyntax.SyntaxData` or an `AbstractSyntaxPlaceholder`.
 """
-mutable struct SyntaxPatternData{NodeData}
+mutable struct SyntaxPatternData{NodeData} <: JuliaSyntax.AbstractSyntaxData
     pattern_data::NodeData
 end
 
@@ -30,6 +30,8 @@ Base.isequal(d1::SyntaxPatternData, d2::SyntaxPatternData) =
     isequal(d1.pattern_data, d2.pattern_data)
 Base.isequal(::Nothing, ::SyntaxPatternData) = false
 Base.isequal(::SyntaxPatternData, ::Nothing) = false
+
+Base.copy(d::SyntaxPatternData) = SyntaxPatternData(copy(d.pattern_data))
 
 ## -------------------------------------------
 ## Syntax pattern tree.
@@ -114,6 +116,14 @@ function Base.getproperty(node::SyntaxPatternNode, name::Symbol)
     d = getfield(node, :data)
     name === :data && return d
     return getproperty(d, name)
+end
+
+function Base.isequal(p1::SyntaxPatternNode, p2::SyntaxPatternNode)
+    isequal(p1.data, p2.data) || return false
+    (is_leaf(p1) && !is_leaf(p2)) && return false
+    is_leaf(p1) && return true  # Both are leaves.
+    # Both have children.
+    return all(p -> isequal(p[1], p[2]), zip(children(p1), children(p2)))
 end
 
 ## -----------------------------------------------------------------------------------------
