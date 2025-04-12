@@ -27,6 +27,8 @@ end
 const SyntaxTemplateNode = JuliaSyntax.TreeNode{SyntaxTemplateData}
 function SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
     pattern_node = _SyntaxTemplateNode(node)
+    # TODO: Can we do less passes?
+    # _fix_metavariable_assignment_nodes!(pattern_node)
     _unify_placeholders!(pattern_node)
 
     return pattern_node
@@ -55,10 +57,18 @@ function _SyntaxTemplateNode(node::JuliaSyntax.SyntaxNode)
     else
         cs = [SyntaxTemplateNode(c) for c in children(node)]
         templ_node = SyntaxTemplateNode(nothing, cs, data)
-        [c.parent = templ_node for c in cs]
-
-        return templ_node
+        for c in cs
+            c.parent = templ_node
+            if _is_metavariable(c)
+                if JuliaSyntax.flags(templ_node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+                    c.parent.data =
+                        _update_data_head(data, JuliaSyntax.SyntaxHead(K"=", 0))
+                end
+            end
+        end
     end
+
+    return templ_node
 end
 
 ## `JuliaSyntax` overwrites.
@@ -174,6 +184,26 @@ end
 ## -----------------------------------------------------------------------------------------
 ## Utils.
 
+function _update_data_head(
+    old_data::SyntaxTemplateData{JuliaSyntax.SyntaxData},
+    new_head::JuliaSyntax.SyntaxHead
+)
+    old_raw = old_data.raw
+    new_raw = JuliaSyntax.GreenNode(
+        new_head,
+        old_raw.span,
+        old_raw.children
+    )
+    new_data = JuliaSyntax.SyntaxData(
+        old_data.source,
+        new_raw,
+        old_data.position,
+        old_data.val
+    )
+
+    return SyntaxTemplateData(new_data)
+end
+
 is_placeholder(node::SyntaxTemplateNode) = isa(node.pattern_data, AbstractSyntaxPlaceholder)
 
 """
@@ -237,12 +267,66 @@ function placeholders_unbind!(node::SyntaxTemplateNode)
     return node
 end
 
+"""
+    _fix_metavariable_assignment_nodes!(node::SyntaxTemplateNode)
+
+Fix metavariable assignment in patterns. `%x = 1` should result in
+```
+[=]
+  %x
+  1
+```
+, not in
+```
+[function-=]
+  [call]
+    x
+    1
+```
+"""
+function _fix_metavariable_assignment_nodes!(node::SyntaxTemplateNode)
+    is_leaf(node) && return
+    _is_metavariable(node) && return
+    # Check if it's a `[function-=]` node.
+    fl = JuliaSyntax.flags(node)
+    if fl === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+        contains_placeholders(node) || return
+        @info node node.children
+        # If it is a metavariable instead, the node should be a plain assignment.
+        _is_metavariable(node.children[1]) || return
+        node.data = _update_data_head(node.data, JuliaSyntax.SyntaxHead(K"=", 0))
+        @info node
+    end
+    # Recurse on children.
+    [_fix_metavariable_assignment_nodes!(c) for c in children(node)]
+        
+    # for c in cs
+    #     if _is_metavariable(c)
+    #         flag = JuliaSyntax.flags(templ_node)
+    #         @info "flag" flag
+    #         if flag === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+    #             @info "is equal"
+    #             c.parent = SyntaxTemplateNode(
+    #                 nothing,
+    #                 cs,
+    #                 _update_data_head(data, JuliaSyntax.SyntaxHead(K"=", 0))
+    #             )
+    #             @info c c.parent
+    #         else
+    #             c.parent = templ_node
+    #         end
+    #     else
+    #         c.parent = templ_node
+    #     end
+    # end
+end
+
 function _unify_placeholders!(node::SyntaxTemplateNode)
     metavars = Metavariable[]
     _unify_placeholders!(node, metavars)
 end
 function _unify_placeholders!(node::SyntaxTemplateNode, metavars::Vector{Metavariable})
-    if isa(node.pattern_data, Metavariable)
+    if _is_metavariable(node)
         m_idx = findfirst(m -> isequal(m, node.pattern_data), metavars)
         if !isnothing(m_idx)
             # Replace the current metavariable with the existing one.

@@ -82,6 +82,8 @@ function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
     return node.children[2].children[1].data.val
 end
 
+_is_metavariable(node::SyntaxTemplateNode) = isa(node.data.pattern_data, Metavariable)
+
 @enum SugaredMetavariableRet sugar no_sugar err
 function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
     is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
