@@ -72,9 +72,9 @@ Base.merge(rg::RuleGroup, others::RuleGroup...) =
 Base.mergewith(c, rg::RuleGroup, others::RuleGroup...) =
     RuleGroup(mergewith(c, rg.rules, others...))
 Base.merge!(rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(merge(rg.rules, others...))
+    RuleGroup(merge!(rg.rules, others...))
 Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
-    RuleGroup(mergewith(c, rg.rules, others...))
+    RuleGroup(mergewith!(c, rg.rules, others...))
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
@@ -87,9 +87,9 @@ function Base.summary(io::IO, rg::RuleGroup)
 end
 
 Base.show(io::IO, rg::RuleGroup) =
-    isempty(rg)                                   ?
+    isempty(rg)                               ?
     print(io, "RuleGroup(\"", rg.name, "\")") :
-    invoke(show, AbstractDict, io, rg)
+    invoke(show, Tuple{IOBuffer, AbstractDict}, io, rg)
 
 ## -------------------------------------------
 ## Rule definition in groups.
