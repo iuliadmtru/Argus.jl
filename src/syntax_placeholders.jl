@@ -93,6 +93,8 @@ end
 
 _isequal(b1::JuliaSyntax.SyntaxData, b2::JuliaSyntax.SyntaxData) =
     isequal(b1.raw, b2.raw) && isequal(b1.val, b2.val)
+_isequal(::Nothing, ::JuliaSyntax.SyntaxData) = false
+_isequal(::JuliaSyntax.SyntaxData, ::Nothing) = false
 _isequal(::Nothing, ::Nothing) = true
 
 ## -------------------------------------------
