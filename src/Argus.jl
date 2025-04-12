@@ -29,8 +29,7 @@ using MacroTools: MacroTools, striplines
 include("syntax_placeholders.jl")
 include("syntax_pattern_tree.jl")
 include("rules.jl")
-include("pattern_match.jl")
-include("syntax_match.jl")
+include("matching.jl")
 
 ## -----------------------------------------------------------------------------------------
 
