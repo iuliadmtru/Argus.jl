@@ -48,10 +48,10 @@ Base.show(io::IO, ::Type{SyntaxMatches}) = print(io, "SyntaxMatches")
 Try to match the given pattern with a source AST and all its children. When a match is
 found bind the placeholders in the pattern, if any. Return an array of `SyntaxMatch`es.
 """
-function pattern_match!(tp::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
-    if pattern_compare!(tp, src)
-        matches = SyntaxMatches([SyntaxMatch(src, placeholders(tp))])
-        placeholders_unbind!(tp)
+function pattern_match!(pat::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+    if pattern_compare!(pat, src)
+        matches = SyntaxMatches([SyntaxMatch(src, placeholders(pat))])
+        placeholders_unbind!(pat)
         return matches
     end
     if is_leaf(src)
@@ -60,9 +60,9 @@ function pattern_match!(tp::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::Syn
     # Search for matches within children.
     matches = SyntaxMatches()
     for c in children(src)
-        append!(matches, pattern_match!(tp, c))
+        append!(matches, pattern_match!(pat, c))
     end
-    placeholders_unbind!(tp)
+    placeholders_unbind!(pat)
 
     return matches
 end

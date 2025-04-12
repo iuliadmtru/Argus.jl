@@ -66,11 +66,11 @@ function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
         return SyntaxPatternNode(nothing, nothing, data)
     else
         cs = [SyntaxPatternNode(c) for c in children(node)]
-        templ_node = SyntaxPatternNode(nothing, cs, data)
+        pat_node = SyntaxPatternNode(nothing, cs, data)
         for c in cs
-            c.parent = templ_node
+            c.parent = pat_node
             if _is_metavariable(c)
-                if JuliaSyntax.flags(templ_node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+                if JuliaSyntax.flags(pat_node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
                     c.parent.data =
                         _update_data_head(data, JuliaSyntax.SyntaxHead(K"=", 0))
                 end
@@ -78,7 +78,7 @@ function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
         end
     end
 
-    return templ_node
+    return pat_node
 end
 
 ## `JuliaSyntax` overwrites.
@@ -196,10 +196,10 @@ end
 
 Return an array with all placeholders contained within the given pattern.
 """
-function placeholders(templ::SyntaxPatternNode)
+function placeholders(pattern::SyntaxPatternNode)
     # TODO: Does this make sense to be anything else than a `Metavariable` vector?
     ps = AbstractSyntaxPlaceholder[]
-    _placeholders!(templ, ps)
+    _placeholders!(pattern, ps)
 
     return ps
 end
