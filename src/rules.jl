@@ -1,3 +1,5 @@
+# TODO: Add Rule struct with name, description and pattern.
+
 ## -----------------------------------------------------------------------------------------
 ## Rule definition.
 
