@@ -103,17 +103,18 @@ function JuliaSyntax.source_location(node::SyntaxPatternNode)
     if is_placeholder(node)
         # TODO: Treat other placeholders.
         # The node contains a `Metavariable`.
-        if (has_binding(node.data))
-            source_file = node.data.binding.source
-            byte_idx = node.data.binding.position
+        if (has_binding(node.pattern_data))
+            source_file = node.pattern_data.binding.source
+            byte_idx = node.pattern_data.binding.position
             return JuliaSyntax.source_location(source_file, byte_idx)
         else
+            # TODO: Return some position here?
             return (0, 0)
         end
     end
     # The node contains regular `SyntaxData`.
-    source_file = node.data.source
-    byte_idx = node.data.position
+    source_file = node.pattern_data.source
+    byte_idx = node.pattern_data.position
     return JuliaSyntax.source_location(source_file, byte_idx)
 end
 

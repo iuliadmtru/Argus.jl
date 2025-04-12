@@ -99,7 +99,15 @@ function pattern_compare!(pattern::SyntaxPatternNode, src::JuliaSyntax.SyntaxNod
     # The node itself is not a special node, but it has a successor
     # with some special syntax.
     if contains_placeholders(pattern)
-        head(pattern) != head(src) && return false
+        if head(pattern) != head(src)
+            # A `[=]` node in the pattern can match a short form function definition.
+            if kind(pattern) === K"=" && kind(src) === K"function"
+                src_flags = JuliaSyntax.flags(src)
+                src_flags === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG || return false
+            else
+                return false
+            end
+        end
         if length(children(pattern)) == length(children(src))
             zipped_children = zip(children(pattern), children(src))
             return all(p -> pattern_compare!(p[1], p[2]), zipped_children)
