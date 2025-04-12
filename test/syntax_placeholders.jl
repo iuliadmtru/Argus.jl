@@ -1,7 +1,6 @@
 using Base: ignore_compiled_cache
 import Argus: has_binding, set_binding!, placeholder_unbind!, placeholder_fill!, _isequal,
-    SugaredMetavariableRed, sugar, _is_metavariable_sugared, _get_metavar_name_sugared,
-    _desugar_metavariable
+    sugar, _is_metavariable_sugared, _get_metavar_name_sugared, _desugar_metavariable
 
 @testset "Metavariable" begin
     metavar = Metavariable(:y)

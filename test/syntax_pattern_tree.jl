@@ -1,244 +1,128 @@
+import Argus: _SyntaxPatternNode, _update_data_head, _unify_placeholders!, placeholder,
+    placeholders, contains_placeholders, is_placeholder, placeholders_unbind!,
+    _is_metavariable, _get_metavar_name, set_binding!
+
 @testset "SyntaxPatternData" begin
-    src = "x"
-    syntax_data = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src).data
+    syntax_data = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x").data
+    wrapped_syntax_data = SyntaxPatternData(syntax_data)
+    @test isa(wrapped_syntax_data, SyntaxPatternData{JuliaSyntax.SyntaxData})
     metavar = Metavariable(:x)
-    @test SyntaxPatternData(syntax_data).val === :x
-    @test SyntaxPatternData(metavar).name === :x
+    wrapped_metavar = SyntaxPatternData(metavar)
+    @test isa(wrapped_metavar, SyntaxPatternData{Metavariable})
+    @test wrapped_metavar.name === wrapped_syntax_data.val
+
+    # Data updating.
+    syntax_data = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "f(2)").data
+    wrapped = SyntaxPatternData(syntax_data)
+    @test kind(wrapped) === K"call"
+    keep_flags = JuliaSyntax.flags(wrapped.pattern_data.raw)
+    updated = _update_data_head(wrapped, JuliaSyntax.SyntaxHead(K"=", keep_flags))
+    @test kind(updated) === K"="
+    unupdated = _update_data_head(updated, JuliaSyntax.SyntaxHead(K"call", keep_flags))
+    @test isequal(wrapped, unupdated)
 end
 
 @testset "SyntaxPatternNode" begin
 
     @testset "Without placeholders" begin
-        pattern_str = """
-        begin
-            a = "a"
-            b = 1
-            f(x) = x + 1
-            println(a, f(b))
-        end
-        """
-        syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, pattern_str)
-        pattern = SyntaxPatternNode(syntax_node)
-        @test pattern.data == syntax_node.data
-        @test length(children(pattern)) == length(children(syntax_node))
-        @test isnothing(pattern.parent)
-        @test head(pattern) == head(syntax_node)
-        b = children(children(syntax_node)[2])[1]
-        @test children(children(pattern)[2])[1].data.val === :b
-        @test isempty(placeholders(pattern))
+        # Construct with `JuliaSyntax.SyntaxNode`.
+        syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x + 1")
+        pattern_node = SyntaxPatternNode(syntax_node)
+        # Functionality inherited from JuliaSyntax.
+        @test !isnothing(head(pattern_node))
+        @test kind(pattern_node) === K"call"
+        @test !is_leaf(pattern_node)
+        @test is_leaf(pattern_node.children[1])
+        @test length(children(pattern_node)) == 3
+        @test source_location(pattern_node) == source_location(syntax_node)
+        # Placeholder utils.
+        unprocessed = _SyntaxPatternNode(syntax_node)
+        @test isempty(placeholders(unprocessed))
+        processed = copy(unprocessed)
+        _unify_placeholders!(processed)
+        @test isequal(unprocessed, processed)
+        @test isequal(unprocessed, placeholders_unbind!(processed))
+        @test !contains_placeholders(processed)
+        @test !_is_metavariable(syntax_node.children[1])
+        @test_throws "non-Metavariable node" _get_metavar_name(syntax_node)
     end
 
     @testset "With placeholders" begin
-        pattern_str = "f(Metavariable(:x)) = Metavariable(:x) + 1"
-        pattern = SyntaxPatternNode(pattern_str)
-        @test contains_placeholders(pattern)
-        @test kind(pattern) === K"function"
-
-        metavar1 = children(children(pattern)[1])[2]
-        @test is_placeholder(metavar1)
-        m1 = placeholder(metavar1)
-        @test !isnothing(m1)
-        @test m1.name === :x
-        @test isnothing(m1.binding)
-
-        metavar2 = children(children(pattern)[2])[1]
-        @test m1.name == placeholder(metavar2).name
-    end
-
-end
-
-@testset "Compare" begin
-
-    @testset "Without placeholders" begin
-        src = """
-        a = 1
-        b = 2
-        a + b
-        f(x, y) = x + y
-        """
-        syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
-        @test !contains_placeholders(pattern)
-        @test !pattern_compare!(pattern, syntax_node)
-        @test !pattern_compare!(pattern, children(syntax_node)[1])
-        @test pattern_compare!(pattern, children(syntax_node)[3])
-        @test !pattern_compare!(pattern, children(children(syntax_node)[4])[2])
-    end
-
-    @testset "With placeholders" begin
-        src = """
-        a = 1
-        b = 2
-        a + b
-        f(x, y) = x + y
-        """
-        syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("Metavariable(:A) + Metavariable(:B)")
-        @test contains_placeholders(pattern)
-        @test !pattern_compare!(pattern, syntax_node)
-        @test !pattern_compare!(pattern, children(syntax_node)[1])
-        # First match.
-        @test pattern_compare!(pattern, children(syntax_node)[3])
-        metavar_a = children(pattern)[1]
-        @test metavar_a.binding.val === :a
-        @test source_location(metavar_a) == (3, 1)
-        metavar_b = children(pattern)[3]
-        @test metavar_b.data.binding.val === :b
-        @test source_location(metavar_b) == (3, 5)
-        placeholders_unbind!(pattern)
-        # Second match.
-        @test pattern_compare!(pattern, children(children(syntax_node)[4])[2])
-        metavar_x = children(pattern)[1]
-        @test metavar_x.binding.val === :x
-        @test source_location(metavar_x) == (4, 11)
-        metavar_y = children(pattern)[3]
-        @test metavar_y.binding.val === :y
-        @test source_location(metavar_y) == (4, 15)
-    end
-
-end
-
-@testset "Match" begin
-
-    @testset "Without placeholders" begin
-        ## Single match.
-
-        src = """
-        function f(a, b)
-            y = a + b
-            return y
-        end
-        """
-        syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
-        @test !contains_placeholders(pattern)
-        matches = pattern_match!(pattern, syntax_node)
-        @test length(matches) == 1
-        m = matches[1]
-        @test kind(m.ast) === K"call"
-        @test length(children(m.ast)) == 3
-        @test source_location(m) == (2, 9)
-
-
-        ## Multiple matches.
-
-        src = """
-        function f(a, b)
-            y = a + b
-            return y
-        end
-
-        a = 2
-        b = 3
-        f(a + b, b)
-
-        let x = 2, y = 3
-            z = x + y
-            a = 1
-            b = 2
-            a + b
-        end
-        """
-        syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
-        matches = pattern_match!(pattern, syntax_node)
-        @test length(matches) == 3
-        @test source_location(matches[1]) == (2, 9)
-        @test source_location(matches[2]) == (8, 3)
-        @test source_location(matches[3]) == (14, 5)
-
-        src = """
-        function f(a, b)
-            y = a + b
-            return y
-        end
-
-        a = 2
-        b = 3
-        f(a + b, b)
-
-        g(x::T1; y::T2) = println(x, y)
-
-        let x = 2, y = 3
-            z = x + y
-            a = 1
-            b = 2
-            g(b; a=2)
-        end
-        """
-        syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a = 2")
-        matches = pattern_match!(pattern, syntax_node)
-        @test length(matches) == 2
-        @test source_location(matches[1]) == (6, 1)
-        @test source_location(matches[2]) == (16, 10)
-    end
-
-    @testset "With placeholders" begin
-
-        @testset "Metavariable" begin
-            ## Single metavariable, single match.
-
-            src = """
-            function f(a, b)
-                y = a + b
-                return y
-            end
-            """
-            syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
-            pattern = SyntaxPatternNode("Metavariable(:A) + b")
-            metavar = children(pattern)[1].data
-            @test !has_binding(metavar)
-            matches = pattern_match!(pattern, syntax_node)
-            @test length(matches) == 1
-            m = matches[1]
-            @test source_location(m) == (2, 9)
-            @test !isnothing(m.placeholders)
-            @test length(m.placeholders) == 1
-            mvar = m.placeholders[1]
-            @test mvar !== placeholders(pattern)[1]  # Should be a copy.
-            @test mvar.binding.val === :a
-            @test mvar.binding.position == ncodeunits("function f(a, b)\n    y = ") + 1
-
-
-            ## Single metavariable, multiple matches.
-
-            src = """
-            function f(a, b)
-                y = a + b
-                return y
-            end
-
-            a = 2
-            b = 3
-            f(a + b, b)
-
-            let x = 2, y = 3
-                z = x + b
-                a = 1
-                b = 2
-                b + a
-            end
-            """
-            syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-            pattern = SyntaxPatternNode("Metavariable(:A) + b")
-            matches = pattern_match!(pattern, syntax_node)
-            # Check for three matches with one metavariable each.
-            @test length(matches) == 3
-            @test !any(m -> isnothing(m.placeholders), matches)
-            @test !any(m -> length(m.placeholders) != 1, matches)
-            # Check each match.
-            @test source_location(matches[1]) == (2, 9)
-            metavar1 = matches[1].placeholders[1]
-            @test metavar1.binding.val === :a
-            @test source_location(matches[2]) == (8, 3)
-            metavar2 = matches[2].placeholders[1]
-            @test metavar2.binding.val === :a
-            @test source_location(matches[3]) == (11, 9)
-            metavar3 = matches[3].placeholders[1]
-            @test metavar3.binding.val === :x
-        end
-        
+        # Construct with string.
+        pattern_node1 = SyntaxPatternNode("%x + 1")
+        pattern_node2 = SyntaxPatternNode("%y + %y")
+        # Functionality inherited from JuliaSyntax.
+        @test !isnothing(head(pattern_node1))
+        @test kind(pattern_node1) === K"call"
+        @test isnothing(head(pattern_node1.children[1]))
+        @test isnothing(head(pattern_node2.children[3]))
+        @test !is_leaf(pattern_node1)
+        @test length(children(pattern_node1)) == 3
+        @test !is_leaf(pattern_node2)
+        @test length(children(pattern_node2)) == 3
+        # Placeholder utils.
+        syntax_node1 = JuliaSyntax.parsestmt(
+            JuliaSyntax.SyntaxNode,
+            "Metavariable(:x) + 1";
+            ignore_errors=true
+        )
+        syntax_node2 = JuliaSyntax.parsestmt(
+            JuliaSyntax.SyntaxNode,
+            "Metavariable(:y) + Metavariable(:y)";
+            ignore_errors=true
+        )
+        @test _is_metavariable(syntax_node1.children[1])
+        @test _get_metavar_name(syntax_node1.children[1]) === :x
+        @test _is_metavariable(syntax_node2.children[3])
+        @test _get_metavar_name(syntax_node2.children[1]) === :y
+        @test _is_metavariable(syntax_node2.children[3])
+        @test _get_metavar_name(syntax_node2.children[3]) === :y
+        @test !_is_metavariable(syntax_node2.children[2])
+        unprocessed1 = _SyntaxPatternNode(syntax_node1)
+        unprocessed2 = _SyntaxPatternNode(syntax_node2)
+        @test !isempty(placeholders(unprocessed1))
+        @test contains_placeholders(unprocessed1)
+        @test !isempty(placeholders(unprocessed2))
+        @test contains_placeholders(unprocessed2)
+        @test length(placeholders(unprocessed1)) == 1
+        @test length(placeholders(unprocessed2)) == 1
+        @test is_placeholder(unprocessed1.children[1])
+        @test !is_placeholder(unprocessed1.children[3])
+        @test is_placeholder(unprocessed2.children[1])
+        @test is_placeholder(unprocessed2.children[3])
+        p1 = placeholder(unprocessed2.children[1])
+        p3 = placeholder(unprocessed2.children[3])
+        @test isequal(p1, p3)
+        @test p1 !== p3
+        @test isnothing(placeholder(unprocessed2.children[2]))
+        # Process nodes.
+        processed1 = copy(unprocessed1)
+        processed2 = copy(unprocessed2)
+        ## Unify placeholders.
+        _unify_placeholders!(processed1)
+        @test isequal(unprocessed1, processed1)
+        _unify_placeholders!(processed2)
+        @test isequal(unprocessed2, processed2)
+        p1 = placeholder(unprocessed2.children[1])
+        p3 = placeholder(unprocessed2.children[3])
+        @test p1 !== p3
+        p1 = placeholder(processed2.children[1])
+        p3 = placeholder(processed2.children[3])
+        @test p1 === p3
+        @test length(placeholders(processed2)) == 1
+        @test length(placeholders(unprocessed2)) == 1
+        ## Bind and unbind placeholders.
+        @test isequal(processed1, placeholders_unbind!(processed1))
+        @test isequal(processed2, placeholders_unbind!(processed2))
+        binding_data = syntax_node1.children[3].data  # Node `1`.
+        set_binding!(processed1.children[1].pattern_data, binding_data)
+        set_binding!(processed2.children[1].pattern_data, binding_data)
+        @test processed1.children[1].name === :x
+        @test processed1.children[1].binding.val === 1
+        @test processed2.children[1].name === :y
+        @test processed2.children[1].binding.val === 1
+        @test processed2.children[3].name === :y
+        @test processed2.children[3].binding.val === 1
     end
 
 end
