@@ -1,5 +1,5 @@
-## -----------------------------------------------------------------------------------------
-## Syntax placeholders
+# ------------------------------------------------------------------------------------------
+# Syntax placeholders.
 
 """
     AbstractSyntaxPlaceholder
@@ -26,7 +26,7 @@ function placeholder_unbind!(p::AbstractSyntaxPlaceholder) end
 # No placeholder for regular `SyntaxData`.
 placeholder_unbind!(p::JuliaSyntax.SyntaxData) = p
 
-## ------------------------------------------------------------------
+# -------------------------------------------------------------------
 
 """
     Metavariable <: AbstractSyntaxPlaceholder
@@ -53,20 +53,20 @@ function remove_binding!(m::Metavariable)
     return m
 end
 
-## Wrappers for supertype compatibility.
+# Wrappers for supertype compatibility.
 
 placeholder_fill!(m::Metavariable, ast::JuliaSyntax.SyntaxNode) = set_binding!(m, ast.data)
 placeholder_unbind!(m::Metavariable) = remove_binding!(m)
 
-## -------------------------------------------
-## `Base` overwrites.
+# --------------------------------------------
+# `Base` overwrites.
 
 Base.copy(m::Metavariable) = Metavariable(m.name, m.binding)
 Base.isequal(m1::Metavariable, m2::Metavariable) =
     isequal(m1.name, m2.name) && _isequal(m1.binding, m2.binding)
 
-## -------------------------------------------
-## Utils
+# --------------------------------------------
+# Utils.
 
 _isequal(b1::JuliaSyntax.SyntaxData, b2::JuliaSyntax.SyntaxData) =
     isequal(b1.raw, b2.raw) && isequal(b1.val, b2.val)
@@ -74,8 +74,8 @@ _isequal(::Nothing, ::JuliaSyntax.SyntaxData) = false
 _isequal(::JuliaSyntax.SyntaxData, ::Nothing) = false
 _isequal(::Nothing, ::Nothing) = true
 
-## -------------------------------------------
-## Display.
+# --------------------------------------------
+# Display.
 
 function Base.show(io::IO, m::Metavariable)
     str = "Metavariable($(m.name), "
@@ -134,6 +134,6 @@ function _green_node_sexpr(node::JuliaSyntax.GreenNode)
     end
 end
 
-## ------------------------------------------------------------------
+# -------------------------------------------------------------------
 
 # TODO.

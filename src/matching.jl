@@ -1,5 +1,5 @@
-## -----------------------------------------------------------------------------------------
-## `SyntaxMatch` and `SyntaxMatches`.
+# ------------------------------------------------------------------------------------------
+# `SyntaxMatch` and `SyntaxMatches`.
 
 """
     SyntaxMatch
@@ -13,11 +13,11 @@ struct SyntaxMatch
 end
 SyntaxMatch(src::JuliaSyntax.SyntaxNode) = SyntaxMatch(src, nothing)
 
-## `JuliaSyntax` overwrites.
+# `JuliaSyntax` overwrites.
 
 JuliaSyntax.source_location(m::SyntaxMatch) = source_location(m.ast)
 
-## `Base` overwrites.
+# `Base` overwrites.
 
 function Base.getproperty(m::SyntaxMatch, name::Symbol)
     name === :placeholders && return getfield(m, :placeholders)
@@ -26,7 +26,7 @@ function Base.getproperty(m::SyntaxMatch, name::Symbol)
     return getproperty(ast, name)
 end
 
-## -------------------------------------------
+# --------------------------------------------
 
 """
     SyntaxMatches = Vector{SyntaxMatch}
@@ -35,12 +35,12 @@ Vector of `SyntaxMatch`es.
 """
 const SyntaxMatches = Vector{SyntaxMatch}
 
-## Display.
+# Display.
 
 Base.show(io::IO, ::Type{SyntaxMatches}) = print(io, "SyntaxMatches")
 
-## -----------------------------------------------------------------------------------------
-## Pattern matching.
+# ------------------------------------------------------------------------------------------
+# Pattern matching.
 
 """
     pattern_match!(pattern::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
@@ -78,8 +78,8 @@ function pattern_match!(pattern::SyntaxPatternNode, src_file::AbstractString)::S
     return pattern_match!(pattern, src)
 end
 
-## -------------------------------------------
-## Pattern comparison.
+# --------------------------------------------
+# Pattern comparison.
 
 # TODO: Needs more work.
 """

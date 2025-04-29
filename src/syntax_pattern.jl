@@ -22,7 +22,7 @@ matches as a `SyntaxMatches` array.
 """
 function pattern_match!(p::AbstractSyntaxPattern, file::AbstractString)::SyntaxMatches end
 
-## -------------------------------------------
+# --------------------------------------------
 
 """
     Pattern <: AbstractSyntaxPattern

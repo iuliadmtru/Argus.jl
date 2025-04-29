@@ -1,8 +1,8 @@
-## -----------------------------------------------------------------------------------------
-## Pattern AST interface.
+# ------------------------------------------------------------------------------------------
+# Pattern AST interface.
 
-## -------------------------------------------
-## Syntax pattern data.
+# --------------------------------------------
+# Syntax pattern data.
 
 """
     SyntaxPatternData
@@ -13,12 +13,12 @@ mutable struct SyntaxPatternData{NodeData} <: JuliaSyntax.AbstractSyntaxData
     pattern_data::NodeData
 end
 
-## `JuliaSyntax` overwrites.
+# `JuliaSyntax` overwrites.
 
 JuliaSyntax.head(d::SyntaxPatternData{JuliaSyntax.SyntaxData}) = head(d.pattern_data.raw)
 JuliaSyntax.head(d::SyntaxPatternData{Metavariable}) = nothing
 
-## `Base` overwrites.
+# `Base` overwrites.
 
 function Base.getproperty(data::SyntaxPatternData, name::Symbol)
     d = getfield(data, :pattern_data)
@@ -42,8 +42,8 @@ Base.isequal(::SyntaxPatternData, ::Nothing) = false
 
 Base.copy(d::SyntaxPatternData) = SyntaxPatternData(copy(d.pattern_data))
 
-## -------------------------------------------
-## Syntax pattern tree.
+# --------------------------------------------
+# Syntax pattern tree.
 
 const SyntaxPatternNode = JuliaSyntax.TreeNode{SyntaxPatternData}
 function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
@@ -90,7 +90,7 @@ function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     return pat_node
 end
 
-## `JuliaSyntax` overwrites.
+# `JuliaSyntax` overwrites.
 
 # TODO: Add `head` for placeholders.
 JuliaSyntax.head(node::SyntaxPatternNode) = head(node.data)
@@ -118,7 +118,7 @@ function JuliaSyntax.source_location(node::SyntaxPatternNode)
     return JuliaSyntax.source_location(source_file, byte_idx)
 end
 
-## `Base` overwrites.
+# `Base` overwrites.
 
 function Base.getproperty(node::SyntaxPatternNode, name::Symbol)
     name === :parent && return getfield(node, :parent)
@@ -136,8 +136,8 @@ function Base.isequal(p1::SyntaxPatternNode, p2::SyntaxPatternNode)
     return all(p -> isequal(p[1], p[2]), zip(children(p1), children(p2)))
 end
 
-## -----------------------------------------------------------------------------------------
-## Utils.
+# ------------------------------------------------------------------------------------------
+# Utils.
 
 function _update_data_head(
     old_data::SyntaxPatternData{JuliaSyntax.SyntaxData},
@@ -283,8 +283,8 @@ function _unify_placeholders!(node::SyntaxPatternNode, metavars::Vector{Metavari
     end
 end
 
-## -------------------------------------------
-## Display.
+# --------------------------------------------
+# Display.
 
 # TODO: Improve these. For now, they are basically copy-pasted from `JuliaSyntax`.
 

@@ -1,7 +1,7 @@
 # TODO: Add Rule struct with name, description and pattern.
 
-## -----------------------------------------------------------------------------------------
-## Rule definition.
+# ------------------------------------------------------------------------------------------
+# Rule definition.
 
 function create_rule(rule_name::String, rule::Expr)
     rule = MacroTools.striplines(rule)
@@ -30,8 +30,8 @@ macro rule(rule_name, rule)
     create_rule(rule_name, rule)
 end
 
-## -----------------------------------------------------------------------------------------
-## Rule groups.
+# ------------------------------------------------------------------------------------------
+# Rule groups.
 
 const DEFAULT_RULE_GROUP_NAME = "default"
 
@@ -45,7 +45,7 @@ struct RuleGroup <: AbstractDict{String, SyntaxPatternNode}
     RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxPatternNode}(kvs))
 end
 
-## Dict interface.
+# Dict interface.
 
 Base.isempty(rg::RuleGroup) = isempty(rg.rules)
 Base.empty!(rg::RuleGroup) = empty!(rg.rules)
@@ -91,8 +91,8 @@ Base.show(io::IO, rg::RuleGroup) =
     print(io, "RuleGroup(\"", rg.name, "\")") :
     invoke(show, Tuple{IOBuffer, AbstractDict}, io, rg)
 
-## -------------------------------------------
-## Rule definition in groups.
+# --------------------------------------------
+# Rule definition in groups.
 
 function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Expr)
     rule_node = create_rule(rule_name, rule)
@@ -116,8 +116,8 @@ macro define_rule_in_group(group, rule_name, rule)
     handle_define_rule_in_group(group, rule_name, rule_str)
 end
 
-## -------------------------------------------
-## Utils.
+# --------------------------------------------
+# Utils.
 
 function register_rule!(group::RuleGroup, rule::SyntaxPatternNode, rule_name::String)
     # TODO: Add interactive "overwrite?".
