@@ -97,7 +97,7 @@ RuleGroup "style" with 1 entry:
 This project is part of my thesis for the Computer Science and
 Engineering Bachelor's at Politehnica University of Bucharest.
 
-Status: Thinking/Rethinking...
+Status: Adding `and` and `or` pattern directives...
 
 Currently the package is able to define rules, define rule groups,
 store rules in groups and run rules against some source code/file. The
@@ -112,7 +112,7 @@ julia> useless_bool = @rule "useless-bool" begin
            pattern = """
            if true
                %body
-		   end
+           end
            """
        end
 useless-bool: Useless boolean in if condition
@@ -196,6 +196,29 @@ SyntaxMatch[]
 ```
 
 This time we get no match.
+
+Currently I'm working on adding `and`/`or` pattern directives. The
+goal is to provide something similar to this:
+```julia
+@rule "or-rule" begin
+    description = "f either 2 or 3."
+    pattern = or(
+    "f(%x) = 2",
+    "f(%x) = 3"
+    )
+end
+```
+
+Ideally, using `Expr`s:
+```julia
+@rule "or-rule" begin
+	description = "f either 2 or 3."
+	pattern = or(
+	:(f(%x) = 2),
+	:(f(%x) = 3)
+	)
+end
+```
 
 ### Demo
 
