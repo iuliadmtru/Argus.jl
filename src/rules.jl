@@ -24,8 +24,12 @@ function Rule(rule_name::String, rule::Expr)
     @isexpr(pattern_node, :(=), 2) ||
         error("Unrecognized pattern syntax: $pattern_node")
     pattern = pattern_node.args[2]
-    # @isexpr(pattern, :quote) || @isexpr(pattern, :where) || isa(pattern, QuoteNode) ||
-    isa(pattern, String) || error("Unrecognized pattern pattern syntax: \"$pattern\"")
+    # The pattern can be:
+    #     - a simple pattern:    "f(x) = 2"
+    #     - a composite pattern: or("f(x) = 2", "f(x) = 3")
+    isa(pattern, String)                                                                 ||
+        (isa(pattern, Expr) && !isempty(pattern.args) && pattern.args[1] in [:or, :and]) ||
+        error("Unrecognized pattern pattern syntax: \"$pattern\"")
 
     return Rule(rule_name, description, SyntaxPatternNode(pattern))
 end

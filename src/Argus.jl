@@ -1,6 +1,6 @@
 module Argus
 
-export SyntaxPatternNode, SyntaxPatternData
+export SyntaxPatternNode, SyntaxPatternDirective, SyntaxPatternData
 export AbstractSyntaxPlaceholder, Metavariable
 export SyntaxMatch, SyntaxMatches
 export Rule, RuleGroup

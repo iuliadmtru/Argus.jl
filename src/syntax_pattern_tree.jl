@@ -2,12 +2,31 @@
 # Pattern AST interface.
 
 # --------------------------------------------
+# Syntax pattern directive.
+
+struct SyntaxPatternDirective
+    directive::Symbol  # `:and` or `:or`
+end
+
+# Display.
+
+function _show_directive(io::IO, d::SyntaxPatternDirective, indent)
+    posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
+    nodestr = string(indent, "[directive-", d.directive, "]")
+    treestr = string(indent, nodestr)
+    treestr = string(rpad(treestr, 40), "|")
+
+    println(io, posstr, treestr)
+end
+
+# --------------------------------------------
 # Syntax pattern data.
 
 """
     SyntaxPatternData
 
-Light wrapper around either a `JuliaSyntax.SyntaxData` or an `AbstractSyntaxPlaceholder`.
+Light wrapper around a `JuliaSyntax.SyntaxData`, a `SyntaxPatternDirective` or an
+`AbstractSyntaxPlaceholder`.
 """
 mutable struct SyntaxPatternData{NodeData} <: JuliaSyntax.AbstractSyntaxData
     pattern_data::NodeData
@@ -16,6 +35,7 @@ end
 # `JuliaSyntax` overwrites.
 
 JuliaSyntax.head(d::SyntaxPatternData{JuliaSyntax.SyntaxData}) = head(d.pattern_data.raw)
+JuliaSyntax.head(d::SyntaxPatternData{SyntaxPatternDirective}) = nothing
 JuliaSyntax.head(d::SyntaxPatternData{Metavariable}) = nothing
 
 # `Base` overwrites.
@@ -31,6 +51,10 @@ function Base.isequal(d1::SyntaxPatternData, d2::SyntaxPatternData)
         isa(d2.pattern_data, Metavariable) || return false
         # Both are metavariables.
         return isequal(d1.pattern_data, d2.pattern_data)
+    elseif isa(d1.pattern_data, SyntaxPatternDirective)
+        isa(d2.pattern_data, SyntaxPatternDirective) || return false
+        # Both are pattern directives.
+        return d1.directive === d2.directive
     elseif isa(d1.pattern_data, JuliaSyntax.SyntaxData)
         isa(d2.pattern_data, JuliaSyntax.SyntaxData) || return false
         # Both are syntax data.
@@ -54,9 +78,32 @@ function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
 end
 function SyntaxPatternNode(pattern_src::AbstractString)
     node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, pattern_src; ignore_errors=true)
-    clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
+    clean_node =
+        if kind(node) === K"toplevel"
+            isempty(children(node)) && error("Can't create empty pattern")
+            children(node)[1]
+        else
+            node
+        end
 
     return SyntaxPatternNode(clean_node)
+end
+"""
+    SyntaxPatternNode(ex::Expr)
+
+Composite pattern constructor for allowing `and` and `or` patterns. The `and` and `or`
+directives require at least one argument. Nested composite patterns are allowed.
+"""
+function SyntaxPatternNode(ex::Expr)
+    num_patterns = length(ex.args) - 1
+    num_patterns >= 1 || error("Composite pattern must have at least one sub-pattern")
+    # If there's only one sub-pattern there's no need for special treatment.
+    num_patterns == 1 && return SyntaxPatternNode(ex.args[2])
+    # If there are at least two sub-patterns create a node with the pattern directive
+    # as data and the subpatterns as children.
+    directive = SyntaxPatternDirective(ex.args[1])
+    subpatterns = [SyntaxPatternNode(p) for p in ex.args[2:end]]
+    return SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
 end
 
 function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
@@ -138,6 +185,8 @@ end
 
 # ------------------------------------------------------------------------------------------
 # Utils.
+
+is_directive(node::SyntaxPatternNode) = isa(node.pattern_data, SyntaxPatternDirective)
 
 function _update_data_head(
     old_data::SyntaxPatternData{JuliaSyntax.SyntaxData},
@@ -291,6 +340,11 @@ end
 function _show_syntax_pattern_node(io::IO, node::SyntaxPatternNode, indent)
     if is_placeholder(node)
         _show_special_syntax(io, node.pattern_data, indent)
+    elseif is_directive(node)
+        _show_directive(io, node.pattern_data, indent)
+        for c in children(node)
+            _show_syntax_pattern_node(io, c, indent * "  ")
+        end
     else
         # TODO: Change `posstr` to something useful.
         posstr = "$(lpad("-", 4)):$(rpad("-", 3))|"
@@ -313,6 +367,13 @@ end
 function _show_syntax_pattern_node_sexpr(io, node::SyntaxPatternNode)
     if is_placeholder(node)
         _show_special_syntax_sexpr(io, node.pattern_data)
+    elseif is_directive(node)
+        print(io, "(directive-", node.pattern_data.directive)
+        for c in children(node)
+            print(io, ' ')
+            _show_syntax_pattern_node_sexpr(io, c)
+        end
+        print(io, ')')
     else
         if is_leaf(node)
             if is_error(node)
