@@ -40,7 +40,23 @@ const SyntaxMatches = Vector{SyntaxMatch}
 Base.show(io::IO, ::Type{SyntaxMatches}) = print(io, "SyntaxMatches")
 
 # ------------------------------------------------------------------------------------------
-# Pattern matching.
+# Rule and pattern matching.
+
+"""
+    rule_match!(rule::Rule, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+
+Try to match the given rule's pattern with a source AST and all its children.
+See `pattern_match!`.
+"""
+rule_match!(rule::Rule, src::JuliaSyntax.SyntaxNode)::SyntaxMatches =
+    pattern_match!(rule.pattern, src)
+"""
+    rule_match!(rule::Rule, src_file::AbstractString)::SyntaxMatches
+
+Try to match the given rule's pattern with a source file. See `pattern_match!`.
+"""
+rule_match!(rule::Rule, src_file::AbstractString)::SyntaxMatches =
+    pattern_match!(rule.pattern, src_file)
 
 """
     pattern_match!(pattern::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches

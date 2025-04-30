@@ -115,6 +115,7 @@ julia> useless_bool = @rule "useless-bool" begin
 		   end
            """
        end
+useless-bool: Useless boolean in if condition
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
@@ -179,6 +180,7 @@ julia> @define_rule_in_group style_rules "useless-bool" begin
            end
            """
        end
+useless-bool: Useless boolean in if condition
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
@@ -187,9 +189,9 @@ line:col│ tree                                   │ metadata
 
 julia> style_rules
 RuleGroup("style") with 1 entry:
-  "useless-bool" => (if true (block %body))
+  "useless-bool" => useless-bool: Useless boolean in if condition…
 
-julia> pattern_match!(style_rules["useless-bool"], test_expr_no_match)
+julia> rule_match!(style_rules["useless-bool"], test_expr_no_match)
 SyntaxMatch[]
 ```
 
@@ -215,6 +217,7 @@ You can test the rules in the demo:
 julia> include("test/demo/lang_rules.jl");
 
 julia> chained_const_assignment = lang_rules["chained-const-assignment"]
+chained-const-assignment: Do not chain assignments with const. The right hand side is not constant here.
 line:col│ tree                                   │ metadata
    -:-  |[const]                                 |
    -:-  |  [=]                                   |
@@ -223,7 +226,8 @@ line:col│ tree                                   │ metadata
    -:-  |      %y                                | nothing
    -:-  |      %_                                | nothing
 
-julia> pattern_match!(chained_const_assignment, "test/demo/chained_const_assignment.jl")
+
+julia> rule_match!(chained_const_assignment, "test/demo/chained_const_assignment.jl")
 4-element SyntaxMatches:
  SyntaxMatch((const (= a (= b 1))), AbstractSyntaxPlaceholder[Metavariable(x, a@23), Metavariable(y, b@27), Metavariable(_, 1@31)])
  SyntaxMatch((const (= a (= b c))), AbstractSyntaxPlaceholder[Metavariable(x, a@56), Metavariable(y, b@60), Metavariable(_, c@64)])
@@ -231,6 +235,7 @@ julia> pattern_match!(chained_const_assignment, "test/demo/chained_const_assignm
  SyntaxMatch((const (= a (= b (string "abc")))), AbstractSyntaxPlaceholder[Metavariable(x, a@126), Metavariable(y, b@130), Metavariable(_, string@134)])
 
 julia> useless_equals = lang_rules["useless-equals"]
+useless-equals: Comparing the same object in the RHS and LHS is pointless.
 line:col│ tree                                   │ metadata
    -:-  |[call-i]                                |
    -:-  |  %x                                    | nothing
@@ -238,7 +243,7 @@ line:col│ tree                                   │ metadata
    -:-  |  %x                                    | nothing
 
 
-julia> pattern_match!(useless_equals, "../test/demo/useless_equals.jl")
+julia> rule_match!(useless_equals, "../test/demo/useless_equals.jl")
 1-element SyntaxMatches:
  SyntaxMatch((call-i x == x), AbstractSyntaxPlaceholder[Metavariable(x, x@20)])
 ```

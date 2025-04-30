@@ -1,8 +1,7 @@
-using Base: DEFAULT_READ_BUFFER_SZ
 import Argus: DEFAULT_RULE_GROUP_NAME
 
 @testset "Rules" begin
-    rule_create_func = create_rule("test-rule", :(
+    rule_constructor = Rule("test-rule", :(
         begin
             description = "Test rule"
             pattern = "(%f)(x) = 2"
@@ -14,7 +13,7 @@ import Argus: DEFAULT_RULE_GROUP_NAME
         (%f)(x) = 2
         """
     end
-    @test isequal(rule_create_func, rule_macro)
+    @test isequal(rule_constructor, rule_macro)
     # TODO: More tests.
 end
 
@@ -24,7 +23,7 @@ end
     rg2 = RuleGroup(DEFAULT_RULE_GROUP_NAME)
     @test rg1.name == rg2.name
     @test isempty(rg1) && isempty(rg2)
-    test_rule_x = SyntaxPatternNode("x")
+    test_rule_x = Rule("", "", SyntaxPatternNode("x"))
     rg3 = RuleGroup("test-rule1" => test_rule_x)
     @test rg2.name == rg3.name
     @test !isempty(rg3)
@@ -40,7 +39,7 @@ end
     @test !haskey(rg1, "test-rule1")
     @test !haskey(rg4, "test-rule1")
     @test haskey(rg4, "test-rule2")
-    test_rule_y = SyntaxPatternNode("y")
+    test_rule_y = Rule("", "", SyntaxPatternNode("y"))
     @test isequal(test_rule_x, get(rg3, "test-rule1", test_rule_y))
     @test isequal(test_rule_y, get(rg3, "test-rule2", test_rule_y))
     @test length(rg3) == 1
@@ -53,10 +52,10 @@ end
     delete!(rg3, "test-rule1")
     @test length(rg3) == 1
     # Rule registering.
-    register_rule!(rg1, SyntaxPatternNode("x = test"), "rule-test")
+    register_rule!(rg1, Rule("rule-test", "", SyntaxPatternNode("x = test")))
     @test !isempty(rg1)
     @test haskey(rg1, "rule-test")
-    @test isequal(rg1["rule-test"], SyntaxPatternNode("x = test"))
+    @test isequal(rg1["rule-test"].pattern, SyntaxPatternNode("x = test"))
     @test length(rg1) == 1
     @test isempty(rg2)
     # Rule definition in groups.

@@ -3,12 +3,12 @@ module Argus
 export SyntaxPatternNode, SyntaxPatternData
 export AbstractSyntaxPlaceholder, Metavariable
 export SyntaxMatch, SyntaxMatches
-export RuleGroup
+export Rule, RuleGroup
 
-export @rule, create_rule, @define_rule_in_group, define_rule_in_group
+export @rule, @define_rule_in_group, define_rule_in_group
 
 export register_rule!
-export pattern_match!, pattern_compare!
+export rule_match!, pattern_match!, pattern_compare!
 
 using JuliaSyntax
 using JuliaSyntax: is_leaf, children, head, kind, source_location

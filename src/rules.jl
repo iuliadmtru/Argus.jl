@@ -1,9 +1,13 @@
-# TODO: Add Rule struct with name, description and pattern.
-
 # ------------------------------------------------------------------------------------------
-# Rule definition.
+# Rules.
 
-function create_rule(rule_name::String, rule::Expr)
+struct Rule
+    name::String
+    description::String
+    pattern::SyntaxPatternNode
+end
+
+function Rule(rule_name::String, rule::Expr)
     rule = MacroTools.striplines(rule)
     # TODO: Include position in error messages.
     # TODO: Generally improve error messages.
@@ -23,11 +27,25 @@ function create_rule(rule_name::String, rule::Expr)
     # @isexpr(pattern, :quote) || @isexpr(pattern, :where) || isa(pattern, QuoteNode) ||
     isa(pattern, String) || error("Unrecognized pattern pattern syntax: \"$pattern\"")
 
-    return SyntaxPatternNode(pattern)
+    return Rule(rule_name, description, SyntaxPatternNode(pattern))
 end
 
 macro rule(rule_name, rule)
-    create_rule(rule_name, rule)
+    Rule(rule_name, rule)
+end
+
+# `Base` overwrites.
+
+Base.isequal(r1::Rule, r2::Rule) =
+    r1.name == r2.name &&
+    r1.description == r2.description &&
+    isequal(r1.pattern, r2.pattern)
+
+# Display.
+
+function Base.show(io::IO, rule::Rule)
+    println(io, rule.name, ": ", rstrip(rule.description))
+    show(io, MIME("text/plain"), rule.pattern)
 end
 
 # ------------------------------------------------------------------------------------------
@@ -35,14 +53,14 @@ end
 
 const DEFAULT_RULE_GROUP_NAME = "default"
 
-struct RuleGroup <: AbstractDict{String, SyntaxPatternNode}
+struct RuleGroup <: AbstractDict{String, Rule}
     name::String
-    rules::Dict{String, SyntaxPatternNode}
+    rules::Dict{String, Rule}
 
-    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxPatternNode}())
-    RuleGroup(name::String) = new(name, Dict{String, SyntaxPatternNode}())
-    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, SyntaxPatternNode}(kvs))
-    RuleGroup(name::String, kvs) = new(name, Dict{String, SyntaxPatternNode}(kvs))
+    RuleGroup() = new(DEFAULT_RULE_GROUP_NAME, Dict{String, Rule}())
+    RuleGroup(name::String) = new(name, Dict{String, Rule}())
+    RuleGroup(kvs) = new(DEFAULT_RULE_GROUP_NAME, Dict{String, Rule}(kvs))
+    RuleGroup(name::String, kvs) = new(name, Dict{String, Rule}(kvs))
 end
 
 # Dict interface.
@@ -78,7 +96,7 @@ Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
-## Display.
+# Display.
 
 function Base.summary(io::IO, rg::RuleGroup)
     Base.showarg(io, rg, true)
@@ -95,8 +113,8 @@ Base.show(io::IO, rg::RuleGroup) =
 # Rule definition in groups.
 
 function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Expr)
-    rule_node = create_rule(rule_name, rule)
-    register_rule!(group, rule_node, rule_name)
+    rule_node = Rule(rule_name, rule)
+    register_rule!(group, rule_node)
 
     return rule_node
 end
@@ -119,7 +137,7 @@ end
 # --------------------------------------------
 # Utils.
 
-function register_rule!(group::RuleGroup, rule::SyntaxPatternNode, rule_name::String)
+function register_rule!(group::RuleGroup, rule::Rule)
     # TODO: Add interactive "overwrite?".
-    group[rule_name] = rule
+    group[rule.name] = rule
 end
