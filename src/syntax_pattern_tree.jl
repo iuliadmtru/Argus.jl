@@ -187,6 +187,8 @@ end
 # Utils.
 
 is_directive(node::SyntaxPatternNode) = isa(node.pattern_data, SyntaxPatternDirective)
+is_or(node::SyntaxPatternNode) = is_directive(node) && node.directive === :or
+is_and(node::SyntaxPatternNode) = is_directive(node) && node.directive === :and
 
 function _update_data_head(
     old_data::SyntaxPatternData{JuliaSyntax.SyntaxData},

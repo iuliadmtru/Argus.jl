@@ -65,6 +65,28 @@ Try to match the given pattern with a source AST and all its children. When a ma
 found bind the placeholders in the pattern, if any. Return an array of `SyntaxMatch`es.
 """
 function pattern_match!(pat::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
+    # Treat composite patterns specially.
+    if is_or(pat)
+        matches = SyntaxMatches()
+        for subpattern in children(pat)
+            append!(matches, pattern_match!(subpattern, src))
+            placeholders_unbind!(subpattern)
+        end
+        # TODO: Do a union of the matches to remove duplicates.
+        return matches
+    end
+    if is_and(pat)
+        matches = SyntaxMatches()
+        for subpattern in children(pat)
+            subpattern_matches = pattern_match!(subpattern, src)
+            # Return if there is no match for one subpattern.
+            isempty(subpattern_matches) && return subpattern_matches
+            # Intersect subpattern matches with existing matches.
+            # TODO.
+        end
+        return matches
+    end
+    # Match regular patterns.
     if pattern_compare!(pat, src)
         matches = SyntaxMatches([SyntaxMatch(src, placeholders(pat))])
         placeholders_unbind!(pat)
