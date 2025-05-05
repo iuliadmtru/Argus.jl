@@ -48,9 +48,9 @@ end
     end
 
     @testset "With placeholders" begin
-        # Construct with string.
-        pattern_node1 = SyntaxPatternNode("%x + 1")
-        pattern_node2 = SyntaxPatternNode("%y + %y")
+        # Construct with `Expr`.
+        pattern_node1 = SyntaxPatternNode(:(m"x" + 1))
+        pattern_node2 = SyntaxPatternNode(:(m"y" + m"y"))
         # Functionality inherited from JuliaSyntax.
         @test !isnothing(head(pattern_node1))
         @test kind(pattern_node1) === K"call"

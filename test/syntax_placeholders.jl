@@ -35,4 +35,9 @@ import Argus: has_binding, set_binding!, placeholder_unbind!, placeholder_fill!,
     @test _get_metavar_name_sugared(node) === :x
     unsugared_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:x)")
     @test isequal(unsugared_node, _desugar_metavariable(node))
+
+    node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "m\"x\"")
+    @test _is_metavariable_sugared(node) === sugar
+    @test _get_metavar_name_sugared(node) === :x
+    @test isequal(unsugared_node, _desugar_metavariable(node))
 end

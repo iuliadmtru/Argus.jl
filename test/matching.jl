@@ -36,7 +36,7 @@ end
         f(x, y) = x + y
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
+        pattern = SyntaxPatternNode(:(a + b))
         @test !contains_placeholders(pattern)
         @test !pattern_compare!(pattern, syntax_node)
         @test !pattern_compare!(pattern, syntax_node.children[1])
@@ -52,7 +52,7 @@ end
         f(x, y) = x + y
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("%A + %B")
+        pattern = SyntaxPatternNode(:(m"A" + m"B"))
         @test contains_placeholders(pattern)
         @test !pattern_compare!(pattern, syntax_node)
         @test !pattern_compare!(pattern, syntax_node.children[1])
@@ -74,7 +74,7 @@ end
         @test metavar_y.binding.val === :y
         @test source_location(metavar_y) == (4, 15)
         # Expression binding.
-        pattern = SyntaxPatternNode("%x = %y")
+        pattern = SyntaxPatternNode(:(m"x" = m"y"))
         @test !pattern_compare!(pattern, syntax_node)
         ## First match.
         @test pattern_compare!(pattern, syntax_node.children[1])
@@ -122,7 +122,7 @@ end
         end
         """
         syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
+        pattern = SyntaxPatternNode(:(m"a" + m"b"))
         matches = pattern_match!(pattern, syntax_node)
         @test length(matches) == 1
         m = matches[1]
@@ -149,13 +149,13 @@ end
         end
         """
         syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-        pattern = SyntaxPatternNode("a + b")
+        pattern = SyntaxPatternNode(:(a + b))
         matches = pattern_match!(pattern, syntax_node)
         @test length(matches) == 3
         @test source_location(matches[1]) == (2, 9)
         @test source_location(matches[2]) == (8, 3)
         @test source_location(matches[3]) == (14, 5)
-        pattern = SyntaxPatternNode("a = 2")
+        pattern = SyntaxPatternNode(:(a = 2))
         matches = pattern_match!(pattern, syntax_node)
         @test length(matches) == 2
         @test source_location(matches[1]) == (6, 1)
@@ -173,7 +173,7 @@ end
             end
             """
             syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, src)
-            pattern = SyntaxPatternNode("%A + b")
+            pattern = SyntaxPatternNode(:(m"A" + b))
             metavar = pattern.children[1].pattern_data
             @test !has_binding(metavar)
             matches = pattern_match!(pattern, syntax_node)
@@ -205,7 +205,7 @@ end
             end
             """
             syntax_node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src)
-            pattern = SyntaxPatternNode("%A + b")
+            pattern = SyntaxPatternNode(:(m"A" + b))
             matches = pattern_match!(pattern, syntax_node)
             ## Check for three matches with one metavariable each.
             @test length(matches) == 3
@@ -223,7 +223,7 @@ end
             @test metavar3.binding.val === :x
             # Match with file.
             # TODO: Make this a mock/fake?
-            pattern = SyntaxPatternNode("const %a = %b = %_")
+            pattern = SyntaxPatternNode(:(const m"a" = m"b" = m"_"))
             matches = pattern_match!(pattern, "demo/chained_const_assignment.jl")
             @test length(matches) == 4
             @test all(m -> length(m.placeholders) == 3, matches)

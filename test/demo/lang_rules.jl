@@ -7,9 +7,9 @@ lang_rules = RuleGroup("lang")
     Do not chain assignments with const. The right hand side is not constant here.
     """
 
-    pattern = """
-    const %x = %y = %_
-    """
+    pattern = :(
+    const m"x" = m"y" = m"_"
+    )
 end
 
 @define_rule_in_group lang_rules "useless-equals" begin
@@ -18,7 +18,7 @@ end
     """
 
     # TODO: Add alternative for `===`.
-    pattern = """
-    %x == %x
-    """
+    pattern = :(
+    m"x" == m"x"
+    )
 end

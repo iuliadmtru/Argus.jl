@@ -40,39 +40,6 @@ end
 end
 ```
 
-I am currently working on implementing the first one. The second one
-could be added later as syntactic sugar over the first.
-
-Sadly it is quite difficult to manage patterns passed as expressions,
-as much as I would like it. The reason is that I could't find a way to
-correctly transform an `Expr` into a `SyntaxNode`, without
-losing/adding any information to the AST. As an example, consider the
-simple function definition `f(x) = 2`:
-
-```julia
-julia> JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "f(x) = 2")
-SyntaxNode:
-[function-=]
-  [call]
-    f                                    :: Identifier
-    x                                    :: Identifier
-  2                                      :: Integer
-
-
-julia> :(f(x) = 2)
-:(f(x) = begin
-          #= REPL[3]:1 =#
-          2
-      end)
-```
-
-The `Expr` transforms the function body into a block, while the
-`SyntaxNode` doesn't.
-
-This is why I settled for pattern strings.
-
-TODO: Meta.unblock/Meta.unescape?
-
 ### Rule groups
 
 The user should be able to group rules together.
@@ -99,7 +66,7 @@ Engineering Bachelor's at Politehnica University of Bucharest.
 
 Status: Adding `and` and `or` pattern directives...
 
-Currently the package is able to define rules, define rule groups,
+For now the package is able to define rules, define rule groups,
 store rules in groups and run rules against some source code/file. The
 rules can contain metavariables which bind to expressions in the
 source code if the pattern matches.
@@ -108,14 +75,14 @@ source code if the pattern matches.
 julia> using Argus
 
 julia> useless_bool = @rule "useless-bool" begin
-           description = "Useless boolean in if condition"
-           pattern = """
+           description = "Useless boolean in if condition."
+           pattern = :(
            if true
-               %body
+               m"body"
            end
-           """
+           )
        end
-useless-bool: Useless boolean in if condition
+useless-bool: Useless boolean in if condition.
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
@@ -132,7 +99,7 @@ julia> test_src_match = """
 
 julia> test_expr_match = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, test_src_match);
 
-julia> matches = pattern_match!(useless_bool, test_expr_match)
+julia> matches = rule_match!(useless_bool, test_expr_match)
 1-element SyntaxMatches:
  SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(body, call@13)])
 
@@ -173,14 +140,14 @@ julia> style_rules = RuleGroup("style")
 RuleGroup("style")
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
-           description = "Useless boolean in if condition"
-           pattern = """
+           description = "Useless boolean in if condition."
+           pattern = :(
            if true
-               %body
+               m"body"
            end
-           """
+           )
        end
-useless-bool: Useless boolean in if condition
+useless-bool: Useless boolean in if condition.
 line:col│ tree                                   │ metadata
    -:-  |[if]                                    |
    -:-  |  true                                  |
@@ -199,26 +166,20 @@ This time we get no match.
 
 Currently I'm working on adding `and`/`or` pattern directives. The
 goal is to provide something similar to this:
-```julia
-@rule "or-rule" begin
-    description = "f either 2 or 3."
-    pattern = or(
-    "f(%x) = 2",
-    "f(%x) = 3"
-    )
-end
-```
 
-Ideally, using `Expr`s:
 ```julia
 @rule "or-rule" begin
 	description = "f either 2 or 3."
-	pattern = or(
-	:(f(%x) = 2),
-	:(f(%x) = 3)
-	)
+	pattern = :(or(
+	:(f(m"x") = 2),
+	:(f(m"x") = 3)
+	))
 end
 ```
+
+Which would match `f(x) = 2` and `f(y) = 3` but not `f(x) = 4` or
+`z(x) = 3`. The syntax is implemented, but the AST comparison is not
+yet finished.
 
 ### Demo
 
@@ -321,12 +282,11 @@ metavariables and ellipses.
 
 #### Metavariables
 
-Metavariables should bind to expressions. I have not tested this
-yet. The ultimate goal is to have metavariables bind to something that
-can be chosen by the user. This could be accomplished by providing
-types to metavariables (either Julia built-in types or custom types
-that have some kind of corresponding predicate, or something like
-Racket's [syntax
+Metavariables should bind to expressions. The ultimate goal is to have
+metavariables bind to something that can be chosen by the user. This
+could be accomplished by providing types to metavariables (either
+Julia built-in types or custom types that have some kind of
+corresponding predicate, or something like Racket's [syntax
 classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html))]).
 
 ### AST comparison

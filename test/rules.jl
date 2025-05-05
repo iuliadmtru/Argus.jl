@@ -4,14 +4,14 @@ import Argus: DEFAULT_RULE_GROUP_NAME
     rule_constructor = Rule("test-rule", :(
         begin
             description = "Test rule"
-            pattern = "(%f)(x) = 2"
+            pattern = :(m"f"(x) = 2)
         end
     ))
     rule_macro = @rule "test-rule" begin
         description = "Test rule"
-        pattern = """
-        (%f)(x) = 2
-        """
+        pattern = :(
+        m"f"(x) = 2
+        )
     end
     @test isequal(rule_constructor, rule_macro)
     # TODO: More tests.
@@ -23,7 +23,7 @@ end
     rg2 = RuleGroup(DEFAULT_RULE_GROUP_NAME)
     @test rg1.name == rg2.name
     @test isempty(rg1) && isempty(rg2)
-    test_rule_x = Rule("", "", SyntaxPatternNode("x"))
+    test_rule_x = Rule("", "", SyntaxPatternNode(:x))
     rg3 = RuleGroup("test-rule1" => test_rule_x)
     @test rg2.name == rg3.name
     @test !isempty(rg3)
@@ -39,7 +39,7 @@ end
     @test !haskey(rg1, "test-rule1")
     @test !haskey(rg4, "test-rule1")
     @test haskey(rg4, "test-rule2")
-    test_rule_y = Rule("", "", SyntaxPatternNode("y"))
+    test_rule_y = Rule("", "", SyntaxPatternNode(:y))
     @test isequal(test_rule_x, get(rg3, "test-rule1", test_rule_y))
     @test isequal(test_rule_y, get(rg3, "test-rule2", test_rule_y))
     @test length(rg3) == 1
@@ -52,23 +52,23 @@ end
     delete!(rg3, "test-rule1")
     @test length(rg3) == 1
     # Rule registering.
-    register_rule!(rg1, Rule("rule-test", "", SyntaxPatternNode("x = test")))
+    register_rule!(rg1, Rule("rule-test", "", SyntaxPatternNode(:(x = test))))
     @test !isempty(rg1)
     @test haskey(rg1, "rule-test")
-    @test isequal(rg1["rule-test"].pattern, SyntaxPatternNode("x = test"))
+    @test isequal(rg1["rule-test"].pattern, SyntaxPatternNode(:(x = test)))
     @test length(rg1) == 1
     @test isempty(rg2)
     # Rule definition in groups.
     rule_func = define_rule_in_group(rg1, "test-rule", :(
         begin
             description = "Test"
-            pattern = "test"
+            pattern = :(test)
         end
     ))
     @test haskey(rg1, "test-rule")
     rule_macro = @define_rule_in_group rg2 "test-rule" begin
         description = "Test"
-        pattern = "test"
+        pattern = :(test)
     end
     @test !isempty(rg2)
     @test length(rg2) == 1

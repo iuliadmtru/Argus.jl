@@ -27,9 +27,12 @@ function Rule(rule_name::String, rule::Expr)
     # The pattern can be:
     #     - a simple pattern:    "f(x) = 2"
     #     - a composite pattern: or("f(x) = 2", "f(x) = 3")
-    isa(pattern, String)                                                                 ||
-        (isa(pattern, Expr) && !isempty(pattern.args) && pattern.args[1] in [:or, :and]) ||
+    isa(pattern, Expr) || isa(pattern, QuoteNode) ||
         error("Unrecognized pattern pattern syntax: \"$pattern\"")
+    # Don't include the wrapping quote.
+    if isa(pattern, Expr) && pattern.head === :quote
+        pattern = pattern.args[1]
+    end
 
     return Rule(rule_name, description, SyntaxPatternNode(pattern))
 end

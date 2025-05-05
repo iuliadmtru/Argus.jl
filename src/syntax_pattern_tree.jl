@@ -5,8 +5,10 @@
 # Syntax pattern directive.
 
 struct SyntaxPatternDirective
-    directive::Symbol  # `:and` or `:or`
+    directive::Symbol
 end
+
+const PATTERN_DIRECTIVES = [:and, :or]
 
 # Display.
 
@@ -69,6 +71,7 @@ Base.copy(d::SyntaxPatternData) = SyntaxPatternData(copy(d.pattern_data))
 # --------------------------------------------
 # Syntax pattern tree.
 
+# TODO: Docs.
 const SyntaxPatternNode = JuliaSyntax.TreeNode{SyntaxPatternData}
 function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     pattern_node = _SyntaxPatternNode(node)
@@ -76,37 +79,57 @@ function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
 
     return pattern_node
 end
-function SyntaxPatternNode(pattern_src::AbstractString)
+function SyntaxPatternNode(ex::Expr)
+    # Check for pattern directives.
+    ex.head === :call && ex.args[1] in PATTERN_DIRECTIVES &&
+        return SyntaxPatternNode(ex.args[1], ex.args[2:end]...)
+    return _SyntaxPatternNode(string(ex))
+end
+SyntaxPatternNode(ex::QuoteNode) = _SyntaxPatternNode(string(ex.value))
+function SyntaxPatternNode(directive::Symbol, branches...)
+    if isempty(branches)
+        # Empty composite patterns are not allowed, but regular symbol patterns are.
+        directive in PATTERN_DIRECTIVES &&
+            error("Composite pattern must have at least one sub-pattern")
+        return _SyntaxPatternNode(string(directive))
+    end
+    # If there's only one sub-pattern, it might need cleaning up. There's no need for other
+    # special treatment.
+    if length(branches) == 1
+        branch = branches[1]
+        isa(branch, Expr) && branch.head === :quote &&
+            return SyntaxPatternNode(branch.args[1])
+        return SyntaxPatternNode(branch)
+    end
+    # If there are at least two sub-patterns create a node with the pattern directive
+    # as data and the subpatterns as children.
+    subpatterns = SyntaxPatternNode[]
+    for b in branches
+        if isa(b, SyntaxPatternNode)
+            push!(subpatterns, b)
+        elseif isa(b, Expr) && b.head === :quote
+            push!(subpatterns, SyntaxPatternNode(b.args[1]))
+        else
+            push!(subpatterns, SyntaxPatternNode(b))
+        end
+    end
+    directive = SyntaxPatternDirective(directive)
+    return SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
+end
+
+function _SyntaxPatternNode(pattern_src::AbstractString)
     isempty(pattern_src) && error("Can't create empty pattern")
     node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, pattern_src; ignore_errors=true)
     clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
 
     return SyntaxPatternNode(clean_node)
 end
-"""
-    SyntaxPatternNode(ex::Expr)
-
-Composite pattern constructor for allowing `and` and `or` patterns. The `and` and `or`
-directives require at least one argument. Nested composite patterns are allowed.
-"""
-function SyntaxPatternNode(ex::Expr)
-    num_patterns = length(ex.args) - 1
-    num_patterns >= 1 || error("Composite pattern must have at least one sub-pattern")
-    # If there's only one sub-pattern there's no need for special treatment.
-    num_patterns == 1 && return SyntaxPatternNode(ex.args[2])
-    # If there are at least two sub-patterns create a node with the pattern directive
-    # as data and the subpatterns as children.
-    directive = SyntaxPatternDirective(ex.args[1])
-    subpatterns = [SyntaxPatternNode(p) for p in ex.args[2:end]]
-    return SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
-end
-
 function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     ret = _is_metavariable_sugared(node)
     # TODO: This is not always the correct error. This probably needs to pass through
     #       JuliaSyntax.
     ret == err && error("Invalid metavariable name")
-    if ret == sugar
+    if ret === sugar
         node = _desugar_metavariable(node)
     end
     data = _is_metavariable(node)                                ?
@@ -120,6 +143,7 @@ function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
         pat_node = SyntaxPatternNode(nothing, cs, data)
         for c in cs
             c.parent = pat_node
+            # TODO: Document this! I forgot why I did it...
             if _is_metavariable(c)
                 if JuliaSyntax.flags(pat_node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
                     c.parent.data =
@@ -221,8 +245,13 @@ function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
 end
 _is_metavariable(node::SyntaxPatternNode) = isa(node.data.pattern_data, Metavariable)
 
+# TODO: Remove support for `%` syntax? :(
 @enum SugaredMetavariableRet sugar no_sugar err
 function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavariableRet
+    # Check for `m""` syntax.
+    kind(node) == K"macrocall" && node.children[1].val === Symbol("@m_str") &&
+        return sugar
+    # Check for `%` syntax.
     # TODO: Allow %f(x).
     is_error_call = kind(node) == K"call" && kind(node.children[1]) == K"error"
     is_error_call || return no_sugar
@@ -238,8 +267,10 @@ function _is_metavariable_sugared(node::JuliaSyntax.SyntaxNode)::SugaredMetavari
 end
 function _get_metavar_name_sugared(node::JuliaSyntax.SyntaxNode)
     _is_metavariable_sugared(node) !== sugar &&
-        @error "Trying to get metavariable name from non-Metavariable node"
-    return node.children[2].data.val
+        error("Trying to get metavariable name from non-Metavariable node")
+    return kind(node) === K"macrocall"           ?
+        Symbol(node.children[2].children[1].val) :
+        node.children[2].val
 end
 function _desugar_metavariable(node::JuliaSyntax.SyntaxNode)
     name = string(_get_metavar_name_sugared(node))
