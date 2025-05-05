@@ -39,6 +39,10 @@ mutable struct Metavariable <: AbstractSyntaxPlaceholder
 end
 Metavariable(name::Symbol) = Metavariable(name, nothing)
 
+macro m_str(name)
+    Metavariable(name)
+end
+
 has_binding(m::Metavariable) = !isnothing(m.binding)
 function set_binding!(m::Metavariable, b::JuliaSyntax.SyntaxData)
     if isnothing(m.binding)
