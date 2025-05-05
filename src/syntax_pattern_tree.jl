@@ -77,14 +77,9 @@ function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     return pattern_node
 end
 function SyntaxPatternNode(pattern_src::AbstractString)
+    isempty(pattern_src) && error("Can't create empty pattern")
     node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, pattern_src; ignore_errors=true)
-    clean_node =
-        if kind(node) === K"toplevel"
-            isempty(children(node)) && error("Can't create empty pattern")
-            children(node)[1]
-        else
-            node
-        end
+    clean_node = kind(node) === K"toplevel" ? children(node)[1] : node
 
     return SyntaxPatternNode(clean_node)
 end
@@ -114,7 +109,7 @@ function _SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     if ret == sugar
         node = _desugar_metavariable(node)
     end
-    data = _is_metavariable(node)                                 ?
+    data = _is_metavariable(node)                                ?
         SyntaxPatternData(Metavariable(_get_metavar_name(node))) :
         SyntaxPatternData(node.data)
 
