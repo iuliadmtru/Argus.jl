@@ -8,7 +8,20 @@ lang_rules = RuleGroup("lang")
     """
 
     pattern = :(
-    const m"x" = m"y" = m"_"
+        const m"x" = m"y" = m"_"
+    )
+end
+
+@define_rule_in_group lang_rules "compare-nothing" begin
+    description = """
+    Comparisons of `nothing` should be made with === or !== or with isnothing().
+    """
+
+    pattern = or(
+        :(nothing == m"_"),
+        :(m"_" == nothing),
+        :(nothing != m"_"),
+        :(m"_" != nothing)
     )
 end
 
@@ -17,8 +30,11 @@ end
     Comparing the same object in the RHS and LHS is pointless.
     """
 
-    # TODO: Add alternative for `===`.
-    pattern = :(
-    m"x" == m"x"
+    # TODO: Simplify after implementing conditions.
+    pattern = or(
+        :(m"x" == m"x"),
+        :(m"x" != m"x"),
+        :(m"x" === m"x"),
+        :(m"x" !== m"x")
     )
 end

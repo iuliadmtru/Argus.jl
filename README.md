@@ -164,36 +164,131 @@ SyntaxMatch[]
 
 This time we get no match.
 
-Currently I'm working on adding `and`/`or` pattern directives. The
-goal is to provide something similar to this:
+You could also create composite patterns, for now using the directives
+`and` and `or`. Here's a useful example using `or`
+([here](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml)'s)
+the Semgrep alternative for reference):
 
 ```julia
-@rule "or-rule" begin
-	description = "f either 2 or 3."
-	pattern = :(or(
-	:(f(m"x") = 2),
-	:(f(m"x") = 3)
-	))
-end
+julia> compare_nothing = @rule "compare-nothing" begin
+           description = """
+           Comparisons of `nothing` should be made with === or !== or with isnothing().
+           """
+           pattern = or(
+           :(nothing == m"_"),
+           :(m"_" == nothing),
+           :(nothing != m"_"),
+           :(m"_" != nothing)
+           )
+       end
+compare-nothing: Comparisons of `nothing` should be made with === or !== or with isnothing().
+line:col│ tree                                   │ metadata
+   -:-  |[directive-or]                          |
+   -:-  |  [call-i]                              |
+   -:-  |    nothing                             |
+   -:-  |    ==                                  |
+   -:-  |    %_                                  | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    %_                                  | nothing
+   -:-  |    ==                                  |
+   -:-  |    nothing                             |
+   -:-  |  [call-i]                              |
+   -:-  |    nothing                             |
+   -:-  |    !=                                  |
+   -:-  |    %_                                  | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    %_                                  | nothing
+   -:-  |    !=                                  |
+   -:-  |    nothing                             |
+
+
+julia> src = """
+       x = nothing
+
+       if y == nothing end
+
+       if cond1 && z != nothing
+           do_something()
+       else
+           do_something_else()
+       end
+
+       q === nothing ? ok() : not_ok()
+       """;
+
+julia> matches = rule_match!(compare_nothing, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src))
+2-element SyntaxMatches:
+ SyntaxMatch((call-i y == nothing), AbstractSyntaxPlaceholder[Metavariable(_, y@17)])
+ SyntaxMatch((call-i z != nothing), AbstractSyntaxPlaceholder[Metavariable(_, z@47)])
 ```
 
-Which would match `f(x) = 2` and `f(y) = 3` but not `f(x) = 4` or
-`z(x) = 3`. The syntax is implemented, but the AST comparison is not
-yet finished.
+And here are some not-so-useful examples using `and`:
+
+```julia
+julia> conflicting_branches = SyntaxPatternNode(:(and(:(m"x" = 2), :(m"x" = 3))))
+line:col│ tree                                   │ metadata
+   -:-  |[directive-and]                         |
+   -:-  |  [=]                                   |
+   -:-  |    %x                                  | nothing
+   -:-  |    2                                   |
+   -:-  |  [=]                                   |
+   -:-  |    %x                                  | nothing
+   -:-  |    3                                   |
+
+
+julia> matches = pattern_match!(conflicting_branches, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, "abc = 3"))
+┌ Warning: Conflicting `and` branches:
+│ (= %x 2)
+│ (= %x 3)
+└ @ Argus ~/.../Argus.jl/src/matching.jl:141
+SyntaxMatch[]
+
+julia> rule = @rule "and-rule" begin
+           description = "Note that metavariables with the same name from different branches are unified."
+           pattern = :(
+           and(
+               :(m"x" = y),
+               :(m"y" = m"x")
+           ))
+       end;
+
+julia> src = """
+       y = y
+       x = y
+       f(x) = y
+       """;
+
+julia> matches = rule_match!(rule, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src))
+2-element SyntaxMatches:
+ SyntaxMatch((= y y), AbstractSyntaxPlaceholder[Metavariable(x, y@1)])
+ SyntaxMatch((= y y), AbstractSyntaxPlaceholder[Metavariable(y, y@1), Metavariable(x, y@5)])
+```
+
+In the second example, only one AST node is matched: `y = y`. There
+are two matches because both subpatterns generate matches. Actually,
+every `and` composite pattern will generate 2x the number of "true"
+matches. `or` patterns also return all the matches from all
+subpatterns, even though they correspond the the same AST in the
+source code. The duplicate information is useful when wanting to see
+exactly what each subpattern matches. I will find a better way to
+provide the extra info sometime.
+
+Currently I'm working on reorganising the code to make it more
+"algebra-driven" (inspired by Sandy Maguire's "Algebra-Driven Design";
+I've only read the introduction though...).
 
 ### Demo
 
 Inside `test/` there's a `demo/` directory where I try to rewrite some
 rules from the [`semgrep-rules-julia`
-repo](https://github.com/JuliaComputing/semgrep-rules-julia). `Argus`
-has only a minimal amount of features for now, so it's almost
-impossible to rewrite the rules yet. Still, I was able to rewrite the
-simple [`chained-const-assignment`
-rule](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/chained-const-assignment.yaml)
-completely. Other rules are also already rewritable, such as
-[`compare-nothing`](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml),
-but not with only one rule because `Argus` doesn't yet support rules
-with alternatives (similar to Semgrep's `pattern-either`).
+repo](https://github.com/JuliaComputing/semgrep-rules-julia). Once
+`Argus` has support for repetitions (similar to Semgrep's [ellipsis
+operator](https://semgrep.dev/docs/writing-rules/pattern-syntax#ellipsis-operator))
+it will be possible to rewrite most rules. For now, I rewrote the
+following:
+- [chained-const-assignment](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/chained-const-assignment.yaml)
+- [compare-nothing](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml)
+- [useless-equals](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/best-practice/useless-equals.yaml)
 
 You can test the rules in the demo:
 
@@ -221,16 +316,35 @@ julia> rule_match!(chained_const_assignment, "test/demo/chained_const_assignment
 julia> useless_equals = lang_rules["useless-equals"]
 useless-equals: Comparing the same object in the RHS and LHS is pointless.
 line:col│ tree                                   │ metadata
-   -:-  |[call-i]                                |
-   -:-  |  %x                                    | nothing
-   -:-  |  ==                                    |
-   -:-  |  %x                                    | nothing
+   -:-  |[directive-or]                          |
+   -:-  |  [call-i]                              |
+   -:-  |    %x                                  | nothing
+   -:-  |    ==                                  |
+   -:-  |    %x                                  | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    %x                                  | nothing
+   -:-  |    !=                                  |
+   -:-  |    %x                                  | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    %x                                  | nothing
+   -:-  |    ===                                 |
+   -:-  |    %x                                  | nothing
+   -:-  |  [call-i]                              |
+   -:-  |    %x                                  | nothing
+   -:-  |    !==                                 |
+   -:-  |    %x                                  | nothing
 
 
-julia> rule_match!(useless_equals, "../test/demo/useless_equals.jl")
-1-element SyntaxMatches:
+julia> rule_match!(useless_equals, "test/demo/useless_equals.jl")
+4-element SyntaxMatches:
  SyntaxMatch((call-i x == x), AbstractSyntaxPlaceholder[Metavariable(x, x@20)])
+ SyntaxMatch((call-i x != x), AbstractSyntaxPlaceholder[Metavariable(x, x@67)])
+ SyntaxMatch((call-i x === x), AbstractSyntaxPlaceholder[Metavariable(x, x@114)])
+ SyntaxMatch((call-i x !== x), AbstractSyntaxPlaceholder[Metavariable(x, x@162)])
 ```
+
+Sometime I'll implement automatic checking of test files, similar to
+Semgrep's approach with paired .jl and .yaml files.
 
 
 ## Design choices and ideas
