@@ -331,7 +331,7 @@ end
 Remove bindings from all placeholders within `node` and its children. Return the node.
 """
 function placeholders_unbind!(node::SyntaxPatternNode)
-    placeholder_unbind!(node.pattern_data)
+    is_placeholder(node) && placeholder_unbind!(node.pattern_data)
     is_leaf(node) && return node
     for c in children(node)
         placeholders_unbind!(c)
