@@ -23,9 +23,6 @@ Remove binding from the given placeholder, if any. Return the placeholder.
 """
 function placeholder_unbind!(p::AbstractSyntaxPlaceholder) end
 
-# No placeholder for regular `SyntaxData`.
-placeholder_unbind!(p::JuliaSyntax.SyntaxData) = p
-
 # -------------------------------------------------------------------
 
 """
@@ -56,6 +53,7 @@ function remove_binding!(m::Metavariable)
     m.binding = nothing
     return m
 end
+is_anonymous(m::Metavariable) = m.name === :_
 
 # Wrappers for supertype compatibility.
 

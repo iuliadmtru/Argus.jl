@@ -206,6 +206,11 @@ function Base.isequal(p1::SyntaxPatternNode, p2::SyntaxPatternNode)
     return all(p -> isequal(p[1], p[2]), zip(children(p1), children(p2)))
 end
 
+function Base.copy(p::SyntaxPatternNode)
+    cs = is_leaf(p) ? nothing : copy.(children(p))
+    return SyntaxPatternNode(p.parent, cs, copy(p.data))
+end
+
 # ------------------------------------------------------------------------------------------
 # Utils.
 
