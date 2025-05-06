@@ -1,12 +1,14 @@
-import Argus: _SyntaxPatternNode, _update_data_head, _unify_placeholders!, placeholder,
-    placeholders, contains_placeholders, is_placeholder, placeholders_unbind!,
-    _is_metavariable, _get_metavar_name, set_binding!
+import Argus: is_directive, is_or, is_and, _SyntaxPatternNode, _update_data_head,
+    _unify_placeholders!, placeholder, placeholders, contains_placeholders, is_placeholder,
+    placeholders_unbind!, _is_metavariable, _get_metavar_name, set_binding!,
+    _desugar_metavariable, _is_metavariable_sugared, sugar, no_sugar, err
 
 @testset "SyntaxPatternDirective" begin
     @test_throws "Unavailable pattern directive" SyntaxPatternDirective(:bla)
     pattern = SyntaxPatternNode(:or, :x, :y)
-    @test isa(pattern.pattern_data, SyntaxPatternDirective)
-    @test pattern.directive === :or
+    @test is_directive(pattern)
+    @test is_or(pattern)
+    @test !is_and(pattern)
     @test_throws "must have at least one" SyntaxPatternNode(:and)
     @test_throws "Unavailable pattern directive" SyntaxPatternNode(:bla, :blu)
 end
@@ -36,14 +38,23 @@ end
     @testset "Without placeholders" begin
         # Construct with `JuliaSyntax.SyntaxNode`.
         syntax_node = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x + 1")
-        pattern_node = SyntaxPatternNode(syntax_node)
+        pattern_node1 = SyntaxPatternNode(syntax_node)
+        @test isequal(pattern_node1, copy(pattern_node1))
+        @test !is_directive(pattern_node1)
+        # Construct with `String`.
+        pattern_node2 = _SyntaxPatternNode("x + 1")
+        @test repr("text/plain", pattern_node1) == repr("text/plain", pattern_node2)
         # Functionality inherited from JuliaSyntax.
-        @test !isnothing(head(pattern_node))
-        @test kind(pattern_node) === K"call"
-        @test !is_leaf(pattern_node)
-        @test is_leaf(pattern_node.children[1])
-        @test length(children(pattern_node)) == 3
-        @test source_location(pattern_node) == source_location(syntax_node)
+        stream = JuliaSyntax.ParseStream("x + 1")
+        JuliaSyntax.parse!(stream; rule=:statement)
+        pattern_node3 = JuliaSyntax.build_tree(SyntaxPatternNode, stream)
+        @test repr(pattern_node1) == repr(pattern_node3)
+        @test !isnothing(head(pattern_node1))
+        @test kind(pattern_node1) === K"call"
+        @test !is_leaf(pattern_node1)
+        @test is_leaf(pattern_node1.children[1])
+        @test length(children(pattern_node1)) == 3
+        @test source_location(pattern_node1) == source_location(syntax_node)
         # Placeholder utils.
         unprocessed = _SyntaxPatternNode(syntax_node)
         @test isempty(placeholders(unprocessed))
@@ -70,22 +81,21 @@ end
         @test !is_leaf(pattern_node2)
         @test length(children(pattern_node2)) == 3
         # Placeholder utils.
-        syntax_node1 = JuliaSyntax.parsestmt(
-            JuliaSyntax.SyntaxNode,
-            "Metavariable(:x) + 1";
-            ignore_errors=true
-        )
-        syntax_node2 = JuliaSyntax.parsestmt(
-            JuliaSyntax.SyntaxNode,
-            "Metavariable(:y) + Metavariable(:y)";
-            ignore_errors=true
-        )
-        @test _is_metavariable(syntax_node1.children[1])
-        @test _get_metavar_name(syntax_node1.children[1]) === :x
-        @test _is_metavariable(syntax_node2.children[3])
-        @test _get_metavar_name(syntax_node2.children[1]) === :y
-        @test _is_metavariable(syntax_node2.children[3])
-        @test _get_metavar_name(syntax_node2.children[3]) === :y
+        syntax_node1 = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:x) + 1")
+        syntax_node2 = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "m\"y\" + m\"y\"")
+        x = syntax_node1.children[1]
+        @test _is_metavariable(x)
+        @test _is_metavariable_sugared(x) === no_sugar
+        @test _get_metavar_name(x) === :x
+        y1 = syntax_node2.children[1]
+        @test !_is_metavariable(y1)
+        @test _is_metavariable_sugared(y1) === sugar
+        @test_throws "non-Metavariable node" _get_metavar_name(y1)
+        y2 = syntax_node2.children[3]
+        @test !_is_metavariable(y2)
+        desugared = _desugar_metavariable(y2)
+        @test _is_metavariable(desugared)
+        @test _get_metavar_name(desugared) === :y
         @test !_is_metavariable(syntax_node2.children[2])
         unprocessed1 = _SyntaxPatternNode(syntax_node1)
         unprocessed2 = _SyntaxPatternNode(syntax_node2)
@@ -104,10 +114,10 @@ end
         @test isequal(p1, p3)
         @test p1 !== p3
         @test isnothing(placeholder(unprocessed2.children[2]))
-        # Process nodes.
+        ## Process nodes.
         processed1 = copy(unprocessed1)
         processed2 = copy(unprocessed2)
-        ## Unify placeholders.
+        ### Unify placeholders.
         _unify_placeholders!(processed1)
         @test isequal(unprocessed1, processed1)
         _unify_placeholders!(processed2)
@@ -120,7 +130,7 @@ end
         @test p1 === p3
         @test length(placeholders(processed2)) == 1
         @test length(placeholders(unprocessed2)) == 1
-        ## Bind and unbind placeholders.
+        ### Bind and unbind placeholders.
         @test isequal(processed1, placeholders_unbind!(processed1))
         @test isequal(processed2, placeholders_unbind!(processed2))
         binding_data = syntax_node1.children[3].data  # Node `1`.

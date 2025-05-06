@@ -243,6 +243,7 @@ function _update_data_head(
     return SyntaxPatternData(new_data)
 end
 
+# TODO: Make a clearer distinction between this and `_is_metavariable_sugared`.
 """
     _is_metavariable(node::JuliaSyntax.SyntaxNode)
 
@@ -250,14 +251,13 @@ Internal utility function for checking whether a syntax node corresponds to the
 `Argus`-specific syntax for a `Metavariable`.
 """
 _is_metavariable(node::JuliaSyntax.SyntaxNode) =
-    kind(node) == K"call" && node.children[1].data.val == :Metavariable
+    kind(node) == K"call" && node.children[1].val == :Metavariable
 function _get_metavar_name(node::JuliaSyntax.SyntaxNode)
     _is_metavariable(node) ||
         error("Trying to get metavariable name from non-Metavariable node")
     # TODO: Error handling for wrong syntax.
     return node.children[2].children[1].data.val
 end
-_is_metavariable(node::SyntaxPatternNode) = isa(node.data.pattern_data, Metavariable)
 
 # TODO: Remove support for `%` syntax? :(
 @enum SugaredMetavariableRet sugar no_sugar err
@@ -290,6 +290,8 @@ function _desugar_metavariable(node::JuliaSyntax.SyntaxNode)
     name = string(_get_metavar_name_sugared(node))
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "Metavariable(:$name)")
 end
+
+_is_metavariable(node::SyntaxPatternNode) = isa(node.data.pattern_data, Metavariable)
 
 is_placeholder(node::SyntaxPatternNode) = isa(node.pattern_data, AbstractSyntaxPlaceholder)
 
