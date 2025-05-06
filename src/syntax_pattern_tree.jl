@@ -86,12 +86,12 @@ function SyntaxPatternNode(ex::Expr)
     return _SyntaxPatternNode(string(ex))
 end
 SyntaxPatternNode(ex::QuoteNode) = _SyntaxPatternNode(string(ex.value))
-function SyntaxPatternNode(directive::Symbol, branches...)
+function SyntaxPatternNode(directive_sym::Symbol, branches...)
     if isempty(branches)
         # Empty composite patterns are not allowed, but regular symbol patterns are.
-        directive in PATTERN_DIRECTIVES &&
+        directive_sym in PATTERN_DIRECTIVES &&
             error("Composite pattern must have at least one sub-pattern")
-        return _SyntaxPatternNode(string(directive))
+        return _SyntaxPatternNode(string(directive_sym))
     end
     # If there's only one sub-pattern, it might need cleaning up. There's no need for other
     # special treatment.
@@ -113,8 +113,12 @@ function SyntaxPatternNode(directive::Symbol, branches...)
             push!(subpatterns, SyntaxPatternNode(b))
         end
     end
-    directive = SyntaxPatternDirective(directive)
-    return SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
+    directive = SyntaxPatternDirective(directive_sym)
+    pat_node = SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
+    # Unify placeholders for `and` composite pattern.
+    directive_sym === :and && _unify_placeholders!(pat_node)
+
+    return pat_node
 end
 
 function _SyntaxPatternNode(pattern_src::AbstractString)
