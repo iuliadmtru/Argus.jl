@@ -66,26 +66,12 @@ found bind the placeholders in the pattern, if any. Return an array of `SyntaxMa
 """
 function pattern_match!(pat::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::SyntaxMatches
     # Treat composite patterns specially.
-    if is_or(pat)
-        matches = SyntaxMatches()
-        for subpattern in children(pat)
-            append!(matches, pattern_match!(subpattern, src))
-            placeholders_unbind!(subpattern)
-        end
-        # TODO: Do a union of the matches to remove duplicates.
-        return matches
-    end
-    if is_and(pat)
-        matches = SyntaxMatches()
-        for subpattern in children(pat)
-            subpattern_matches = pattern_match!(subpattern, src)
-            # Return if there is no match for one subpattern.
-            isempty(subpattern_matches) && return subpattern_matches
-            # Intersect subpattern matches with existing matches.
-            # TODO.
-        end
-        return matches
-    end
+    # TODO: Make these return a tuple
+    #       `(matches_for_each_branch::Dict{SyntaxPatternNode, SyntaxMatches},
+    #         overall_matches::SyntaxMatches)`
+    #       for debugging purposes?
+    is_or(pat) && return match_union!(children(pat), src)
+    is_and(pat) && return match_intersect!(pat, src)
     # Match regular patterns.
     if pattern_compare!(pat, src)
         matches = SyntaxMatches([SyntaxMatch(src, placeholders(pat))])
@@ -114,6 +100,108 @@ function pattern_match!(pattern::SyntaxPatternNode, src_file::AbstractString)::S
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
 
     return pattern_match!(pattern, src)
+end
+
+# Utils.
+
+function match_union!(patterns::Vector{SyntaxPatternNode}, src::JuliaSyntax.SyntaxNode)
+    matches = SyntaxMatches()
+    for subpattern in patterns
+        append!(matches, pattern_match!(subpattern, src))
+        placeholders_unbind!(subpattern)
+    end
+    # Keep duplicate matches caused by branches overlapping. The information might be
+    # useful for debugging purposes.
+    # TODO: Return tuple with the matches for each branch and the overall matches?
+    return matches
+end
+
+function match_intersect!(pattern::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)
+    # Filter out conflicting branches.
+    # TODO: Is this useful enough to justify the extra complexity?
+    patterns = remove_conflicting(children(pattern))
+    matches = SyntaxMatches()
+    for subpattern in patterns
+        subpattern_matches = pattern_match!(subpattern, src)
+        placeholders_unbind!(subpattern)
+        # Return if there is no match for one subpattern.
+        isempty(subpattern_matches) && return subpattern_matches
+        append!(matches, subpattern_matches)
+    end
+    # Filter out conflicting matches.
+    # patterns_copy = copy.(patterns)
+    # matches = remove_conflicting(matches, placeholders_unbind!.(patterns_copy))
+    matches = remove_conflicting(matches, pattern)
+    return matches
+end
+
+function remove_conflicting(patterns::Vector{SyntaxPatternNode})
+    isempty(patterns) && return patterns
+    len = length(patterns)
+    len == 1 && return patterns
+    # Mark all conflicting patterns.
+    marked = falses(len)
+    for (i, p) in enumerate(patterns)
+        # Skip already marked patterns.
+        marked[i] && continue
+        for j in i+1:len
+            marked[j] && continue
+            if conflicts(p, patterns[j])
+                marked[i] = true
+                marked[j] = true
+                @warn "Conflicting `and` branches:\n$p\n$(patterns[j])"
+            end
+        end
+    end
+    # Remove all marked patterns.
+    res = SyntaxPatternNode[]
+    for (i, p) in enumerate(patterns)
+        marked[i] || push!(res, p)
+    end
+
+    return res
+end
+# TODO: Move this at `SyntaxPatternNode` construction.
+function remove_conflicting(matches::SyntaxMatches, pattern::SyntaxPatternNode)
+    isempty(matches) && return matches
+    len = length(matches)
+    len == 1 && return matches
+    # Mark all conflicting matches.
+    marked = falses(len)
+    for (i, m) in enumerate(matches)
+        # Check if the matched AST matches all patterns.
+        for p in children(pattern)
+            # Mark if the comparison is unsuccessful.
+            if !pattern_compare!(p, m.ast)
+                marked[i] = true
+                break
+            end
+        end
+        placeholders_unbind!(pattern)
+    end
+    # Remove all marked matches.
+    res = SyntaxMatches()
+    for (i, m) in enumerate(matches)
+        marked[i] || push!(res, m)
+    end
+
+    return res
+end
+
+function conflicts(p1::SyntaxPatternNode, p2::SyntaxPatternNode)
+    # If at least one of the patterns is a metavariable, there's no conflict.
+    # The metavariable can match any expression.
+    # TODO: Metavariable conditions.
+    (is_placeholder(p1) || is_placeholder(p2)) && return false
+    # No special syntax.
+    head(p1) != head(p2) && return true
+    p1.data.val != p2.data.val && return true
+    xor(is_leaf(p1), is_leaf(p2)) && return true
+    # Recurse on children if any.
+    is_leaf(p1) && return false
+    length(children(p1)) != length(children(p2)) && return true
+    zipped_children = zip(children(p1), children(p2))
+    return any(p -> conflicts(p[1], p[2]), zipped_children)
 end
 
 # --------------------------------------------
@@ -159,11 +247,10 @@ function pattern_compare!(pattern::SyntaxPatternNode, src::JuliaSyntax.SyntaxNod
     # No special syntax.
     head(pattern) != head(src) && return false
     pattern.data.val != src.data.val && return false
-    xor(!is_leaf(pattern), !is_leaf(src)) && return false
+    xor(is_leaf(pattern), is_leaf(src)) && return false
     # Recurse on children if there are any.
     is_leaf(src) && return true
     length(children(pattern)) != length(children(src)) && return false
     zipped_children = zip(children(pattern), children(src))
-    # TODO: This doesn't seem finished.
     return all(p -> pattern_compare!(p[1], p[2]), zipped_children)
 end
