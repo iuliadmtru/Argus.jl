@@ -4,11 +4,16 @@
 # --------------------------------------------
 # Syntax pattern directive.
 
+const PATTERN_DIRECTIVES = [:and, :or]
+
 struct SyntaxPatternDirective
     directive::Symbol
-end
 
-const PATTERN_DIRECTIVES = [:and, :or]
+    function SyntaxPatternDirective(directive::Symbol)
+        directive in PATTERN_DIRECTIVES || error("Unavailable pattern directive :$directive")
+        return new(directive)
+    end
+end
 
 # Display.
 
@@ -93,6 +98,7 @@ function SyntaxPatternNode(directive_sym::Symbol, branches...)
             error("Composite pattern must have at least one sub-pattern")
         return _SyntaxPatternNode(string(directive_sym))
     end
+    directive = SyntaxPatternDirective(directive_sym)
     # If there's only one sub-pattern, it might need cleaning up. There's no need for other
     # special treatment.
     if length(branches) == 1
@@ -113,7 +119,6 @@ function SyntaxPatternNode(directive_sym::Symbol, branches...)
             push!(subpatterns, SyntaxPatternNode(b))
         end
     end
-    directive = SyntaxPatternDirective(directive_sym)
     pat_node = SyntaxPatternNode(nothing, subpatterns, SyntaxPatternData(directive))
     # Unify placeholders for `and` composite pattern.
     directive_sym === :and && _unify_placeholders!(pat_node)

@@ -2,6 +2,15 @@ import Argus: _SyntaxPatternNode, _update_data_head, _unify_placeholders!, place
     placeholders, contains_placeholders, is_placeholder, placeholders_unbind!,
     _is_metavariable, _get_metavar_name, set_binding!
 
+@testset "SyntaxPatternDirective" begin
+    @test_throws "Unavailable pattern directive" SyntaxPatternDirective(:bla)
+    pattern = SyntaxPatternNode(:or, :x, :y)
+    @test isa(pattern.pattern_data, SyntaxPatternDirective)
+    @test pattern.directive === :or
+    @test_throws "must have at least one" SyntaxPatternNode(:and)
+    @test_throws "Unavailable pattern directive" SyntaxPatternNode(:bla, :blu)
+end
+
 @testset "SyntaxPatternData" begin
     syntax_data = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x").data
     wrapped_syntax_data = SyntaxPatternData(syntax_data)
