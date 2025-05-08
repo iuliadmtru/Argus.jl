@@ -1,25 +1,11 @@
 module Argus
 
-export SyntaxPatternNode, SyntaxPatternDirective, SyntaxPatternData
-export AbstractSyntaxPlaceholder, Metavariable
-export SyntaxMatch, SyntaxMatches
-export Rule, RuleGroup
+export SyntaxPatternNode, Pattern, SyntaxClass
 
-export @rule, @define_rule_in_group, define_rule_in_group
+using JuliaSyntax: JuliaSyntax, kind, @K_str, is_leaf, source_location
 
-export register_rule!
-export rule_match!, pattern_match!, pattern_compare!
-
-using JuliaSyntax
-using JuliaSyntax: is_leaf, children, head, kind, source_location
-using JuliaSyntax: untokenize, is_error, is_trivia
-using JuliaSyntax: @isexpr
-
-using MacroTools: MacroTools, striplines
-
-include("syntax_placeholders.jl")
-include("syntax_pattern_tree.jl")
-include("rules.jl")
-include("matching.jl")
+include("syntax-pattern-node.jl")
+include("pattern.jl")
+include("syntax-class.jl")
 
 end  # Argus
