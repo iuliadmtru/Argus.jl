@@ -2,7 +2,8 @@ module Argus
 
 export SyntaxPatternNode, Pattern, SyntaxClass
 
-using JuliaSyntax: JuliaSyntax, kind, @K_str, is_leaf, source_location
+using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
+    children, is_leaf, leaf_string, is_error, source_location
 
 include("syntax-pattern-node.jl")
 include("pattern.jl")
