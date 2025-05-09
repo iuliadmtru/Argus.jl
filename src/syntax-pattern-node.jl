@@ -25,25 +25,32 @@ struct VarSyntaxData <: AbstractSpecialSyntaxData
     syntax_class_name::Symbol
 end
 
+struct OrSyntaxData <: AbstractSpecialSyntaxData end
+
 # TODO: Pattern forms registry? Or remove.
-const PATTERN_FORMS = [:var]
+const PATTERN_FORMS = [:var, :or]
 
 ## `JuliaSyntax` overwrites and utils.
 
 """
 Register new syntax kinds for pattern forms.
 """
-_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~var"])
+_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~var", "~or"])
 _register_kinds()
 
 JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
+JuliaSyntax.head(data::OrSyntaxData) = JuliaSyntax.SyntaxHead(K"~or", 0)
 
 ## `Base` overwrites.
 
 Base.getproperty(data::VarSyntaxData, name::Symbol) =
     name === :id                ? getfield(data, :id)                :
     name === :syntax_class_name ? getfield(data, :syntax_class_name) :
-    nothing
+    name === :val               ? nothing                            :
+    getfield(data, name)
+
+Base.getproperty(data::OrSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
 
 # --------------------------------------------
 # Syntax node.
@@ -102,11 +109,20 @@ function SyntaxPatternNode_pattern_form(node::JuliaSyntax.SyntaxNode)
     # Extract the name and arguments.
     pattern_form_name = node.children[2].children[1].val
     pattern_form_args = node.children[2].children[2:end]
-    pattern_form_arg_names = [c.val for c in pattern_form_args]
+    pattern_form_arg_names = Symbol[]
+    for c in pattern_form_args
+        # TODO: Throw and catch error.
+        cs = children(c)
+        (is_leaf(c) || kind(c) !== K"quote" || length(cs) > 1 || !is_identifier(cs[1])) &&
+            error("Invalid pattern form argument `$c` at $(source_location(c))\n",
+                  "Pattern form arguments should be `Symbol`s.")
+        push!(pattern_form_arg_names, c.children[1].val)
+    end
     # Construct a node with the specific special data.
     cs = SyntaxPatternNode.(pattern_form_args)
     pattern_data =
-        pattern_form_name === :var ? VarSyntaxData(pattern_form_arg_names...) : nothing
+        pattern_form_name === :var ? VarSyntaxData(pattern_form_arg_names...) :
+        pattern_form_name === :or  ? OrSyntaxData()                           : nothing
     pattern_node = SyntaxPatternNode(nothing,
                                      cs,
                                      pattern_data)
@@ -145,7 +161,7 @@ end
 
 ## Display.
 
-using JuliaSyntax: untokenize
+using JuliaSyntax: untokenize, leaf_string, is_error
 function _show_syntax_node(io, node::SyntaxPatternNode, indent)
     nodestr = is_leaf(node) ? leaf_string(node) : "[$(untokenize(head(node)))]"
     treestr = string(indent, nodestr)
