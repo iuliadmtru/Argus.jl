@@ -140,19 +140,7 @@ function is_pattern_form(node::JuliaSyntax.SyntaxNode)
     kind(node.children[2]) !== K"call" && return false
     pattern_form_name = node.children[2].children[1].val
     isnothing(pattern_form_name) && return false
-    if pattern_form_name in PATTERN_FORMS
-        # If the pattern form name is separated from `~` with an open parenthesis, treat it
-        # as a regular identifier name which will be matched as a regular syntax node.
-        # TODO: This doesn't work. More sophisticated `JuliaSyntax` hacking is required.
-        node_raw = node.data.raw
-        pattern_form_raw =                                  # This is the `var(id, cls)` node in
-            kind(node_raw.children[1]) === K"Whitespace" ?  # `~var(id, cls)` or `(var(id, cls))`
-            node_raw.children[3]                         :  # in `~(var(id, cls))`.
-            node_raw.children[2]
-        @info "kind raw" kind(pattern_form_raw) === K"parens"
-        return !(kind(pattern_form_raw) === K"parens")
-    end
-    return false
+    return pattern_form_name in PATTERN_FORMS
 end
 
 ## Display.
