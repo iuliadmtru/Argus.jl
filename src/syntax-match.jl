@@ -52,7 +52,7 @@ function syntax_match(pattern_node::SyntaxPatternNode,
         if isa(match_result, MatchFail)
             return match_result
         else
-            union!(success, match_result)
+            merge!(success, match_result)
         end
     end
     return success
@@ -77,7 +77,6 @@ Try to match a `var` pattern form. If there's a match, bind the pattern variable
 """
 function syntax_match_var(var_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode)::Union{MatchFail, BindingSet}
-    @info "match var" var_node src
     pattern_var_name = var_node.data.id
     syntax_class_name = var_node.data.syntax_class_name
     syntax_class =
@@ -85,7 +84,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
             SYNTAX_CLASS_REGISTRY[syntax_class_name]
         catch e
             if isa(e, KeyError)
-                return MatchFail("unregistered syntax class $syntax_class_name")
+                return MatchFail("unregistered syntax class :$syntax_class_name")
             else
                 rethrow(e)
             end
