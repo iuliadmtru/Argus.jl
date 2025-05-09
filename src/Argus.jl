@@ -1,6 +1,6 @@
 module Argus
 
-export SyntaxPatternNode, Pattern, SyntaxClass
+export SyntaxPatternNode, Pattern, SyntaxClass, @syntax_class
 
 using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
     children, is_leaf, leaf_string, is_error, source_location
