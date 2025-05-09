@@ -134,23 +134,25 @@ function is_pattern_form(node::JuliaSyntax.SyntaxNode)
     tilda_node = node.children[1]
     kind(tilda_node) !== K"Identifier" && return false
     tilda_node.val !== :~ && return false
-    # TODO: Change syntax in order to not have conflicts?
-    if length(node.children) != 2 || kind(node.children[2]) !== K"call"
-        # TODO: Extract warning somewhere.
-        @warn "Pattern syntax contains `~` not followed by valid pattern form syntax"
-        return false
-    end
+    # The node is a `~` call. It can only be a pattern form node if `~` is followed
+    # directly by a pattern form name. Otherwise, `~` is used with its regular meaning.
+    length(node.children) != 2 && return false
+    kind(node.children[2]) !== K"call" && return false
     pattern_form_name = node.children[2].children[1].val
-    if isnothing(pattern_form_name)
-        @warn "Pattern syntax contains `~` not followed by valid pattern form syntax"
-        return false
+    isnothing(pattern_form_name) && return false
+    if pattern_form_name in PATTERN_FORMS
+        # If the pattern form name is separated from `~` with an open parenthesis, treat it
+        # as a regular identifier name which will be matched as a regular syntax node.
+        # TODO: This doesn't work. More sophisticated `JuliaSyntax` hacking is required.
+        node_raw = node.data.raw
+        pattern_form_raw =                                  # This is the `var(id, cls)` node in
+            kind(node_raw.children[1]) === K"Whitespace" ?  # `~var(id, cls)` or `(var(id, cls))`
+            node_raw.children[3]                         :  # in `~(var(id, cls))`.
+            node_raw.children[2]
+        @info "kind raw" kind(pattern_form_raw) === K"parens"
+        return !(kind(pattern_form_raw) === K"parens")
     end
-    # Pattern form checks.
-    if !(pattern_form_name in PATTERN_FORMS)
-        @warn "Pattern syntax contains `~` not followed by an existing pattern form name"
-        return false
-    end
-    return true
+    return false
 end
 
 ## Display.
