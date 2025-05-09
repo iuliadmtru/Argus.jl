@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------------------
 # Syntax pattern tree interface.
 
-# --------------------------------------------
+# -------------------------------------------------------------------
 # Special syntax data.
 
 """
@@ -16,9 +16,9 @@ abstract type AbstractSpecialSyntaxData end
 
 Data for a `~var` pattern form holding an id name and a [`SyntaxClass`](@ref) name. The
 latter is a name expected to be found in the syntax class registry (TODO: docs) when the
-[`registry_check`](@ref) function is called. I.e. forward references are allowed as long as
-the "promise" to define missing syntax classes is fulfilled when checking the registry for
-consistency.
+[`syntax_class_registry_check`](@ref) function is called. I.e. forward references are
+allowed as long as the "promise" to define missing syntax classes is fulfilled when checking
+the registry for consistency.
 """
 struct VarSyntaxData <: AbstractSpecialSyntaxData
     id::Symbol
@@ -52,7 +52,7 @@ Base.getproperty(data::VarSyntaxData, name::Symbol) =
 Base.getproperty(data::OrSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
-# --------------------------------------------
+# -------------------------------------------------------------------
 # Syntax node.
 
 """
@@ -75,10 +75,22 @@ nodes and with `Data <: AbstractSpecialSyntaxData` for special syntax nodes.
 function SyntaxPatternNode(node::JuliaSyntax.SyntaxNode)
     is_pattern_form(node) && return SyntaxPatternNode_pattern_form(node)
     # Regular syntax node.
-    is_leaf(node) && return SyntaxPatternNode(nothing, nothing, node.data)
+    pattern_data = node.data
+    is_leaf(node) && return SyntaxPatternNode(nothing, nothing, pattern_data)
     cs = [SyntaxPatternNode(c) for c in children(node)]
-    pattern_node = SyntaxPatternNode(nothing, cs, node.data)
-    [c.parent = pattern_node for c in cs]
+    # Link the node with its children.
+    pattern_node = SyntaxPatternNode(nothing, cs, pattern_data)
+    for c in cs
+        c.parent = pattern_node
+        # If the node is an assignment to a pattern form don't interpret it as a short form
+        # function call. Interpret it as a plain `K"="` node instead.
+        if is_pattern_form(c) &&
+            JuliaSyntax.flags(pattern_node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+            c.parent.data =
+                _update_data_head(pattern_data, JuliaSyntax.SyntaxHead(K"=", 0))
+        end
+    end
+
     return pattern_node
 end
 """
@@ -107,39 +119,40 @@ which has the following structure:
 """
 function SyntaxPatternNode_pattern_form(node::JuliaSyntax.SyntaxNode)
     # Extract the name and arguments.
-    pattern_form_name = node.children[2].children[1].val
-    pattern_form_args = node.children[2].children[2:end]
-    pattern_form_arg_names = Symbol[]
-    for c in pattern_form_args
-        # TODO: Throw and catch error.
-        cs = children(c)
-        (is_leaf(c) || kind(c) !== K"quote" || length(cs) > 1 || !is_identifier(cs[1])) &&
-            error("Invalid pattern form argument `$c` at $(source_location(c))\n",
-                  "Pattern form arguments should be `Symbol`s.")
-        push!(pattern_form_arg_names, c.children[1].val)
-    end
+    pattern_form_name = _pattern_form_name(node)
+    pattern_form_args = _pattern_form_args(node)
     # Construct a node with the specific special data.
     cs = SyntaxPatternNode.(pattern_form_args)
     pattern_data =
-        pattern_form_name === :var ? VarSyntaxData(pattern_form_arg_names...) :
-        pattern_form_name === :or  ? OrSyntaxData()                           : nothing
+        pattern_form_name === :var ? VarSyntaxData(_var_arg_names(pattern_form_args)...) :
+        pattern_form_name === :or  ? OrSyntaxData()                                      :
+        nothing
+    # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing,
                                      cs,
                                      pattern_data)
     [c.parent = pattern_node for c in cs]
+
     return pattern_node
 end
 
+## -------------------------------------------
 ## `JuliaSyntax` overwrites.
 
 JuliaSyntax.head(node::SyntaxPatternNode) =
-    is_special_syntax(node) ? head(node.data) : head(node.data.raw)
+    is_pattern_form(node) ? head(node.data) : head(node.data.raw)
 JuliaSyntax.kind(node::SyntaxPatternNode) = head(node).kind
 
+## -------------------------------------------
 ## Utils.
 
-# TODO: Remove this?
-is_special_syntax(node::SyntaxPatternNode) = is_pattern_form(node)
+### AST checking and manipulation.
+
+is_symbol_node(node::JuliaSyntax.SyntaxNode) =
+    !is_leaf(node) &&
+    kind(node) === K"quote" &&
+    length(children(node)) == 1 &&
+    is_identifier(children(node)[1])
 
 is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractSpecialSyntaxData)
 function is_pattern_form(node::JuliaSyntax.SyntaxNode)
@@ -154,11 +167,58 @@ function is_pattern_form(node::JuliaSyntax.SyntaxNode)
     # directly by a pattern form name. Otherwise, `~` is used with its regular meaning.
     length(node.children) != 2 && return false
     kind(node.children[2]) !== K"call" && return false
-    pattern_form_name = node.children[2].children[1].val
+    pattern_form_name = _pattern_form_name(node)
     isnothing(pattern_form_name) && return false
     return pattern_form_name in PATTERN_FORMS
 end
 
+function _update_data_head(old_data::JuliaSyntax.SyntaxData,
+                           new_head::JuliaSyntax.SyntaxHead)
+    old_raw = old_data.raw
+    new_raw = JuliaSyntax.GreenNode(
+        new_head,
+        old_raw.span,
+        old_raw.children
+    )
+    new_data = JuliaSyntax.SyntaxData(
+        old_data.source,
+        new_raw,
+        old_data.position,
+        old_data.val
+    )
+
+    return new_data
+end
+
+_strip_quote_node(node::JuliaSyntax.SyntaxNode) =
+    kind(node) === K"quote" ? node.children[1] : node
+
+### Pattern form utils.
+
+_pattern_form_name(node::JuliaSyntax.SyntaxNode)::Symbol = node.children[2].children[1].val
+function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
+    name = _pattern_form_name(node)
+    args = node.children[2].children[2:end]
+    name === :var && return args
+    name === :or && return _strip_quote_node.(args)
+    error("Trying to extract args for unimplemented pattern form $name")
+end
+
+function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
+    arg_names = Symbol[]
+    for c in args
+        # TODO: Throw and catch error.
+        cs = children(c)
+        is_symbol_node(c) ||
+            error("Invalid pattern form argument `$c` at $(source_location(c))\n",
+                  "`~var` pattern form arguments should be `Symbol`s.")
+        push!(arg_names, c.children[1].val)
+    end
+
+    return arg_names
+end
+
+## -------------------------------------------
 ## Display.
 
 using JuliaSyntax: untokenize, leaf_string, is_error
