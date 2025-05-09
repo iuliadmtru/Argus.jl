@@ -9,4 +9,8 @@ include("syntax-pattern-node.jl")
 include("pattern.jl")
 include("syntax-class.jl")
 
+function __init__()
+    _register_kinds()
+end
+
 end  # Argus

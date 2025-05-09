@@ -28,10 +28,13 @@ end
 # TODO: Pattern forms registry? Or remove.
 const PATTERN_FORMS = [:var]
 
-## `JuliaSyntax` overwrites.
+## `JuliaSyntax` overwrites and utils.
 
-# TODO: Why does this not work?
-JuliaSyntax.register_kinds!(:Argus, 3, ["~var"])
+"""
+Register new syntax kinds for pattern forms.
+"""
+_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~var"])
+_register_kinds()
 
 JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
 
