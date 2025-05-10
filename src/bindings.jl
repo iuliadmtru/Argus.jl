@@ -14,8 +14,8 @@ Set of bindings. Implemented as a dict for ease of access.
 struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
     bindings::Dict{Symbol, T}
 end
-
 BindingSet() = BindingSet(Dict{Symbol, Binding}())
+BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...))
 
 ## Dict interface.
 
