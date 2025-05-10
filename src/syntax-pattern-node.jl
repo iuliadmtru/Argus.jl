@@ -54,13 +54,13 @@ function get_pattern_vars(ex::QuoteNode)::Vector{Symbol}
     Meta.isidentifier(name_symbol) || return Symbol[]
     name_str = string(name_symbol)
     startswith(name_str, "_") || return Symbol[]
-    return [Symbol(name_str[2:end])]
+    return [name_symbol]
 end
 function get_pattern_vars(s::Symbol)::Vector{Symbol}
     Meta.isidentifier(s) || return Symbol[]
     name_str = string(s)
     startswith(name_str, "_") || return Symbol[]
-    return [Symbol(name_str[2:end])]
+    return [s]
 end
 get_pattern_vars(::T) where T = Symbol[]
 
@@ -102,12 +102,12 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
             # Create an evaluation context with the condition binding context.
             ConditionContext = Module()
             for (var_name, binding) in condition_binding_context
-                var_name = Symbol(string("_", string(var_name)))
                 Core.eval(ConditionContext, :($var_name = $binding))
             end
             # Evaluate the condition within the evaluation context.
             result = Core.eval(ConditionContext, condition)
-            isa(result, Bool) || error("Fail condition evaluated to non-Boolean value")
+            isa(result, Bool) ||
+                error("Fail condition evaluated to non-Boolean value $(typeof(result)): $result")
             return result
         end
 
