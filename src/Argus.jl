@@ -20,6 +20,7 @@ include("syntax-match.jl")
 # Part 2: Rule writing mechanism.
 
 export Rule, @rule
+export rule_match
 
 include("rules.jl")
 
