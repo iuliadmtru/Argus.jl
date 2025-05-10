@@ -11,6 +11,81 @@ Supertype for all special syntax data such as pattern forms.
 """
 abstract type AbstractSpecialSyntaxData end
 
+function get_pattern_vars(ex::Expr)::Vector{Symbol}
+    pattern_vars = Symbol[]
+    isempty(ex.args) && return Symbol[]
+    for arg in ex.args
+        append!(pattern_vars, get_pattern_vars(arg))
+    end
+    return pattern_vars
+end
+function get_pattern_vars(ex::QuoteNode)::Vector{Symbol}
+    name_symbol = ex.value
+    isa(name_symbol, Symbol) || return Symbol[]
+    Meta.isidentifier(name_symbol) || return Symbol[]
+    name_str = string(name_symbol)
+    startswith(name_str, "_") || return Symbol[]
+    return [Symbol(name_str[2:end])]
+end
+function get_pattern_vars(s::Symbol)::Vector{Symbol}
+    Meta.isidentifier(s) || return Symbol[]
+    name_str = string(s)
+    startswith(name_str, "_") || return Symbol[]
+    return [Symbol(name_str[2:end])]
+end
+get_pattern_vars(::T) where T = Symbol[]
+
+"""
+    FailSyntaxData
+
+Data for `fail` pattern form containing a fail condition and a message. The fail condition
+is a function that, given a binding context (`::BindingSet`), creates an evaluation context
+containing where the pattern variables found in the fail condition are defined as their
+corresponding bindings. When the function is called, the fail condition is evaluated in this
+evaluation context.
+
+If the fail condition contains pattern variables that are not present in the provided binding
+context, the function will throw an error.
+"""
+struct FailSyntaxData <: AbstractSpecialSyntaxData
+    condition::Function
+    message::String
+
+    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
+    function FailSyntaxData(condition::Expr, msg::String)
+        pattern_variables = get_pattern_vars(condition)
+        cond_fun = function (binding_context)
+            # Create a smaller binding context containg only the bindings from `condition`.
+            condition_binding_context = Dict{Symbol, Any}()
+            for pattern_var_name in pattern_variables
+                condition_binding_context[pattern_var_name] =
+                    try
+                        binding_context[pattern_var_name]
+                    catch e
+                        if isa(e, KeyError)
+                            # TODO: Throw specific error type.
+                            error("Binding context does not contain a binding for $pattern_var_name")
+                        else
+                            rethrow(e)
+                        end
+                    end
+            end
+            # Create an evaluation context with the condition binding context.
+            ConditionContext = Module()
+            for (var_name, binding) in condition_binding_context
+                var_name = Symbol(string("_", string(var_name)))
+                Core.eval(ConditionContext, :($var_name = $binding))
+            end
+            # Evaluate the condition within the evaluation context.
+            result = Core.eval(ConditionContext, condition)
+            isa(result, Bool) || error("Fail condition evaluated to non-Boolean value")
+            return result
+        end
+
+        return new(cond_fun, msg)
+    end
+end
+
 """
     VarSyntaxData
 
@@ -28,20 +103,26 @@ end
 struct OrSyntaxData <: AbstractSpecialSyntaxData end
 
 # TODO: Pattern forms registry? Or remove.
-const PATTERN_FORMS = [:var, :or]
+const PATTERN_FORMS = [:fail, :var, :or]
 
 ## `JuliaSyntax` overwrites and utils.
 
 """
 Register new syntax kinds for pattern forms.
 """
-_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~var", "~or"])
+_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~fail", "~var", "~or"])
 _register_kinds()
 
+JuliaSyntax.head(data::FailSyntaxData) = JuliaSyntax.SyntaxHead(K"~fail", 0)
 JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
 JuliaSyntax.head(data::OrSyntaxData) = JuliaSyntax.SyntaxHead(K"~or", 0)
 
 ## `Base` overwrites.
+
+Base.getproperty(data::FailSyntaxData, name::Symbol) =
+    name === :message ? getfield(data, :message) :
+    name === :val     ? nothing                  :
+    getfield(data, name)
 
 Base.getproperty(data::VarSyntaxData, name::Symbol) =
     name === :id                ? getfield(data, :id)                :
@@ -120,12 +201,14 @@ which has the following structure:
 function SyntaxPatternNode_pattern_form(node::JuliaSyntax.SyntaxNode)
     # Extract the name and arguments.
     pattern_form_name = _pattern_form_name(node)
+    pattern_form_arg_nodes = _pattern_form_arg_nodes(node)
     pattern_form_args = _pattern_form_args(node)
     # Construct a node with the specific special data.
-    cs = SyntaxPatternNode.(pattern_form_args)
+    cs = SyntaxPatternNode.(pattern_form_arg_nodes)
     pattern_data =
-        pattern_form_name === :var ? VarSyntaxData(_var_arg_names(pattern_form_args)...) :
-        pattern_form_name === :or  ? OrSyntaxData()                                      :
+        pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
+        pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
+        pattern_form_name === :or   ? OrSyntaxData()                       :
         nothing
     # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing,
@@ -192,17 +275,40 @@ end
 
 _strip_quote_node(node::JuliaSyntax.SyntaxNode) =
     kind(node) === K"quote" ? node.children[1] : node
+_strip_string_node(node::JuliaSyntax.SyntaxNode) =
+    kind(node) === K"string" ? node.children[1] : node
 
 ### Pattern form utils.
 
 _pattern_form_name(node::JuliaSyntax.SyntaxNode)::Symbol = node.children[2].children[1].val
-function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
+function _pattern_form_arg_nodes(node::JuliaSyntax.SyntaxNode)
     name = _pattern_form_name(node)
     args = node.children[2].children[2:end]
+    name === :fail && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
     name === :var && return args
     name === :or && return _strip_quote_node.(args)
-    error("Trying to extract args for unimplemented pattern form $name")
+    error("Trying to extract argument nodes for unimplemented pattern form $name")
 end
+function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
+    name = _pattern_form_name(node)
+    arg_nodes = node.children[2].children[2:end]
+    name === :fail && return [JuliaSyntax.to_expr(arg_nodes[1]),
+                              _strip_string_node(arg_nodes[2]).data.val]
+    name === :var && return _var_arg_names(arg_nodes)
+    name === :or && return []
+    error("Trying to extract arguments for unimplemented pattern form $name")
+end
+
+# TODO: Similar getters for other pattern forms.
+function _get_fail_condition(node::SyntaxPatternNode)::Union{Nothing, Function}
+    isa(node.data, FailSyntaxData) || return nothing
+    return node.data.condition
+end
+function _get_fail_message(node::SyntaxPatternNode)::Union{Nothing, String}
+    isa(node.data, FailSyntaxData) || return nothing
+    return node.data.message
+end
+
 
 function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
     arg_names = Symbol[]
