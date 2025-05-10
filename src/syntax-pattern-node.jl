@@ -58,7 +58,7 @@ Passes:
 3. Add alternatives for ambiguous nodes (e.g. `=` could be either an assignment or a short
    form function definition): `::SyntaxPatternNode -> ::SyntaxPatternNode`.
 """
-function SyntaxPatternNode(ex::Expr)
+function SyntaxPatternNode(ex)
     syntax_node = desugar_expr(ex)
     syntax_pattern_node = parse_pattern_forms(syntax_node)
     return disambiguate!(syntax_pattern_node)
@@ -67,11 +67,11 @@ end
 ## Passes.
 
 """
-    desugar_expr(ex::Expr)::JuliaSyntax.SyntaxNode
+    desugar_expr(ex)::JuliaSyntax.SyntaxNode
 
 The first pass in the construction of a `SyntaxPatternNode`.
 """
-function desugar_expr(ex::Expr)::JuliaSyntax.SyntaxNode
+function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     # TODO: Desugar.
     node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, string(ex))
     return kind(node) === K"toplevel" ? node.children[1] : node

@@ -4,4 +4,11 @@ struct Pattern
 end
 
 # TODO: Support for fail conditions.
-Pattern(ex::Expr) = Pattern(SyntaxPatternNode(ex), [])
+function Pattern(ex)
+    try
+        ast = SyntaxPatternNode(ex)
+        return Pattern(ast, Function[])
+    catch
+        error("Invalid pattern syntax")
+    end
+end
