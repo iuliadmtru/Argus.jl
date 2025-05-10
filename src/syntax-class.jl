@@ -1,5 +1,6 @@
 using MacroTools: striplines
 
+# TODO: Let syntax classes take arguments.
 """
     SyntaxClass
 
@@ -68,5 +69,16 @@ function _register_syntax_classes()
                                               !JuliaSyntax.is_identifier(__id.ast)
                                           end,
                                           "not an identifier"))
+                           end)
+
+    # TODO: Change to general function call after adding repetitions.
+    # `funcall`: match a function call.
+    register_syntax_class!(:funcall, @syntax_class "function call" quote
+                               (~var(:__id, :identifier))()
+                           end)
+
+    # `assign`: match an assignment.
+    register_syntax_class!(:assign, @syntax_class "assignment" quote
+                               ~var(:__lhs, :identifier) = ~var(:__rhs, :expr)
                            end)
 end
