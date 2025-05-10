@@ -45,15 +45,6 @@ function syntax_match(pattern_node::SyntaxPatternNode,
         return syntax_match_pattern_form(pattern_node, src, binding_context)
     # Regular syntax.
     success = binding_context
-    if head(pattern_node) != head(src)
-        # A `[=]` node in the pattern can match a short form function definition.
-        if kind(pattern_node) === K"=" && kind(src) === K"function"
-            src_flags = JuliaSyntax.flags(src)
-            src_flags === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG || return MatchFail()
-        else
-            return MatchFail()
-        end
-    end
     pattern_node.data.val != src.data.val && return MatchFail()
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.
@@ -140,12 +131,14 @@ Fail if no alternative matches.
 """
 function syntax_match_or(or_node::SyntaxPatternNode,
                          src::JuliaSyntax.SyntaxNode)::MatchResult
+    failure = MatchFail("no alternative match")
     for p in children(or_node)
         match_result = syntax_match(p, src)
         isa(match_result, BindingSet) && return match_result
+        failure = match_result
     end
     # TODO: Return the most specific error.
-    return MatchFail("no alternative match")
+    return failure
 end
 
 """
