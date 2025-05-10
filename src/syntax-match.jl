@@ -78,12 +78,13 @@ match function.
 """
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JuliaSyntax.SyntaxNode,
-                                   binding_context::BindingSet = BindingSet())::MatchResult
-    isa(pattern_node.data, FailSyntaxData) && return syntax_match_fail(pattern_node,
-                                                                       src,
+                                   binding_context::BindingSet)::MatchResult
+    nodes = (pattern_node, src)
+    isa(pattern_node.data, FailSyntaxData) && return syntax_match_fail(nodes...,
                                                                        binding_context)
-    isa(pattern_node.data, VarSyntaxData) && return syntax_match_var(pattern_node, src)
-    isa(pattern_node.data, OrSyntaxData) && return syntax_match_or(pattern_node, src)
+    isa(pattern_node.data, VarSyntaxData) && return syntax_match_var(nodes...)
+    isa(pattern_node.data, OrSyntaxData) && return syntax_match_or(nodes...)
+    isa(pattern_node.data, AndSyntaxData) && return syntax_match_and(nodes...)
     return MatchFail("unknown pattern form")
 end
 
@@ -140,4 +141,19 @@ function syntax_match_or(or_node::SyntaxPatternNode,
     end
     # TODO: Return the most specific error.
     return MatchFail("no alternative match")
+end
+
+"""
+Try to match an `and` pattern form. Return the bindings resulted from all branches, or
+the `MatchFail` of the first failing branch.
+"""
+function syntax_match_and(and_node::SyntaxPatternNode,
+                          src::JuliaSyntax.SyntaxNode)::MatchResult
+    binding_context = BindingSet()
+    for p in children(and_node)
+        match_result = syntax_match(p, src, binding_context)
+        isa(match_result, MatchFail) && return match_result
+        merge!(binding_context, match_result)
+    end
+    return binding_context
 end
