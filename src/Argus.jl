@@ -2,6 +2,7 @@ module Argus
 
 export SyntaxPatternNode, Pattern, SyntaxClass, @syntax_class,
     Binding, BindingSet, MatchFail
+export register_syntax_class!, syntax_class_registry_check
 export syntax_match
 
 using JuliaSyntax: JuliaSyntax, head, kind, @K_str,

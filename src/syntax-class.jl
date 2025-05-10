@@ -50,3 +50,13 @@ function syntax_class_registry_check()
         # TODO: Check for syntax classes that reference undefined syntax classes.
     end
 end
+
+# ------------------------------------------------------------------------------------------
+# Pre-registered syntax classes.
+
+function _register_syntax_classes()
+    # `expr`: match any expression.
+    register_syntax_class!(:expr, @syntax_class "expr" quote
+                               ~fail(:false, "")
+                           end)
+end
