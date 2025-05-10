@@ -59,4 +59,14 @@ function _register_syntax_classes()
     register_syntax_class!(:expr, @syntax_class "expr" quote
                                ~fail(:false, "")
                            end)
+
+    # `identifier`: match an identifier.
+    register_syntax_class!(:identifier, @syntax_class "identifier" quote
+                               ~and(~var(:__id, :expr),
+                                    ~fail(begin
+                                              using JuliaSyntax
+                                              !JuliaSyntax.is_identifier(__id.ast)
+                                          end,
+                                          "not an identifier"))
+                           end)
 end

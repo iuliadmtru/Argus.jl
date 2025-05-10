@@ -26,14 +26,16 @@ end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JuliaSyntax.SyntaxNode,
                       binding_context::BindingSet = BindingSet())::MatchResult
+    failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
         match_result = syntax_match(pattern, src, binding_context)
         # Return the first successful match.
         isa(match_result, BindingSet) && return match_result
         # TODO: Track the failures and return the most relevant one.
+        failure = match_result
     end
     # If neither of the pattern alternatives matched, `src` does not match the syntax_class.
-    return MatchFail()
+    return failure
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JuliaSyntax.SyntaxNode,
@@ -118,11 +120,14 @@ function syntax_match_var(var_node::SyntaxPatternNode,
                 rethrow(e)
             end
         end
+    # @info "syntax class" syntax_class
     # Try to match the pattern syntax class to the AST.
     match_result = syntax_match(syntax_class, src)
     isa(match_result, MatchFail) && return match_result
-    # If there's a match, bind the pattern variable and return the binding as a
-    # `BindingSet`.
+    # If there's a match and the pattern variable is not anonymous, bind the pattern
+    # variable and return the binding as a `BindingSet`.
+    is_anonymous_pattern_var(pattern_var_name) &&
+        return BindingSet()
     binding = Binding(pattern_var_name, src, match_result)
     # TODO: Check for already existing binding. The new binding must be "compatible" with
     #       the old one.
@@ -157,3 +162,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
     end
     return binding_context
 end
+
+## Utils.
+
+is_anonymous_pattern_var(name::Symbol) = endswith(string(name), "_")
