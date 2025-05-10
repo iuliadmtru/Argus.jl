@@ -4,6 +4,35 @@
 # -------------------------------------------------------------------
 # Special syntax data.
 
+## What to add when creating a new pattern form:
+##
+## -------------------------------------------
+## syntax-pattern-node.jl (this file)
+##
+## At/near syntax data structs:
+## - struct <FormName>SyntaxData <: AbstractSpecialSyntaxData ... end
+## - const PATTERN_FORMS = [..., :<form_name>]
+##
+## At/near `JuliaSyntax` overwrites for syntax data:
+## - register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, [..., "~<form_name>"])
+## - JuliaSyntax.head(data::<FormName>SyntaxData) = JuliaSyntax.SyntaxHead(K"~<form_name>", 0)
+## - Base.getproperty(data::<FormName>SyntaxData, name::Symbol) = ...
+##    - Note: `data.val` should not error.
+##
+## In `SyntaxPatternNode_pattern_form`:
+## - `... pattern_form_name === :<form_name>  ? <FormName>SyntaxData(...) : ...`
+##
+## In `_pattern_form_args` and `_pattern_form_arg_names`:
+## - `name === :<form_name> && return ...
+##
+## -------------------------------------------
+## syntax-match.jl
+##
+## In `syntax_match_pattern_form`:
+## - `isa(pattern_node.data, <FormName>SyntaxData) && return syntax_match_<form_name>(...)`
+##
+## - `function syntax_match_<form_name>(...) ... end`
+
 """
     AbstractSpecialSyntaxData
 
@@ -38,7 +67,7 @@ get_pattern_vars(::T) where T = Symbol[]
 """
     FailSyntaxData
 
-Data for `fail` pattern form containing a fail condition and a message. The fail condition
+Data for `~fail` pattern form containing a fail condition and a message. The fail condition
 is a function that, given a binding context (`::BindingSet`), creates an evaluation context
 containing where the pattern variables found in the fail condition are defined as their
 corresponding bindings. When the function is called, the fail condition is evaluated in this
@@ -100,22 +129,35 @@ struct VarSyntaxData <: AbstractSpecialSyntaxData
     syntax_class_name::Symbol
 end
 
+"""
+    OrSyntaxData
+
+Data for `~or` pattern form.
+"""
 struct OrSyntaxData <: AbstractSpecialSyntaxData end
 
+"""
+    AndSyntaxData
+
+Data for `~and` pattern form.
+"""
+struct AndSyntaxData <: AbstractSpecialSyntaxData end
+
 # TODO: Pattern forms registry? Or remove.
-const PATTERN_FORMS = [:fail, :var, :or]
+const PATTERN_FORMS = [:fail, :var, :or, :and]
 
 ## `JuliaSyntax` overwrites and utils.
 
 """
 Register new syntax kinds for pattern forms.
 """
-_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~fail", "~var", "~or"])
+_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~fail", "~var", "~or", "~and"])
 _register_kinds()
 
 JuliaSyntax.head(data::FailSyntaxData) = JuliaSyntax.SyntaxHead(K"~fail", 0)
 JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
 JuliaSyntax.head(data::OrSyntaxData) = JuliaSyntax.SyntaxHead(K"~or", 0)
+JuliaSyntax.head(data::AndSyntaxData) = JuliaSyntax.SyntaxHead(K"~and", 0)
 
 ## `Base` overwrites.
 
@@ -131,6 +173,9 @@ Base.getproperty(data::VarSyntaxData, name::Symbol) =
     getfield(data, name)
 
 Base.getproperty(data::OrSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
+
+Base.getproperty(data::AndSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
 # -------------------------------------------------------------------
@@ -209,6 +254,7 @@ function SyntaxPatternNode_pattern_form(node::JuliaSyntax.SyntaxNode)
         pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
         pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
         pattern_form_name === :or   ? OrSyntaxData()                       :
+        pattern_form_name === :and  ? AndSyntaxData()                      :
         nothing
     # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing,
@@ -287,7 +333,8 @@ function _pattern_form_arg_nodes(node::JuliaSyntax.SyntaxNode)
     name === :fail && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
     name === :var && return args
     name === :or && return _strip_quote_node.(args)
-    error("Trying to extract argument nodes for unimplemented pattern form $name")
+    name === :and && return _strip_quote_node.(args)
+    error("Trying to extract argument nodes for unimplemented pattern form ~$name")
 end
 function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name = _pattern_form_name(node)
@@ -296,7 +343,8 @@ function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
                               _strip_string_node(arg_nodes[2]).data.val]
     name === :var && return _var_arg_names(arg_nodes)
     name === :or && return []
-    error("Trying to extract arguments for unimplemented pattern form $name")
+    name === :and && return []
+    error("Trying to extract arguments for unimplemented pattern form ~$name")
 end
 
 # TODO: Similar getters for other pattern forms.

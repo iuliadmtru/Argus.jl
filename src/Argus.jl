@@ -16,6 +16,7 @@ include("syntax-match.jl")
 
 function __init__()
     _register_kinds()
+    _register_syntax_classes()
 end
 
 end  # Argus
