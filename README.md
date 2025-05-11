@@ -26,6 +26,7 @@ types of building blocks:
   - regular Julia syntax
   - pattern variables
   - syntax classes
+
 These three components allow the writing of patterns which can be used
 to match code that "fits" them.
 
@@ -131,7 +132,7 @@ Stacktrace:
 ### Syntax classes
 
 Syntax classes allow specifying common "types" of ASTs. See the Racket
-`syntax/parse` [documentation on syntax
+`syntax/parse` documentation on [syntax
 classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html)
 for a more in-depth description.
 
@@ -154,10 +155,11 @@ syntax class is `expr`. It is defined as:
 end
 ```
 
-Its body means: > Fail with the message "" when the the condition
-`false` evaluates to `true`.  Since `false` never evaluated to `true`,
-the fail condition is never satisfied so the pattern never fails to
-match.
+Its body means:
+> Fail with the message "" when the the condition `false` evaluates to `true`.
+
+Since `false` never evaluates to `true`, the fail condition is never
+satisfied so the pattern never fails to match.
 
 `~fail` is a pattern form. All identifiers that have a preceding `~`
 are parsed as pattern forms, which are described in the following
@@ -188,7 +190,7 @@ MatchFail("not an identifier")
 
 Syntax classes need to be registered in order to use them in
 patterns. This is done through `register_syntax_class!`:
-```
+```julia
 register_syntax_class!(:assign, @syntax_class "assignment" quote
                            __lhs:::identifier = __rhs:::expr
                        end)
@@ -206,7 +208,8 @@ more details on pattern forms in general.
 
 #### `~var`
 
-`    ~var(<pattern_variable>, <syntax_class_name>)`
+`~var(<pattern_variable>, <syntax_class_name>)`
+
 Binds a pattern variable to a syntax class.
 
 ```julia
@@ -258,7 +261,8 @@ Stacktrace:
 
 #### `~or`
 
-`    ~or(<alternatives>...)`
+`~or(<alternatives>...)`
+
 Short-circuits a match (success) at the first matching pattern alternative.
 
 ```julia
@@ -285,7 +289,8 @@ defining the concept of _repetition_.
 
 #### `~and`
 
-`    ~and(<branches>...)`
+`~and(<branches>...)`
+
 Short-circuits a match (fail) at the first non-matching pattern
 branch. Pattern variables from a branch are bound in succeeding
 branches.
@@ -310,7 +315,8 @@ MatchFail("no match")
 
 #### `~fail`
 
-`    ~fail(<condition>, <message>)`
+`~fail(<condition>, <message>)`
+
 Contains a fail condition and a message to be shown if the fail
 condition evaluates to `true`.
 
@@ -429,7 +435,7 @@ For example, in some cases in might be necessary to match an
 assignment where the right hand side satisfies some
 constraint. Allowing a syntax similar to the following would be
 desirable (and is in plan for the future):
-```
+```julia
 julia> @pattern :( ~and(_x:::assign, ~fail(!is_literal(_x.rhs), "rhs not a literal")) )
 Pattern:
 [~and]
@@ -520,7 +526,7 @@ julia> rule_match(compare_nothing, "semgrep-to-argus/compare-nothing.jl")
  BindingSet()
 ```
 
-As always, anonymous pattern variables don't bind.
+As usual, anonymous pattern variables don't bind.
 
 Rules can be grouped in `RuleGroup`s.
 
