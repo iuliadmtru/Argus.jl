@@ -167,8 +167,8 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
 
     k = kind(node)
     if k === K"function"
-        lhs = node.children[1]
-        rhs = node.children[2]
+        lhs = fix_misparsed!(node.children[1])
+        rhs = fix_misparsed!(node.children[2])
         # If it's a long form function definition, the lhs is a `tuple` node and should be
         # replaced by its child.
         is_short_form_function_def(node) ||

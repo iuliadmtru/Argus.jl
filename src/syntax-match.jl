@@ -45,6 +45,7 @@ function syntax_match(pattern_node::SyntaxPatternNode,
         return syntax_match_pattern_form(pattern_node, src, binding_context)
     # Regular syntax.
     success = binding_context
+    head(pattern_node) != head(src) && return MatchFail()
     pattern_node.data.val != src.data.val && return MatchFail()
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.

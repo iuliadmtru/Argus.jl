@@ -68,6 +68,11 @@ Base.push!(rule_match_result::RuleMatchResult, res) =
     push!(rule_match_result.failures, res) :
     push!(rule_match_result.matches, res)
 
+function Base.append!(res1::RuleMatchResult, res2::RuleMatchResult)
+    append!(res1.failures, res2.failures)
+    append!(res1.matches, res2.matches)
+end
+
 function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
     match_result = syntax_match(rule.pattern, src)
@@ -75,8 +80,8 @@ function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     # Recurse on children, if any. Collect all match results.
     is_leaf(src) && return only_matches ? rule_result.matches : rule_result
     for c in children(src)
-        match_result = syntax_match(rule.pattern, src)
-        push!(rule_result, match_result)
+        rule_result_child = rule_match(rule, c; only_matches=false)
+        append!(rule_result, rule_result_child)
     end
     return only_matches ? rule_result.matches : rule_result
 end
