@@ -76,6 +76,10 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
 function _desugar_expr(ex)
+    is_invalid_sugared_var_form(ex) &&
+        error("Invalid constraint syntax: $ex\n",
+              "Pattern variable constraints should follow the syntax: ",
+              "<pattern_variable>:::<syntax_class>")
     if is_sugared_var_form(ex)
         id = _get_sugared_var_id(ex)
         syntax_class_name = _get_sugared_var_syntax_class_name(ex)
@@ -91,7 +95,7 @@ end
 The second pass in the construction of a `SyntaxPatternNode`.
 """
 function parse_pattern_forms(node::JuliaSyntax.SyntaxNode)::SyntaxPatternNode
-    is_pattern_form(node) && return parse_pattern_form(node)
+    is_pattern_form(node) && return _parse_pattern_form(node)
     # Regular syntax node.
     pattern_data = node.data
     is_leaf(node) && return SyntaxPatternNode(nothing, nothing, pattern_data)
@@ -112,7 +116,7 @@ which has the following structure:
     <pattern_form_name>
     <pattern_form_arg>*
 """
-function parse_pattern_form(node::JuliaSyntax.SyntaxNode)
+function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
     # Extract the name and arguments.
     pattern_form_name = _pattern_form_name(node)
     pattern_form_arg_nodes = _pattern_form_arg_nodes(node)
@@ -207,11 +211,32 @@ is_symbol_node(node::JuliaSyntax.SyntaxNode) =
 
 is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
 is_sugared_var_form(ex) =
-    is_pattern_variable(ex) ||
-    @isexpr(ex, :(::), 2) &&
+    is_pattern_variable(ex)         ||
+    @isexpr(ex, :(::), 2)           &&
     is_pattern_variable(ex.args[1]) &&
-    isa(ex.args[2], QuoteNode) &&
+    isa(ex.args[2], QuoteNode)      &&
     isa(ex.args[2].value, Symbol)
+function is_invalid_sugared_var_form(ex)
+    is_triple_colon =
+        @isexpr(ex, :(::), 2)           &&
+        isa(ex.args[2], QuoteNode)      &&
+        isa(ex.args[2].value, Symbol)
+    is_invalid_triple_colon =
+        is_triple_colon                 &&
+        !is_pattern_variable(ex.args[1])
+    is_double_colon =
+        @isexpr(ex, :(::), 2)           &&
+        is_pattern_variable(ex.args[1]) &&
+        isa(ex.args[2], Symbol)
+    is_colon =
+        @isexpr(ex, :call, 3)           &&
+        ex.args[1] === :(:)             &&
+        is_pattern_variable(ex.args[2]) &&
+        isa(ex.args[3], Symbol)
+
+    # TODO: Special error handling for invalid triple colon.
+    return is_invalid_triple_colon || is_double_colon || is_colon
+end
 
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
