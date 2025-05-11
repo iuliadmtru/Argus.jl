@@ -92,6 +92,13 @@ the registry for consistency.
 struct VarSyntaxData <: AbstractSpecialSyntaxData
     id::Symbol
     syntax_class_name::Symbol
+
+    function VarSyntaxData(id::Symbol, syntax_class_name::Symbol)
+        is_pattern_variable(id) ||
+            error("Invalid pattern variable name $id\n",
+                  "Pattern variable names should start with _")
+        return new(id, syntax_class_name)
+    end
 end
 
 """
