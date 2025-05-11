@@ -50,10 +50,6 @@ Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
 Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
-## Display.
-
-Base.show(io::IO, ::Type{BindingSet}) = print(io, "BindingSet")
-
 # --------------------------------------------
 # Binding.
 
@@ -66,3 +62,7 @@ struct Binding <: AbstractBinding
     ast::JuliaSyntax.SyntaxNode
     bindings::BindingSet
 end
+
+## Display.
+
+Base.show(io::IO, ::Type{BindingSet{Binding}}) = print(io, "BindingSet")
