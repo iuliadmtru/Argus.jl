@@ -2,94 +2,551 @@
 
 # Argus.jl
 
-This package aims to be a static analysis tool for Julia. It takes
-inspiration from [Semgrep](https://github.com/semgrep/semgrep),
-[Clippy](https://github.com/rust-lang/rust-clippy) and
-[Resyntax](https://docs.racket-lang.org/resyntax/) (mostly the
-latter).
+Syntax matching and static analysis rule writing for Julia. Heavily
+inspired by
+[`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse.html), a
+library for writing and processing macros in Racket, and
+[Resyntax](https://docs.racket-lang.org/resyntax/index.html), a
+refactoring tool for Racket based on `syntax/parse`.
 
+Argus provides a mechanism for matching Julia syntax through patterns
+that resemble Julia syntax but contain special forms: pattern
+variables which can be annotated by syntax classes. This mechanism
+serves as a base for Argus' rule writing framework, a static analysis
+tool similar to [Clippy](https://doc.rust-lang.org/clippy/) for Rust,
+[Resyntax](https://docs.racket-lang.org/resyntax/index.html) for
+Racket or [Semgrep](https://semgrep.dev/docs/) for multiple languages.
 
-## Ideal result
+## Syntax matching
 
-### Rules
+The first part of Argus defines a syntax matching language (_pattern
+language_) capable to match Julia syntax and provide relevant
+information in case of match failure. The pattern language has three
+types of building blocks:
+  - regular Julia syntax
+  - pattern variables
+  - syntax classes
+These three components allow the writing of patterns which can be used
+to match code that "fits" them.
 
-I would like the user to be able to write syntax very similar to
-actual Julia syntax for the rules. Some ideas:
+Here is a pattern that matches binary function calls:
 
 ```julia
-@rule "my_rule" begin
-	description = "Don't print integers!"
-	pattern = :(
-		println(%X)
-	)
-	conditions = [
-		:(%X isa Int)
-	]
+julia> using Argus, JuliaSyntax
+
+julia> binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _arg2) )
+Pattern:
+[call]
+  _f:::identifier                        :: ~var
+  _arg1:::expr                           :: ~var
+  _arg2:::expr                           :: ~var
+
+
+julia> syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x, y)"))
+BindingSet with 3 entries:
+  :_arg1 => Binding(:_arg1, x, BindingSet())
+  :_f    => Binding(:_f, f, BindingSet(:__id=>Binding(:__id, f, BindingSet())))
+  :_arg2 => Binding(:_arg2, y, BindingSet())
+
+julia> syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x, 1 + 2)"))
+BindingSet with 3 entries:
+  :_arg1 => Binding(:_arg1, x, BindingSet())
+  :_f    => Binding(:_f, f, BindingSet(:__id=>Binding(:__id, f, BindingSet())))
+  :_arg2 => Binding(:_arg2, (call-i 1 + 2), BindingSet())
+
+julia> syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x)"))
+MatchFail("no match")
+```
+
+### Pattern variables
+
+A pattern variable is an identifier pattern node whose name starts
+with `_`. Pattern variables can be constrained by syntax classes to
+only match certain "classes" of syntax. An unconstrained pattern
+variable is implicitly constrained to the `expr` syntax class, which
+means it can match any expression.
+
+`binary_funcall_pattern` contains three pattern variables: `_f`,
+`_arg1` and `_arg2`. `_f` is constrained to match an
+identifier. `_arg1` and `_arg2` are not explicitly constrained, which
+means they are implicitly constrained to match expressions.
+
+A successful pattern match returns a binding set with a binding for
+each pattern variable. Each binding contains the pattern variable
+name, the matched AST and potentially sub-bindings.
+
+A binding can have sub-bindings if the syntax class that constrains it
+contains pattern variables. In the `binary_funcall_pattern` example,
+`_f` has a sub-binding `__id` because the `identifier` syntax class is
+defined using the `__id` pattern variable. In the future, pattern
+variables whose names start with `__` will be treated as _unexported_,
+making them invisible outside the pattern they are used in.
+
+The usefulness of sub-bindings will become clear later.
+
+Pattern construction fails if a pattern variable constraint syntax is
+invalid (for example: `_x::identifier`) or if the `:::` "operator"[^1]
+if preceded by a non-pattern variable node (for example:
+`x:::identifier`).
+```julia
+julia> @pattern :( _x::identifier )
+ERROR: Invalid constraint syntax: _x::identifier
+Pattern variable constraints should follow the syntax: <pattern_variable>:::<syntax_class>
+Stacktrace:
+ [1] error(::String, ::String, ::String)
+   @ Base ./error.jl:54
+ [2] _desugar_expr(ex::Expr; is_and_context::Bool, bindings::Vector{Symbol})
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:79
+ [3] _desugar_expr
+   @ ~/.../Argus.jl/src/syntax-pattern-node.jl:78 [inlined]
+ [4] desugar_expr
+   @ ~/.../Argus.jl/src/syntax-pattern-node.jl:75 [inlined]
+ [5] SyntaxPatternNode(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:62
+ [6] Pattern(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/pattern.jl:8
+ [7] top-level scope
+   @ REPL[42]:1
+
+julia> @pattern :( x:::identifier )
+ERROR: Invalid pattern variable name x.
+Pattern variable names should start with _.
+Stacktrace:
+ [1] error(::String, ::String)
+   @ Base ./error.jl:54
+ [2] Argus.VarSyntaxData(id::Symbol, syntax_class_name::Symbol)
+   @ Argus ~/.../Argus.jl/src/special-syntax-data.jl:97
+ [3] _parse_pattern_form(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:139
+ [4] parse_pattern_forms(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:111
+ [5] SyntaxPatternNode(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:63
+ [6] Pattern(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/pattern.jl:8
+ [7] top-level scope
+   @ REPL[43]:1
+```
+
+### Syntax classes
+
+Syntax classes allow specifying common "types" of ASTs. See the Racket
+`syntax/parse` [documentation on syntax
+classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html)
+for a more in-depth description.
+
+TODO: Provide a more in-depth description myself...
+
+Here is a syntax class that matches an assignment:
+```julia
+julia> assign =  @syntax_class "assignment" quote
+           __lhs:::identifier = __rhs:::expr
+       end
+SyntaxClass("assignment", Pattern[(= (~var (quote-: __lhs) (quote-: identifier)) (~var (quote-: __rhs) (quote-: expr)))])
+```
+
+This is one of the built-in syntax classes and it uses two other
+built-in syntax classes, `identifier` and `expr`. The most "primitive"
+syntax class is `expr`. It is defined as:
+```julia
+@syntax_class "expr" quote
+    ~fail(:false, "")
 end
 ```
 
+Its body means: > Fail with the message "" when the the condition
+`false` evaluates to `true`.  Since `false` never evaluated to `true`,
+the fail condition is never satisfied so the pattern never fails to
+match.
+
+`~fail` is a pattern form. All identifiers that have a preceding `~`
+are parsed as pattern forms, which are described in the following
+section. They are built-in and the only way to add more pattern forms
+is by modifying and extending Argus.
+
+The `identifier` syntax class is more interesing, because it has a
+more complex fail condition:
 ```julia
-@rule "my_rule2" begin
-	description = "Don't print an integer and a negative number!"
-	pattern = :(
-		println(%X, %Y)
-	) where [
-		:(%X isa Int),
-		:(%Y < 0)
-	]
+@syntax_class "identifier" quote
+    ~and(__id,
+         ~fail(begin
+                   using JuliaSyntax: is_identifier
+                   !is_identifier(__id.ast)
+               end,
+               "not an identifier"))
 end
 ```
 
-### Rule groups
+The `~and` pattern form binds `__id` to an expression AST and `~fail`
+checks whether the bound AST is not an identifier using JuliaSyntax's
+`is_identifier` predicate. If the fail check succeeds, the match
+fails with the message "not an identifier".
+```julia
+julia> syntax_match(Pattern(:( _x:::identifier )), parsestmt(SyntaxNode, "1 + 2"))
+MatchFail("not an identifier")
+```
 
-The user should be able to group rules together.
+Syntax classes need to be registered in order to use them in
+patterns. This is done through `register_syntax_class!`:
+```
+register_syntax_class!(:assign, @syntax_class "assignment" quote
+                           __lhs:::identifier = __rhs:::expr
+                       end)
+```
+
+### Pattern forms
+
+Argus provides a set of special syntax forms called _pattern
+forms_. These usually perform special actions such as pattern variable
+binding and alternative matching. They are used to define patterns and
+can be composed. See the section on [syntax
+patterns](https://docs.racket-lang.org/syntax/stxparse-patterns.html)
+in Racket's `syntax/parse` documentation for more pattern forms and
+more details on pattern forms in general.
+
+#### `~var`
+
+`    ~var(<pattern_variable>, <syntax_class_name>)`
+Binds a pattern variable to a syntax class.
+
+```julia
+julia> @pattern :( ~var(:_ex, :expr) )
+Pattern:
+_ex:::expr                               :: ~var
+
+
+julia> @pattern :( ~var(x, :identifier) )
+ERROR: Invalid pattern form argument `x` at (1, 7).
+`~var` pattern form arguments should be `Symbol`s.
+Stacktrace:
+ [1] error(::String, ::String)
+   @ Base ./error.jl:54
+ [2] _var_arg_names(args::Vector{SyntaxNode})
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:383
+ [3] _pattern_form_args(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:293
+ [4] _parse_pattern_form(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:136
+ [5] parse_pattern_forms(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:111
+ [6] SyntaxPatternNode(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:63
+ [7] Pattern(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/pattern.jl:9
+ [8] top-level scope
+   @ REPL[40]:1
+
+julia> @pattern :( ~var(:x, :identifier) )
+ERROR: Invalid pattern variable name x.
+Pattern variable names should start with _.
+Stacktrace:
+ [1] error(::String, ::String)
+   @ Base ./error.jl:54
+ [2] Argus.VarSyntaxData(id::Symbol, syntax_class_name::Symbol)
+   @ Argus ~/.../Argus.jl/src/special-syntax-data.jl:97
+ [3] _parse_pattern_form(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:139
+ [4] parse_pattern_forms(node::SyntaxNode)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:111
+ [5] SyntaxPatternNode(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:63
+ [6] Pattern(ex::Expr)
+   @ Argus ~/.../Argus.jl/src/pattern.jl:9
+ [7] top-level scope
+   @ REPL[41]:1
+```
+
+#### `~or`
+
+`    ~or(<alternatives>...)`
+Short-circuits a match (success) at the first matching pattern alternative.
+
+```julia
+julia> fundef = @syntax_class "function definition" quote
+           ~or(_f:::funcall = _, function (_g:::funcall) _ end)
+       end
+SyntaxClass("function definition", Pattern[(~or (function-= (~var (quote-: _f) (quote-: funcall)) (~var (quote-: _) (quote-: expr))) (function (~var (quote-: _g) (quote-: funcall)) (block (~var (quote-: _) (quote-: expr)))))])
+
+julia> syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
+BindingSet with 1 entry:
+  :_f => Binding(:_f, (call f), BindingSet(:__id=>Binding(:__id, f, BindingSet(…
+
+julia> syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
+BindingSet with 1 entry:
+  :_g => Binding(:_g, (call f), BindingSet(:__id=>Binding(:__id, f, BindingSet(…
+```
+
+Note that this is not actually a correct pattern for function
+definitions. The `funcall` syntax class only matches function calls
+with no arguments and the long form branch of the `~or` form above
+only matches function definitions with one expression in the body. The
+`funcall` and `fundef` syntax classes can be defined only after
+defining the concept of _repetition_.
+
+#### `~and`
+
+`    ~and(<branches>...)`
+Short-circuits a match (fail) at the first non-matching pattern
+branch. Pattern variables from a branch are bound in succeeding
+branches.
+
+```julia
+julia> conflicting = @pattern :( ~and(_x + 2, _x + 3) )
+Pattern:
+[~and]
+  [call-i]
+    _x:::expr                            :: ~var
+    +                                    :: Identifier
+    2                                    :: Integer
+  [call-i]
+    _x                                   :: Identifier
+    +                                    :: Identifier
+    3                                    :: Integer
+
+
+julia> syntax_match(conflicting, parsestmt(SyntaxNode, "1 + 2"))
+MatchFail("no match")
+```
+
+#### `~fail`
+
+`    ~fail(<condition>, <message>)`
+Contains a fail condition and a message to be shown if the fail
+condition evaluates to `true`.
+
+```julia
+julia> @pattern :(
+    ~and(__id,
+         ~fail(begin
+                   using JuliaSyntax: is_identifier
+                   !is_identifier(__id.ast)
+               end,
+               "not an identifier"))
+)
+Pattern:
+[~and]
+  __id:::expr                            :: ~var
+  [~fail]
+    [block]
+      [using]
+        [:]
+          [importpath]
+            JuliaSyntax                  :: Identifier
+          [importpath]
+            is_identifier                :: Identifier
+      [call-pre]
+        !                                :: Identifier
+        [call]
+          is_identifier                  :: Identifier
+          [.]
+            __id                         :: Identifier
+            ast                          :: Identifier
+    "not an identifier"                  :: String
+```
+
+The matching of a `~fail` form will error if the fail condition
+references a pattern variable that was not previously bound or if the
+fail condition evaluates to a non-Boolean value.
+
+```julia
+julia> pattern = @pattern :( ~fail(_x, "") )
+Pattern:
+[~fail]
+  _x:::expr                              :: ~var
+  ""                                     :: String
+
+
+julia> syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+ERROR: Binding context does not contain a binding for _x.
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:44
+ [2] (::Argus.var"#2#3"{Expr, Vector{Symbol}})(binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/special-syntax-data.jl:61
+ [3] syntax_match_fail(fail_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:94
+ [4] syntax_match_pattern_form(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:76
+ [5] syntax_match(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:44
+ [6] syntax_match(pattern::Pattern, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:23
+ [7] top-level scope
+   @ REPL[53]:1
+
+caused by: KeyError: key :_x not found
+Stacktrace:
+ [1] getindex
+   @ ./abstractdict.jl:552 [inlined]
+ [2] (::Argus.var"#2#3"{Expr, Vector{Symbol}})(binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/special-syntax-data.jl:57
+ [3] syntax_match_fail(fail_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:94
+ [4] syntax_match_pattern_form(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:76
+ [5] syntax_match(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:44
+ [6] syntax_match(pattern::Pattern, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:23
+ [7] top-level scope
+   @ REPL[53]:1
+
+julia> pattern = @pattern :( ~fail(:(x + 1), "") )
+Pattern:
+[~fail]
+  [call-i]
+    x                                    :: Identifier
+    +                                    :: Identifier
+    1                                    :: Integer
+  ""                                     :: String
+
+
+julia> syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+ERROR: Fail condition evaluated to non-Boolean value: x + 1 (::Expr)
+Stacktrace:
+ [1] error(::String, ::String)
+   @ Base ./error.jl:54
+ [2] (::Argus.var"#30#31"{Expr, Vector{Symbol}})(binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/special-syntax-data.jl:75
+ [3] syntax_match_fail(fail_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:94
+ [4] syntax_match_pattern_form(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:76
+ [5] syntax_match(pattern_node::SyntaxPatternNode, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:44
+ [6] syntax_match(pattern::Pattern, src::SyntaxNode, binding_context::BindingSet)
+   @ Argus ~/.../Argus.jl/src/syntax-match.jl:23
+ [7] top-level scope
+   @ REPL[63]:1
+```
+
+The value of sub-bindings becomes clear when thinking of what could be
+expressed in a fail condition. It would be useful to be able to access
+the components bound within a pattern variable in order to do more
+sophisticated checks.
+
+For example, in some cases in might be necessary to match an
+assignment where the right hand side satisfies some
+constraint. Allowing a syntax similar to the following would be
+desirable (and is in plan for the future):
+```
+julia> @pattern :( ~and(_x:::assign, ~fail(!is_literal(_x.rhs), "rhs not a literal")) )
+Pattern:
+[~and]
+  _x:::assign                            :: ~var
+  [~fail]
+    [call-pre]
+      !                                  :: Identifier
+      [call]
+        is_literal                       :: Identifier
+        [.]
+          _x                             :: Identifier
+          rhs                            :: Identifier
+    "rhs not a literal"                  :: String
+```
+
+## Rule writing
+
+The second part of Argus allows the writing on rules based on the
+syntax matching system described so far.
+
+Rules are described by a pattern and a rule description.
+
+```julia
+julia> chained_const_assignment = @rule "chained-const-assignment" quote
+           description = """
+           Do not chain assignments with const. The right hand side is not constant here.
+           """
+
+           pattern = :(
+               const _a:::identifier = _b:::identifier = _
+           )
+       end
+chained-const-assignment: Do not chain assignments with const. The right hand side is not constant here.
+Pattern:
+[const]
+  [=]
+    _a:::identifier                      :: ~var
+    [=]
+      _b:::identifier                    :: ~var
+      _:::expr                           :: ~var
+
+
+julia> rule_match(chained_const_assignment, parsestmt(SyntaxNode, "f(a, b) = const a = b = 1 + 2"))
+1-element Vector{BindingSet}:
+ BindingSet(:_a => Binding(:_a, a, BindingSet(:__id => Binding(:__id, a, BindingSet()))), :_b => Binding(:_b, b, BindingSet(:__id => Binding(:__id, b, BindingSet()))))
+```
+
+`rule_match` can either return the set of matches, like above, or it
+can return both matches and failures.
+
+```julia
+julia> rule_match(chained_const_assignment, parsestmt(SyntaxNode, "const a = b"); only_matches=false)
+Argus.RuleMatchResult(MatchFail[MatchFail("no match"), MatchFail("no match"), MatchFail("no match"), MatchFail("no match")], BindingSet[])
+```
+
+There are four failures and no matches, accounting for four AST
+comparisons:
+  - `(const (= a b))`
+  - `(= a b)`
+  - `a`
+  - `b`
+
+Rules can also be matched against files:
+
+```julia
+julia> compare_nothing = @rule "compare-nothing" quote
+           description = """
+           Comparisons of `nothing` should be made with === or !== or with isnothing().
+           """
+
+           pattern = :(
+               ~or(
+                   nothing == _,
+                   _ == nothing,
+                   nothing != _,
+                   _ != nothing
+			   )
+           )
+       end;
+
+julia> rule_match(compare_nothing, "semgrep-to-argus/compare-nothing.jl")
+6-element Vector{BindingSet}:
+ BindingSet()
+ BindingSet()
+ BindingSet()
+ BindingSet()
+ BindingSet()
+ BindingSet()
+```
+
+As always, anonymous pattern variables don't bind.
+
+Rules can be grouped in `RuleGroup`s.
 
 ```julia
 julia> style_rules = RuleGroup("style")
+RuleGroup("style")
 
-julia> @define_rule_in_group style_rules "useless-bool" begin
-           description = "Useless boolean in if condition"
-           pattern = :(
-               if true %body end
-           )
-       end
-
-julia> style_rules
-RuleGroup "style" with 1 entry:
-  "useless-bool" => (if true (block %body))
-```
-
-## Status
-
-This project is part of my thesis for the Computer Science and
-Engineering Bachelor's at Politehnica University of Bucharest.
-
-Status: Adding `and` and `or` pattern directives...
-
-For now the package is able to define rules, define rule groups,
-store rules in groups and run rules against some source code/file. The
-rules can contain metavariables which bind to expressions in the
-source code if the pattern matches.
-
-```julia
-julia> using Argus
-
-julia> useless_bool = @rule "useless-bool" begin
+julia> @define_rule_in_group style_rules "useless-bool" quote
            description = "Useless boolean in if condition."
            pattern = :(
            if true
-               m"body"
+               _
            end
            )
        end
 useless-bool: Useless boolean in if condition.
-line:col│ tree                                   │ metadata
-   -:-  |[if]                                    |
-   -:-  |  true                                  |
-   -:-  |  [block]                               |
-   -:-  |    %body                               | nothing
+Pattern:
+[if]
+  true                                   :: Bool
+  [block]
+    _:::expr                             :: ~var
 
-julia> using JuliaSyntax
+
+julia> style_rules
+RuleGroup("style") with 1 entry:
+  "useless-bool" => useless-bool: Useless boolean in if condition.…
 
 julia> test_src_match = """
        if true
@@ -97,345 +554,29 @@ julia> test_src_match = """
        end
        """;
 
-julia> test_expr_match = JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, test_src_match);
-
-julia> matches = rule_match!(useless_bool, test_expr_match)
-1-element SyntaxMatches:
- SyntaxMatch((if true (block (call do_something))), AbstractSyntaxPlaceholder[Metavariable(body, call@13)])
-
-julia> matches[1].ast
-SyntaxNode:
-[if]
-  true                                   :: Bool
-  [block]
-    [call]
-      do_something                       :: Identifier
-
-
-julia> matches[1].placeholders
-1-element Vector{AbstractSyntaxPlaceholder}:
- Metavariable(body, call@13)
-
-julia> matches[1].placeholders[1].name
-:body
-
-julia> matches[1].placeholders[1].binding
-JuliaSyntax.SyntaxData(SourceFile("if true\n    do_something()\nend", 0, nothing, 1, [1, 9, 28, 31]), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"call", 0x0000), 0x0000000e, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}[JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"Identifier", 0x0000), 0x0000000c, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K"(", 0x0001), 0x00000001, nothing), JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}(JuliaSyntax.SyntaxHead(K")", 0x0001), 0x00000001, nothing)]), 13, nothing)
-```
-
-After this, the rule's placeholders are bound and it wouldn't match
-again. So we need to create the rule again to test it with some other
-source code. This time we will load it in a group.
-
-```julia
 julia> test_src_no_match = """
        if cond
            do_something()
        end
        """;
 
-julia> test_expr_no_match = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, test_src_no_match);
+julia> rule_match(style_rules["useless-bool"], parsestmt(SyntaxNode, test_src_match))
+1-element Vector{BindingSet}:
+ BindingSet()
 
-julia> style_rules = RuleGroup("style")
-RuleGroup("style")
-
-julia> @define_rule_in_group style_rules "useless-bool" begin
-           description = "Useless boolean in if condition."
-           pattern = :(
-           if true
-               m"body"
-           end
-           )
-       end
-useless-bool: Useless boolean in if condition.
-line:col│ tree                                   │ metadata
-   -:-  |[if]                                    |
-   -:-  |  true                                  |
-   -:-  |  [block]                               |
-   -:-  |    %body                               | nothing
-
-julia> style_rules
-RuleGroup("style") with 1 entry:
-  "useless-bool" => useless-bool: Useless boolean in if condition…
-
-julia> rule_match!(style_rules["useless-bool"], test_expr_no_match)
-SyntaxMatch[]
+julia> rule_match(style_rules["useless-bool"], parsestmt(SyntaxNode, test_src_no_match))
+BindingSet[]
 ```
 
-This time we get no match.
-
-You could also create composite patterns, for now using the directives
-`and` and `or`. Here's a useful example using `or`
-([here](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml)'s)
-the Semgrep alternative for reference):
-
-```julia
-julia> compare_nothing = @rule "compare-nothing" begin
-           description = """
-           Comparisons of `nothing` should be made with === or !== or with isnothing().
-           """
-           pattern = or(
-           :(nothing == m"_"),
-           :(m"_" == nothing),
-           :(nothing != m"_"),
-           :(m"_" != nothing)
-           )
-       end
-compare-nothing: Comparisons of `nothing` should be made with === or !== or with isnothing().
-line:col│ tree                                   │ metadata
-   -:-  |[directive-or]                          |
-   -:-  |  [call-i]                              |
-   -:-  |    nothing                             |
-   -:-  |    ==                                  |
-   -:-  |    %_                                  | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    %_                                  | nothing
-   -:-  |    ==                                  |
-   -:-  |    nothing                             |
-   -:-  |  [call-i]                              |
-   -:-  |    nothing                             |
-   -:-  |    !=                                  |
-   -:-  |    %_                                  | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    %_                                  | nothing
-   -:-  |    !=                                  |
-   -:-  |    nothing                             |
+These are examples of rules that exist in the
+[semgrep-rules-julia](https://github.com/JuliaComputing/semgrep-rules-julia)
+repository and that can be ported to Argus. All ported rules can be
+found inside `semgrep-to-argus/`, grouped according to their category.
 
 
-julia> src = """
-       x = nothing
+---
 
-       if y == nothing end
-
-       if cond1 && z != nothing
-           do_something()
-       else
-           do_something_else()
-       end
-
-       q === nothing ? ok() : not_ok()
-       """;
-
-julia> matches = rule_match!(compare_nothing, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src))
-2-element SyntaxMatches:
- SyntaxMatch((call-i y == nothing), AbstractSyntaxPlaceholder[Metavariable(_, y@17)])
- SyntaxMatch((call-i z != nothing), AbstractSyntaxPlaceholder[Metavariable(_, z@47)])
-```
-
-And here are some not-so-useful examples using `and`:
-
-```julia
-julia> conflicting_branches = SyntaxPatternNode(:(and(:(m"x" = 2), :(m"x" = 3))))
-line:col│ tree                                   │ metadata
-   -:-  |[directive-and]                         |
-   -:-  |  [=]                                   |
-   -:-  |    %x                                  | nothing
-   -:-  |    2                                   |
-   -:-  |  [=]                                   |
-   -:-  |    %x                                  | nothing
-   -:-  |    3                                   |
-
-
-julia> matches = pattern_match!(conflicting_branches, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, "abc = 3"))
-┌ Warning: Conflicting `and` branches:
-│ (= %x 2)
-│ (= %x 3)
-└ @ Argus ~/.../Argus.jl/src/matching.jl:141
-SyntaxMatch[]
-
-julia> rule = @rule "and-rule" begin
-           description = "Note that metavariables with the same name from different branches are unified."
-           pattern = :(
-           and(
-               :(m"x" = y),
-               :(m"y" = m"x")
-           ))
-       end;
-
-julia> src = """
-       y = y
-       x = y
-       f(x) = y
-       """;
-
-julia> matches = rule_match!(rule, JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src))
-2-element SyntaxMatches:
- SyntaxMatch((= y y), AbstractSyntaxPlaceholder[Metavariable(x, y@1)])
- SyntaxMatch((= y y), AbstractSyntaxPlaceholder[Metavariable(y, y@1), Metavariable(x, y@5)])
-```
-
-In the second example, only one AST node is matched: `y = y`. There
-are two matches because both subpatterns generate matches. Actually,
-every `and` composite pattern will generate 2x the number of "true"
-matches. `or` patterns also return all the matches from all
-subpatterns, even though they correspond the the same AST in the
-source code. The duplicate information is useful when wanting to see
-exactly what each subpattern matches. I will find a better way to
-provide the extra info sometime.
-
-Currently I'm working on reorganising the code to make it more
-"algebra-driven" (inspired by Sandy Maguire's "Algebra-Driven Design";
-I've only read the introduction though...).
-
-### Demo
-
-Inside `test/` there's a `demo/` directory where I try to rewrite some
-rules from the [`semgrep-rules-julia`
-repo](https://github.com/JuliaComputing/semgrep-rules-julia). Once
-`Argus` has support for repetitions (similar to Semgrep's [ellipsis
-operator](https://semgrep.dev/docs/writing-rules/pattern-syntax#ellipsis-operator))
-it will be possible to rewrite most rules. For now, I rewrote the
-following:
-- [chained-const-assignment](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/chained-const-assignment.yaml)
-- [compare-nothing](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/correctness/compare-nothing.yaml)
-- [useless-equals](https://github.com/JuliaComputing/semgrep-rules-julia/blob/main/rules/lang/best-practice/useless-equals.yaml)
-
-You can test the rules in the demo:
-
-```julia
-julia> include("test/demo/lang_rules.jl");
-
-julia> chained_const_assignment = lang_rules["chained-const-assignment"]
-chained-const-assignment: Do not chain assignments with const. The right hand side is not constant here.
-line:col│ tree                                   │ metadata
-   -:-  |[const]                                 |
-   -:-  |  [=]                                   |
-   -:-  |    %x                                  | nothing
-   -:-  |    [=]                                 |
-   -:-  |      %y                                | nothing
-   -:-  |      %_                                | nothing
-
-
-julia> rule_match!(chained_const_assignment, "test/demo/chained_const_assignment.jl")
-4-element SyntaxMatches:
- SyntaxMatch((const (= a (= b 1))), AbstractSyntaxPlaceholder[Metavariable(x, a@23), Metavariable(y, b@27), Metavariable(_, 1@31)])
- SyntaxMatch((const (= a (= b c))), AbstractSyntaxPlaceholder[Metavariable(x, a@56), Metavariable(y, b@60), Metavariable(_, c@64)])
- SyntaxMatch((const (= a (= b (= c 1)))), AbstractSyntaxPlaceholder[Metavariable(x, a@89), Metavariable(y, b@93), Metavariable(_, =@97)])
- SyntaxMatch((const (= a (= b (string "abc")))), AbstractSyntaxPlaceholder[Metavariable(x, a@126), Metavariable(y, b@130), Metavariable(_, string@134)])
-
-julia> useless_equals = lang_rules["useless-equals"]
-useless-equals: Comparing the same object in the RHS and LHS is pointless.
-line:col│ tree                                   │ metadata
-   -:-  |[directive-or]                          |
-   -:-  |  [call-i]                              |
-   -:-  |    %x                                  | nothing
-   -:-  |    ==                                  |
-   -:-  |    %x                                  | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    %x                                  | nothing
-   -:-  |    !=                                  |
-   -:-  |    %x                                  | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    %x                                  | nothing
-   -:-  |    ===                                 |
-   -:-  |    %x                                  | nothing
-   -:-  |  [call-i]                              |
-   -:-  |    %x                                  | nothing
-   -:-  |    !==                                 |
-   -:-  |    %x                                  | nothing
-
-
-julia> rule_match!(useless_equals, "test/demo/useless_equals.jl")
-4-element SyntaxMatches:
- SyntaxMatch((call-i x == x), AbstractSyntaxPlaceholder[Metavariable(x, x@20)])
- SyntaxMatch((call-i x != x), AbstractSyntaxPlaceholder[Metavariable(x, x@67)])
- SyntaxMatch((call-i x === x), AbstractSyntaxPlaceholder[Metavariable(x, x@114)])
- SyntaxMatch((call-i x !== x), AbstractSyntaxPlaceholder[Metavariable(x, x@162)])
-```
-
-Sometime I'll implement automatic checking of test files, similar to
-Semgrep's approach with paired .jl and .yaml files.
-
-
-## Design choices and ideas
-
-TODO: Rewrite this.
-
-`Argus` is built on top of
-[`JuliaSyntax.jl`](https://github.com/JuliaLang/JuliaSyntax.jl). The
-goal is to integrate it as much as possible with `JuliaSyntax` and
-maybe also with
-[`JuliaLowering`](https://github.com/c42f/JuliaLowering.jl).
-
-### Rules
-
-Rules can be defined in a similar way to Resyntax's
-[`define-refactoring-rule`](https://docs.racket-lang.org/resyntax/Refactoring_Rules_and_Suites.html#%28form._%28%28lib._resyntax%2Fbase..rkt%29._define-refactoring-rule%29%29). The
-goal is to make rule writing as intuitive as possible for Julia users
-and also as extendable and configurable as possible.
-
-`@rule` creates a rule as a `SyntaxPatternNode` (defined in
-`src/syntax_pattern_tree.jl`). This is an AST built on
-`JuliaSyntax`'s AST interface (i.e. it is a
-`JuliaSyntax.TreeNode{SyntaxPatternData}`). `SyntaxPatternData` is a
-custom syntax data type which can either mimic a regular
-[`JuliaSyntax.SyntaxNode`](https://julialang.github.io/JuliaSyntax.jl/dev/api/#JuliaSyntax.SyntaxNode)
-by storing data as `JuliaSyntax.SyntaxData`, or it can contain some
-special syntax such as metavariables or ellipses (inspired from
-Semprep's
-[metavariables](https://semgrep.dev/docs/writing-rules/pattern-syntax#metavariables)
-and [ellipsis
-operator](https://semgrep.dev/docs/writing-rules/pattern-syntax#ellipsis-operator);
-the ellipsis operator's meaning might change though in order to be
-more intuitive for Julia users -- specifically, I would like it to
-have a meaning similar to that of the [splat
-operator](https://docs.julialang.org/en/v1/base/base/#...) or to
-Racket's ellipsis used for [syntax
-matching](https://docs.racket-lang.org/reference/stx-patterns.html)).
-
-Rules can also be created with `create_rule`. They can also be created
-inside `RuleGroup`s with `@define_rule_in_group` (or
-`define_rule_in_group`).
-
-### Special syntax
-
-The goal is to permit special syntax for non-trivial matching
-(e.g. match a function call with an arbitrary number of arguments). As
-a start, I would like to have some rudimentary implementation of
-metavariables and ellipses.
-
-#### Metavariables
-
-Metavariables should bind to expressions. The ultimate goal is to have
-metavariables bind to something that can be chosen by the user. This
-could be accomplished by providing types to metavariables (either
-Julia built-in types or custom types that have some kind of
-corresponding predicate, or something like Racket's [syntax
-classes](https://docs.racket-lang.org/syntax/stxparse-specifying.html))]).
-
-### AST comparison
-
-I implemented a rudimentary AST matching mechanism in
-`pattern_match!`. There are some existing pattern matching packages
-in Julia that I could have used, such as
-[Match.jl](https://github.com/JuliaServices/Match.jl/tree/cb25c8c686cbd94c46f05b91a6870dbba19e0acc)
-or [MLStyle.jl](https://github.com/thautwarm/MLStyle.jl). However,
-they seem to be focused on smaller patterns, not on full
-`SyntaxNode`s. I have only tried Match.jl and noticed that it does not
-work well with large ASTs, I have not tried MLStyle.jl yet. Another
-reason why I chose to implement it from scratch is that I would need
-special treatment for special syntax nodes and it seemed difficult to
-configure the packages I mentioned. I will look more into this though.
-
-
-## Future ideas
-
-- I really like Racket's [pattern based
-  macros](https://docs.racket-lang.org/guide/pattern-macros.html),
-  maybe this tool can go more towards that? Rules can be seen as
-  patterns which should match source code.
-
-
-## Inspiration
-
-(In random order.)
-
-- [Semgrep](https://semgrep.dev/docs/writing-rules/overview) as a
-  generic tool.
-- [Resyntax](https://docs.racket-lang.org/resyntax/index.html) for
-  Racket.
-- [Clippy](https://doc.rust-lang.org/clippy/) for Rust.
-- [Fortifying
-  macros](https://www2.ccs.neu.edu/racket/pubs/c-jfp12.pdf), a 2012
-  paper by Ryan Culpepper on Racket's macro system. (Thank you
-  [@AndreiDuma](https://github.com/AndreiDuma)!!!)
+[^1]: It is not really an operator. `_x:::identifier` is parsed in
+    Julia as `(::-i _x (quote-: identifier))`. Argus interprets this
+	kind of node (a call to `::` with a `quote` as rhs) as a short
+	form for `~var(:_x, :identifier)`.
