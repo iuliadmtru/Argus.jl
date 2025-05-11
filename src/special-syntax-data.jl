@@ -58,7 +58,8 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
                     catch e
                         if isa(e, KeyError)
                             # TODO: Throw specific error type.
-                            error("Binding context does not contain a binding for $pattern_var_name")
+                            error("Binding context does not contain a binding for ",
+                                  "$pattern_var_name.")
                         else
                             rethrow(e)
                         end
@@ -72,7 +73,8 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
             # Evaluate the condition within the evaluation context.
             result = Core.eval(ConditionContext, condition)
             isa(result, Bool) ||
-                error("Fail condition evaluated to non-Boolean value $(typeof(result)): $result")
+                error("Fail condition evaluated to non-Boolean value: ",
+                      "$result (::$(typeof(result)))")
             return result
         end
 
@@ -95,8 +97,8 @@ struct VarSyntaxData <: AbstractSpecialSyntaxData
 
     function VarSyntaxData(id::Symbol, syntax_class_name::Symbol)
         is_pattern_variable(id) ||
-            error("Invalid pattern variable name $id\n",
-                  "Pattern variable names should start with _")
+            error("Invalid pattern variable name $id.\n",
+                  "Pattern variable names should start with _.")
         return new(id, syntax_class_name)
     end
 end

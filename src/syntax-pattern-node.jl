@@ -56,12 +56,13 @@ Passes:
 1. Desugar special syntax nodes: `::Expr -> ::JuliaSyntax.SyntaxNode`.
 2. Parse pattern form nodes: `::JuliaSyntax.SyntaxNode -> ::SyntaxPatternNode`.
 3. Add alternatives for ambiguous nodes (e.g. `=` could be either an assignment or a short
-   form function definition): `::SyntaxPatternNode -> ::SyntaxPatternNode`.
+   form function definition) and fix misparsed nodes (e.g. `function (_f) end` is parsed with
+   a tuple as function name): `::SyntaxPatternNode -> ::SyntaxPatternNode`
 """
 function SyntaxPatternNode(ex)
     syntax_node = desugar_expr(ex)
     syntax_pattern_node = parse_pattern_forms(syntax_node)
-    return disambiguate!(syntax_pattern_node)
+    return fix_misparsed!(syntax_pattern_node)
 end
 
 ## Passes.
@@ -152,15 +153,15 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
 end
 
 """
-    disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
+    fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
 
 The third and final pass in the construction of a `SyntaxPatternNode`.
 """
-function disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
-    if !is_ambiguous(node)
+function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
+    if !is_misparsed(node)
         # Recurse on children, if any.
         is_leaf(node) && return node
-        [disambiguate!(c) for c in children(node)]
+        [fix_misparsed!(c) for c in children(node)]
         return node
     end
 
@@ -168,6 +169,10 @@ function disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
     if k === K"function"
         lhs = node.children[1]
         rhs = node.children[2]
+        # If it's a long form function definition, the lhs is a `tuple` node and should be
+        # replaced by its child.
+        is_short_form_function_def(node) ||
+            return SyntaxPatternNode(node.parent, [lhs.children[1], rhs], node.data)
         # If the lhs is constrained to `:identifier`, the node should be an assignment,
         # not a function definition.
         _get_var_syntax_class_name(lhs) === :identifier &&
@@ -199,7 +204,7 @@ function disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
         return new_node
     end
 
-    error("No disambiguation method for [$(JuliaSyntax.untokenize(head(node)))] node")
+    error("No disambiguation method for [$(JuliaSyntax.untokenize(head(node)))] node.")
 end
 
 ## -------------------------------------------
@@ -283,7 +288,7 @@ function _pattern_form_arg_nodes(node::JuliaSyntax.SyntaxNode)
     name === :var && return args
     name === :or && return _strip_quote_node.(args)
     name === :and && return _strip_quote_node.(args)
-    error("Trying to extract argument nodes for unimplemented pattern form ~$name")
+    error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
 function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name = _pattern_form_name(node)
@@ -293,7 +298,7 @@ function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name === :var && return _var_arg_names(arg_nodes)
     name === :or && return []
     name === :and && return []
-    error("Trying to extract arguments for unimplemented pattern form ~$name")
+    error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
 _strip_quote_node(node::JuliaSyntax.SyntaxNode) =
@@ -321,9 +326,15 @@ function update_data_head(old_data::JuliaSyntax.SyntaxData,
     return new_data
 end
 
-function is_ambiguous(node::SyntaxPatternNode)
+is_short_form_function_def(node) =
+    JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+
+function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
-        JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG || return false
+        if is_short_form_function_def(node)
+            return kind(node.children[1]) === K"tuple" &&
+                is_var(node.children[1].children[1])
+        end
         lhs = node.children[1]
         is_var(lhs) || return false
         # An `=` node with unconstrained lhs could either be an assignment or a short form
@@ -381,7 +392,7 @@ function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
         # TODO: Throw and catch error.
         cs = children(c)
         is_symbol_node(c) ||
-            error("Invalid pattern form argument `$c` at $(source_location(c))\n",
+            error("Invalid pattern form argument `$c` at $(source_location(c))\n.",
                   "`~var` pattern form arguments should be `Symbol`s.")
         push!(arg_names, c.children[1].val)
     end

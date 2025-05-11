@@ -6,9 +6,9 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
 
 # Part 1: Pattern matching mechanism.
 
-export SyntaxPatternNode, Pattern, SyntaxClass, @syntax_class,
-    Binding, BindingSet, MatchFail
+export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class
 export register_syntax_class!, syntax_class_registry_check
+export Binding, BindingSet, MatchFail
 export syntax_match
 
 include("syntax-pattern-node.jl")
