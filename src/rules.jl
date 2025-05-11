@@ -73,6 +73,12 @@ function Base.append!(res1::RuleMatchResult, res2::RuleMatchResult)
     append!(res1.matches, res2.matches)
 end
 
+"""
+    rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
+
+Match a rule against an AST. Return the set of all matches. If `only_matches` is set to
+`false` return failures as well.
+"""
 function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
     match_result = syntax_match(rule.pattern, src)
@@ -84,4 +90,15 @@ function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
         append!(rule_result, rule_result_child)
     end
     return only_matches ? rule_result.matches : rule_result
+end
+"""
+    rule_match(rule::Rule, src_file::String; only_matches=true)
+
+Match a rule against a source file.
+"""
+function rule_match(rule::Rule, src_file::String; only_matches=true)
+    src_txt = read(src_file, String)
+    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
+
+    return rule_match(rule, src; only_matches)
 end
