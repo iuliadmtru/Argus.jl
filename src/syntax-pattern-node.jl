@@ -255,7 +255,10 @@ end
 
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
-_get_var_id(ex::Expr) = ex.args[2].args[2].value
+function _get_var_id(ex::Expr)
+    id_node = ex.args[2].args[2]
+    return isa(id_node, Symbol) ? id_node : id_node.value
+end
 
 is_pattern_form(ex) =
     @isexpr(ex, :call, 2) &&
