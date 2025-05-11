@@ -158,4 +158,4 @@ end
 
 ## Utils.
 
-is_anonymous_pattern_var(name::Symbol) = endswith(string(name), "_")
+is_anonymous_pattern_var(name::Symbol) = name === :_
