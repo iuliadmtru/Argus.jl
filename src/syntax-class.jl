@@ -63,10 +63,10 @@ function _register_syntax_classes()
 
     # `identifier`: match an identifier.
     register_syntax_class!(:identifier, @syntax_class "identifier" quote
-                               ~and(~var(:__id, :expr),
+                               ~and(__id,
                                     ~fail(begin
-                                              using JuliaSyntax
-                                              !JuliaSyntax.is_identifier(__id.ast)
+                                              using JuliaSyntax: is_identifier
+                                              !is_identifier(__id.ast)
                                           end,
                                           "not an identifier"))
                            end)
@@ -74,11 +74,11 @@ function _register_syntax_classes()
     # TODO: Change to general function call after adding repetitions.
     # `funcall`: match a function call.
     register_syntax_class!(:funcall, @syntax_class "function call" quote
-                               (~var(:__id, :identifier))()
+                               (__id:::identifier)()
                            end)
 
     # `assign`: match an assignment.
     register_syntax_class!(:assign, @syntax_class "assignment" quote
-                               ~var(:__lhs, :identifier) = ~var(:__rhs, :expr)
+                               __lhs:::identifier = __rhs:::expr
                            end)
 end
