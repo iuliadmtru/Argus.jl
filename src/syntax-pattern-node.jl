@@ -85,7 +85,7 @@ function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=S
         id = _get_sugared_var_id(ex)
         # Pattern variables that occur multiple times in a regular pattern or among the
         # branches of an `~and` pattern should bind together.
-        if is_context_dependent
+        if is_context_dependent && !is_anonymous_pattern_variable(id)
             # The first apparition of a pattern variable should be added to the `bindings`
             # list.
             id in bindings && return ex
@@ -93,8 +93,10 @@ function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=S
         end
         syntax_class_name = _get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
-    elseif is_var(ex)
-        is_context_dependent && push!(bindings, _get_var_id(ex))
+    elseif is_var(ex)                                   &&
+        !is_anonymous_pattern_variable(_get_var_id(ex)) &&
+        is_context_dependent
+        push!(bindings, _get_var_id(ex))
     end
     !isa(ex, Expr) && return ex
     # Pattern variables should be tracked along `~and` pattern branches and inside regular
@@ -233,6 +235,7 @@ is_symbol_node(node::JuliaSyntax.SyntaxNode) =
 #### Pass 1 (`Expr` desugaring).
 
 is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
+is_anonymous_pattern_variable(ex) = is_pattern_variable(ex) && ex === :_
 is_sugared_var(ex) =
     is_pattern_variable(ex)         ||
     @isexpr(ex, :(::), 2)           &&

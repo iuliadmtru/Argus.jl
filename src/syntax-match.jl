@@ -118,7 +118,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     isa(match_result, MatchFail) && return match_result
     # If there's a match and the pattern variable is not anonymous, bind the pattern
     # variable and return the binding as a `BindingSet`.
-    is_anonymous_pattern_var(pattern_var_name) &&
+    is_anonymous_pattern_variable(pattern_var_name) &&
         return BindingSet()
     binding = Binding(pattern_var_name, src, match_result)
     # TODO: Check for already existing binding. The new binding must be "compatible" with
@@ -156,7 +156,3 @@ function syntax_match_and(and_node::SyntaxPatternNode,
     end
     return binding_context
 end
-
-## Utils.
-
-is_anonymous_pattern_var(name::Symbol) = name === :_
