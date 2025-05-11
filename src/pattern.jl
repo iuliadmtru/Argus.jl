@@ -5,12 +5,11 @@ end
 
 # TODO: Support for fail conditions.
 function Pattern(ex)
-    try
-        ast = SyntaxPatternNode(ex)
-        return Pattern(ast, Function[])
-    catch
-        error("Invalid pattern syntax")
-    end
+    return Pattern(SyntaxPatternNode(ex), Function[])
+end
+
+macro pattern(ex)
+    return :( Pattern($ex) )
 end
 
 # Display.
