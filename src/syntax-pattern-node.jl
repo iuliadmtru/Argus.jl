@@ -75,18 +75,31 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     desugared_ex = _desugar_expr(ex)
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
-function _desugar_expr(ex)
+function _desugar_expr(ex; is_and_context=false, bindings::Vector{Symbol}=Symbol[])
     is_invalid_sugared_var_form(ex) &&
         error("Invalid constraint syntax: $ex\n",
               "Pattern variable constraints should follow the syntax: ",
               "<pattern_variable>:::<syntax_class>")
-    if is_sugared_var_form(ex)
+    if is_sugared_var(ex)
         id = _get_sugared_var_id(ex)
+        # And `~and` form binds pattern variables while progressing through its branches.
+        if is_and_context
+            # Unconstrained pattern variables inside `~and` branches should be left alone.
+            id in bindings && return ex
+            # Constrained pattern variables should be added to the `bindings` list.
+            push!(bindings, id)
+        end
         syntax_class_name = _get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
+    elseif is_var(ex)
+        is_and_context && push!(bindings, _get_var_id(ex))
     end
     !isa(ex, Expr) && return ex
-    return Expr(ex.head, _desugar_expr.(ex.args)...)
+    if is_and(ex)
+        is_and_context = true
+    end
+    # Recurse on children.
+    return Expr(ex.head, _desugar_expr.(ex.args; is_and_context, bindings)...)
 end
 
 """
@@ -210,7 +223,7 @@ is_symbol_node(node::JuliaSyntax.SyntaxNode) =
 #### Pass 1 (`Expr` desugaring).
 
 is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
-is_sugared_var_form(ex) =
+is_sugared_var(ex) =
     is_pattern_variable(ex)         ||
     @isexpr(ex, :(::), 2)           &&
     is_pattern_variable(ex.args[1]) &&
@@ -240,6 +253,15 @@ end
 
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
+_get_var_id(ex::Expr) = ex.args[2].args[2].value
+
+is_pattern_form(ex) =
+    @isexpr(ex, :call, 2) &&
+    ex.args[1] === :~ &&
+    Meta.isexpr(ex.args[2], :call) &&
+    ex.args[2].args[1] in PATTERN_FORMS
+is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
+is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
 
 #### Pass 2 (pattern form parsing).
 
