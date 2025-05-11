@@ -161,8 +161,8 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
     if !is_misparsed(node)
         # Recurse on children, if any.
         is_leaf(node) && return node
-        [fix_misparsed!(c) for c in children(node)]
-        return node
+        new_children = [fix_misparsed!(c) for c in children(node)]
+        return SyntaxPatternNode(node.parent, new_children, node.data)
     end
 
     k = kind(node)
@@ -331,7 +331,7 @@ is_short_form_function_def(node) =
 
 function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
-        if is_short_form_function_def(node)
+        if !is_short_form_function_def(node)
             return kind(node.children[1]) === K"tuple" &&
                 is_var(node.children[1].children[1])
         end
