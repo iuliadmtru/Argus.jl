@@ -47,7 +47,7 @@ end
 function syntax_class_registry_check()
     for (syntax_class_name, syntax_class) in SYNTAX_CLASS_REGISTRY
         isnothing(syntax_class) &&
-            error("Syntax class $syntax_class_name is referenced but undefined")
+            error("Syntax class $syntax_class_name is referenced but undefined.")
         # TODO: Check for syntax classes that reference undefined syntax classes.
     end
 end
