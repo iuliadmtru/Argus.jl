@@ -19,7 +19,7 @@ include("syntax-match.jl")
 
 # Part 2: Rule writing mechanism.
 
-export Rule, @rule
+export Rule, @rule, RuleGroup, @define_rule_in_group, register_rule!
 export rule_match
 
 include("rules.jl")
