@@ -72,9 +72,17 @@ end
 The first pass in the construction of a `SyntaxPatternNode`.
 """
 function desugar_expr(ex)::JuliaSyntax.SyntaxNode
-    # TODO: Desugar.
-    node = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, string(ex))
-    return kind(node) === K"toplevel" ? node.children[1] : node
+    desugared_ex = _desugar_expr(ex)
+    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
+end
+function _desugar_expr(ex)
+    if is_sugared_var_form(ex)
+        id = _get_sugared_var_id(ex)
+        syntax_class_name = _get_sugared_var_syntax_class_name(ex)
+        return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
+    end
+    !isa(ex, Expr) && return ex
+    return Expr(ex.head, _desugar_expr.(ex.args)...)
 end
 
 """
@@ -143,6 +151,10 @@ function disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
     if k === K"function"
         lhs = node.children[1]
         rhs = node.children[2]
+        # If the lhs is constrained to `:identifier`, the node should be an assignment,
+        # not a function definition.
+        _get_var_syntax_class_name(lhs) === :identifier &&
+            return funcall_to_assign(lhs, rhs, node)
         new_node_data = OrSyntaxData()
         # Use the original pattern form variable name.
         id = _get_var_id(lhs)
@@ -150,7 +162,7 @@ function disambiguate!(node::SyntaxPatternNode)::SyntaxPatternNode
         id_syntax_pattern_node =
             parse_pattern_forms(JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode,
                                                       "~var(:$id, :identifier)"))
-        assignment_data = _update_data_head(node.data, JuliaSyntax.SyntaxHead(K"=", 0))
+        assignment_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"=", 0))
         assignment_alternative =
             SyntaxPatternNode(nothing, [id_syntax_pattern_node, rhs], assignment_data)
         # Create alternative for `id:::funcall`.
@@ -191,25 +203,18 @@ is_symbol_node(node::JuliaSyntax.SyntaxNode) =
     length(children(node)) == 1 &&
     is_identifier(children(node)[1])
 
-function _update_data_head(old_data::JuliaSyntax.SyntaxData,
-                           new_head::JuliaSyntax.SyntaxHead)
-    old_raw = old_data.raw
-    new_raw = JuliaSyntax.GreenNode(
-        new_head,
-        old_raw.span,
-        old_raw.children
-    )
-    new_data = JuliaSyntax.SyntaxData(
-        old_data.source,
-        new_raw,
-        old_data.position,
-        old_data.val
-    )
-
-    return new_data
-end
-
 #### Pass 1 (`Expr` desugaring).
+
+is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
+is_sugared_var_form(ex) =
+    is_pattern_variable(ex) ||
+    @isexpr(ex, :(::), 2) &&
+    is_pattern_variable(ex.args[1]) &&
+    isa(ex.args[2], QuoteNode) &&
+    isa(ex.args[2].value, Symbol)
+
+_get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
+_get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
 
 #### Pass 2 (pattern form parsing).
 
@@ -259,6 +264,24 @@ _strip_string_node(node::JuliaSyntax.SyntaxNode) =
 
 #### Pass 3 (disambiguation).
 
+function update_data_head(old_data::JuliaSyntax.SyntaxData,
+                          new_head::JuliaSyntax.SyntaxHead)
+    old_raw = old_data.raw
+    new_raw = JuliaSyntax.GreenNode(
+        new_head,
+        old_raw.span,
+        old_raw.children
+    )
+    new_data = JuliaSyntax.SyntaxData(
+        old_data.source,
+        new_raw,
+        old_data.position,
+        old_data.val
+    )
+
+    return new_data
+end
+
 function is_ambiguous(node::SyntaxPatternNode)
     if kind(node) === K"function"
         JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG || return false
@@ -266,12 +289,23 @@ function is_ambiguous(node::SyntaxPatternNode)
         is_var(lhs) || return false
         # An `=` node with unconstrained lhs could either be an assignment or a short form
         # function definition.
+        # An `=` node constrained to `:identifier` should be interpreted as an assignment,
+        # not a function definition
         syntax_class_name = _get_var_syntax_class_name(lhs)
-        return syntax_class_name === :expr
+        return syntax_class_name === :expr || syntax_class_name === :identifier
     end
     # Add other ambiguous cases here.
 
     return false
+end
+
+function funcall_to_assign(lhs::SyntaxPatternNode,
+                           rhs::SyntaxPatternNode,
+                           old_node::SyntaxPatternNode)
+    old_data = old_node.data
+    new_node_data = update_data_head(old_data, JuliaSyntax.SyntaxHead(K"=", 0))
+
+    return SyntaxPatternNode(old_node.parent, [lhs, rhs], new_node_data)
 end
 
 ### Pattern form utils.
