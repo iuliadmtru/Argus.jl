@@ -76,31 +76,36 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     desugared_ex = _desugar_expr(ex)
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
-function _desugar_expr(ex; is_and_context=false, bindings::Vector{Symbol}=Symbol[])
+function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=Symbol[])
     is_invalid_sugared_var_form(ex) &&
         error("Invalid constraint syntax: $ex\n",
               "Pattern variable constraints should follow the syntax: ",
               "<pattern_variable>:::<syntax_class>")
     if is_sugared_var(ex)
         id = _get_sugared_var_id(ex)
-        # And `~and` form binds pattern variables while progressing through its branches.
-        if is_and_context
-            # Unconstrained pattern variables inside `~and` branches should be left alone.
+        # Pattern variables that occur multiple times in a regular pattern or among the
+        # branches of an `~and` pattern should bind together.
+        if is_context_dependent
+            # The first apparition of a pattern variable should be added to the `bindings`
+            # list.
             id in bindings && return ex
-            # Constrained pattern variables should be added to the `bindings` list.
             push!(bindings, id)
         end
         syntax_class_name = _get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
     elseif is_var(ex)
-        is_and_context && push!(bindings, _get_var_id(ex))
+        is_context_dependent && push!(bindings, _get_var_id(ex))
     end
     !isa(ex, Expr) && return ex
+    # Pattern variables should be tracked along `~and` pattern branches and inside regular
+    # patterns and should not be tracked along `~or` pattern alternatives.
     if is_and(ex)
-        is_and_context = true
+        is_context_dependent = true
+    elseif is_or(ex)
+        is_context_dependent = false
     end
     # Recurse on children.
-    return Expr(ex.head, _desugar_expr.(ex.args; is_and_context, bindings)...)
+    return Expr(ex.head, _desugar_expr.(ex.args; is_context_dependent, bindings)...)
 end
 
 """
@@ -259,6 +264,7 @@ is_pattern_form(ex) =
     ex.args[2].args[1] in PATTERN_FORMS
 is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
+is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
 
 #### Pass 2 (pattern form parsing).
 
