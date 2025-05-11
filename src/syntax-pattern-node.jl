@@ -226,17 +226,9 @@ is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
 is_sugared_var(ex) =
     is_pattern_variable(ex)         ||
     @isexpr(ex, :(::), 2)           &&
-    is_pattern_variable(ex.args[1]) &&
     isa(ex.args[2], QuoteNode)      &&
     isa(ex.args[2].value, Symbol)
 function is_invalid_sugared_var_form(ex)
-    is_triple_colon =
-        @isexpr(ex, :(::), 2)           &&
-        isa(ex.args[2], QuoteNode)      &&
-        isa(ex.args[2].value, Symbol)
-    is_invalid_triple_colon =
-        is_triple_colon                 &&
-        !is_pattern_variable(ex.args[1])
     is_double_colon =
         @isexpr(ex, :(::), 2)           &&
         is_pattern_variable(ex.args[1]) &&
@@ -248,7 +240,7 @@ function is_invalid_sugared_var_form(ex)
         isa(ex.args[3], Symbol)
 
     # TODO: Special error handling for invalid triple colon.
-    return is_invalid_triple_colon || is_double_colon || is_colon
+    return is_double_colon || is_colon
 end
 
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
