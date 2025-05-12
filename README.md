@@ -579,6 +579,28 @@ These are examples of rules that exist in the
 repository and that can be ported to Argus. All ported rules can be
 found inside `semgrep-to-argus/`, grouped according to their category.
 
+## Notes
+
+Argus is the final project for my Computer Science and Engineering
+degree at University Politehnica of Bucharest.
+
+## Aknowledgements
+
+[Andrei Duma](https://github.com/AndreiDuma) for being my main
+unofficial coordinator, providing me with reading recommendations,
+feedback and constant motivation. Thank you for the idea to push this
+project towards the amazing `syntax/parse` library and for spending so
+many hours with me discussing software design, metaprogramming and
+more.
+
+## References
+
+- [Fortifying
+  macros](https://www2.ccs.neu.edu/racket/pubs/c-jfp12.pdf), a 2012
+  paper by Ryan Culpepper on Racket's macro system
+- [`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse.html)
+- [Resyntax](https://docs.racket-lang.org/resyntax/index.html)
+- [Semgrep](https://semgrep.dev/docs/)
 
 ---
 
