@@ -14,14 +14,12 @@ Rule(name::String, description::String, pattern) =
 
 # TODO: Create pattern inside macro instead of returning as `Expr`.
 macro rule(name, ex)
-    # Remove line number nodes and unescape.
+    # Remove line number nodes.
     rule = MacroTools.striplines(ex)
-    rule = Meta.unescape(rule)
     # Check the rule syntax.
-    @isexpr(rule, :quote, 1) ||
+    @isexpr(rule, :block) ||
         error("Invalid rule syntax:\n```\n$rule\n```\n",
-              "Rules should be defined inside `quote ... end`.")
-    rule = rule.args[1]
+              "Rules should be defined inside `begin ... end`.")
     length(rule.args) == 2 ||
         error("Invalid rule syntax: $rule\n",
               "Expected 2 arguments, got $(length(rule.args))")
@@ -141,7 +139,7 @@ define_rule_in_group(group::RuleGroup, rule_name::String, rule::Rule) =
     register_rule!(group, rule)
 
 macro define_rule_in_group(group, rule_name, rule_expr)
-    rule = :( @rule($(esc(rule_name)), $(esc(rule_expr))) )
+    rule = :( @rule($(esc(rule_name)), $(rule_expr)) )
     return :( define_rule_in_group($(esc(group)), $(esc(rule_name)), $rule) )
 end
 

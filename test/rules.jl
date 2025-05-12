@@ -1,5 +1,5 @@
 @testset "Rules" begin
-    chained_const_assignment = @rule "chained-const-assignment" quote
+    chained_const_assignment = @rule "chained-const-assignment" begin
         description = """
         Do not chain assignments with const. The right hand side is not constant here.
         """

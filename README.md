@@ -459,7 +459,7 @@ syntax matching system described so far.
 Rules are described by a pattern and a rule description.
 
 ```julia
-julia> chained_const_assignment = @rule "chained-const-assignment" quote
+julia> chained_const_assignment = @rule "chained-const-assignment" begin
            description = """
            Do not chain assignments with const. The right hand side is not constant here.
            """
@@ -501,7 +501,7 @@ comparisons:
 Rules can also be matched against files:
 
 ```julia
-julia> compare_nothing = @rule "compare-nothing" quote
+julia> compare_nothing = @rule "compare-nothing" begin
            description = """
            Comparisons of `nothing` should be made with === or !== or with isnothing().
            """
@@ -534,7 +534,7 @@ Rules can be grouped in `RuleGroup`s.
 julia> style_rules = RuleGroup("style")
 RuleGroup("style")
 
-julia> @define_rule_in_group style_rules "useless-bool" quote
+julia> @define_rule_in_group style_rules "useless-bool" begin
            description = "Useless boolean in if condition."
            pattern = :(
            if true
