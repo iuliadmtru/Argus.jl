@@ -8,11 +8,14 @@
 
         # `~or`.
         fundef = @syntax_class "function definition" quote
-            ~or(_f:::funcall = _, function (_g:::funcall) _ end)
+            (_f:::funcall = _),
+            function (_g:::funcall) _ end
         end
         match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
+        @test isa(match_first, BindingSet)
         @test collect(keys(match_first)) == [:_f]
         match_second = syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
+        @test isa(match_second, BindingSet)
         @test collect(keys(match_second)) == [:_g]
 
         # `~and`.

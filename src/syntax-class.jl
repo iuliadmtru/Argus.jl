@@ -21,10 +21,18 @@ end
 # TODO: Support for fail conditions.
 macro syntax_class(description, patterns)
     args = striplines(patterns).args
+    # TODO: Document examples.
     alternatives =
-        (length(args) == 1 && Meta.isexpr(args[1], :block)) ?
-        Pattern.(args[1].args)                              :
-        Pattern.(args)
+        if length(args) == 1 && Meta.isexpr(args[1], :block)
+            if length(args[1].args) == 1 && Meta.isexpr(args[1].args[1], :tuple)
+                Pattern.(args[1].args[1].args)
+            else
+                Pattern.(args[1].args)
+            end
+        else
+            Pattern.(args)
+        end
+
     return :( SyntaxClass($description, $alternatives) )
 end
 

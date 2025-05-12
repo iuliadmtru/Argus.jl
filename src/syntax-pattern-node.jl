@@ -97,6 +97,14 @@ function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=S
         !is_anonymous_pattern_variable(_get_var_id(ex)) &&
         is_context_dependent
         push!(bindings, _get_var_id(ex))
+    elseif @isexpr(ex, :function) && Meta.isexpr(ex.args[1], :tuple, 1)
+        # Remove the extra `:tuple` node in the function signature for expressions like:
+        # `function (_f:::funcall) _body end`
+        fun_ex = ex.args[1].args[1]
+        if is_sugared_var(fun_ex) || is_var(fun_ex)
+            args = [fun_ex, ex.args[2:end]...]
+            return Expr(ex.head, _desugar_expr.(args; is_context_dependent, bindings)...)
+        end
     end
     !isa(ex, Expr) && return ex
     # Pattern variables should be tracked along `~and` pattern branches and inside regular
@@ -177,10 +185,6 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         # TODO: Examples.
         lhs = fix_misparsed!(node.children[1])
         rhs = fix_misparsed!(node.children[2])
-        # If it's a long form function definition, the lhs is a `tuple` node and should be
-        # replaced by its child.
-        is_short_form_function_def(node) ||
-            return SyntaxPatternNode(node.parent, [lhs.children[1], rhs], node.data)
         # If the lhs is constrained to `:identifier`, the node should be an assignment,
         # not a function definition.
         _get_var_syntax_class_name(lhs) === :identifier &&
@@ -259,6 +263,9 @@ is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
 
+function remove_tuple_node(ex::Expr)
+end
+
 #### Pass 2 (pattern form parsing).
 
 is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractSpecialSyntaxData)
@@ -309,10 +316,6 @@ _strip_string_node(node::JuliaSyntax.SyntaxNode) =
 
 function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
-        if !is_short_form_function_def(node)
-            return kind(node.children[1]) === K"tuple" &&
-                is_var(node.children[1].children[1])
-        end
         lhs = node.children[1]
         is_var(lhs) || return false
         # An `=` node with unconstrained lhs could either be an assignment or a short form
