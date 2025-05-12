@@ -85,10 +85,9 @@ making them invisible outside the pattern they are used in.
 
 The usefulness of sub-bindings will become clear later.
 
-Pattern construction fails if a pattern variable constraint syntax is
-invalid (for example: `_x::identifier`) or if the `:::` "operator"[^1]
-if preceded by a non-pattern variable node (for example:
-`x:::identifier`).
+Pattern construction fails if a pattern variable constraint if the
+`:::` "operator"[^1] is preceded by a non-pattern variable node (for
+example: `x:::identifier`).
 ```julia
 julia> @pattern :( _x::identifier )
 ERROR: Invalid constraint syntax: _x::identifier

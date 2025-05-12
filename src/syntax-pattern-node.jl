@@ -79,11 +79,6 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
 function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=Symbol[])
-    # TODO: This is not correct. `_f::Int` and `_x:range_end` should be allowed.
-    is_invalid_sugared_var_form(ex) &&
-        error("Invalid constraint syntax: $ex\n",
-              "Pattern variable constraints should follow the syntax: ",
-              "<pattern_variable>:::<syntax_class>")
     if is_sugared_var(ex)
         id = _get_sugared_var_id(ex)
         # TODO: Move pattern variable tracking/binding to match time.
@@ -247,20 +242,6 @@ is_sugared_var(ex) =
     @isexpr(ex, :(::), 2)           &&
     isa(ex.args[2], QuoteNode)      &&
     isa(ex.args[2].value, Symbol)
-function is_invalid_sugared_var_form(ex)
-    is_double_colon =
-        @isexpr(ex, :(::), 2)           &&
-        is_pattern_variable(ex.args[1]) &&
-        isa(ex.args[2], Symbol)
-    is_colon =
-        @isexpr(ex, :call, 3)           &&
-        ex.args[1] === :(:)             &&
-        is_pattern_variable(ex.args[2]) &&
-        isa(ex.args[3], Symbol)
-
-    # TODO: Special error handling for invalid triple colon.
-    return is_double_colon || is_colon
-end
 
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr

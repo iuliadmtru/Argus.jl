@@ -31,7 +31,6 @@
 
     @testset "General" begin
         # Invalid syntax.
-        @test_throws "Invalid constraint syntax: _x::identifier" Pattern(:( _x::identifier ))
         @test_throws "Invalid pattern variable name x" @pattern :( x:::identifier )
 
         # Pattern matching.
