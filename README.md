@@ -592,6 +592,10 @@ you for telling me about the amazing `syntax/parse` library and for
 spending so many hours with me discussing software design,
 metaprogramming and more.
 
+[JuliaHub](https://juliahub.com) in general and Avik Sengupta in
+particular for allowing me to partly work on this project during my
+internship and for guiding me in the process.
+
 ## References
 
 - [Fortifying
