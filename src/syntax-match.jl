@@ -1,3 +1,4 @@
+# TODO: Add location information.
 struct MatchFail
     message::String
 end
@@ -19,16 +20,16 @@ check(::Vector{Function}, failure::MatchFail)::MatchFail = failure
 
 function syntax_match(pattern::Pattern,
                       src::JuliaSyntax.SyntaxNode,
-                      binding_context::BindingSet = BindingSet())::MatchResult
-    bindings = syntax_match(pattern.ast, src, binding_context)
+                      bindings::BindingSet = BindingSet())::MatchResult
+    bindings = syntax_match(pattern.ast, src, bindings)
     return check(pattern.fail_conditions, bindings)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JuliaSyntax.SyntaxNode,
-                      binding_context::BindingSet = BindingSet())::MatchResult
+                      bindings::BindingSet = BindingSet())::MatchResult
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
-        match_result = syntax_match(pattern, src, binding_context)
+        match_result = syntax_match(pattern, src, bindings)
         # Return the first successful match.
         isa(match_result, BindingSet) && return match_result
         # TODO: Track the failures and return the most relevant one.
@@ -39,12 +40,13 @@ function syntax_match(syntax_class::SyntaxClass,
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JuliaSyntax.SyntaxNode,
-                      binding_context::BindingSet = BindingSet())::MatchResult
+                      bindings::BindingSet = BindingSet())::MatchResult
     # Special syntax.
     is_pattern_form(pattern_node) &&
-        return syntax_match_pattern_form(pattern_node, src, binding_context)
+        return syntax_match_pattern_form(pattern_node, src, bindings)
     # Regular syntax.
-    success = binding_context
+    # TODO: Replace `success` with just `bindings`?
+    success = bindings
     head(pattern_node) != head(src) && return MatchFail()
     pattern_node.data.val != src.data.val && return MatchFail()
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
@@ -56,9 +58,10 @@ function syntax_match(pattern_node::SyntaxPatternNode,
         match_result = syntax_match(c_pair[1], c_pair[2], success)
         if isa(match_result, MatchFail)
             return match_result
-        else
-            merge!(success, match_result)
         end
+        # TODO: Don't mutate the result here. Only mutate for `var` form.
+        #       `bindings = match_result`
+        merge!(success, match_result)
     end
     return success
 end
@@ -72,10 +75,10 @@ match function.
 """
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JuliaSyntax.SyntaxNode,
-                                   binding_context::BindingSet)::MatchResult
+                                   bindings::BindingSet)::MatchResult
     nodes = (pattern_node, src)
     isa(pattern_node.data, FailSyntaxData) && return syntax_match_fail(nodes...,
-                                                                       binding_context)
+                                                                       bindings)
     isa(pattern_node.data, VarSyntaxData) && return syntax_match_var(nodes...)
     isa(pattern_node.data, OrSyntaxData) && return syntax_match_or(nodes...)
     isa(pattern_node.data, AndSyntaxData) && return syntax_match_and(nodes...)
@@ -88,11 +91,11 @@ Try to match a `fail` pattern form. If the fail condition is satisfied, return a
 """
 function syntax_match_fail(fail_node::SyntaxPatternNode,
                            src::JuliaSyntax.SyntaxNode,
-                           binding_context::BindingSet)::MatchResult
+                           bindings::BindingSet)::MatchResult
     fail_condition = _get_fail_condition(fail_node)
     fail_message = _get_fail_message(fail_node)
     # Evaluate the fail condition.
-    return fail_condition(binding_context) ? MatchFail(fail_message) : BindingSet()
+    return fail_condition(bindings) ? MatchFail(fail_message) : BindingSet()
 end
 
 """
@@ -132,7 +135,7 @@ Fail if no alternative matches.
 """
 function syntax_match_or(or_node::SyntaxPatternNode,
                          src::JuliaSyntax.SyntaxNode)::MatchResult
-    failure = MatchFail("no alternative match")
+    failure = MatchFail("no matching alternative")
     for p in children(or_node)
         match_result = syntax_match(p, src)
         isa(match_result, BindingSet) && return match_result
@@ -148,11 +151,11 @@ the `MatchFail` of the first failing branch.
 """
 function syntax_match_and(and_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode)::MatchResult
-    binding_context = BindingSet()
+    bindings = BindingSet()
     for p in children(and_node)
-        match_result = syntax_match(p, src, binding_context)
+        match_result = syntax_match(p, src, bindings)
         isa(match_result, MatchFail) && return match_result
-        merge!(binding_context, match_result)
+        merge!(bindings, match_result)
     end
-    return binding_context
+    return bindings
 end

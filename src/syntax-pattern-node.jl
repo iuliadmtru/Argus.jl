@@ -47,6 +47,8 @@ Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 const SyntaxPatternNode =
     JuliaSyntax.TreeNode{Union{JuliaSyntax.SyntaxData, AbstractSpecialSyntaxData}}
 
+# TODO: `function _f end` is valid syntax, `function _f:::cls end` is not. The incorrect
+#       syntax handling should be done when desugaring.
 """
     SyntaxPatternNode(ex::Expr)
 
@@ -77,12 +79,15 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
 function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=Symbol[])
+    # TODO: This is not correct. `_f::Int` and `_x:range_end` should be allowed.
     is_invalid_sugared_var_form(ex) &&
         error("Invalid constraint syntax: $ex\n",
               "Pattern variable constraints should follow the syntax: ",
               "<pattern_variable>:::<syntax_class>")
     if is_sugared_var(ex)
         id = _get_sugared_var_id(ex)
+        # TODO: Move pattern variable tracking/binding to match time.
+        #
         # Pattern variables that occur multiple times in a regular pattern or among the
         # branches of an `~and` pattern should bind together.
         if is_context_dependent && !is_anonymous_pattern_variable(id)
@@ -174,6 +179,7 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
 
     k = kind(node)
     if k === K"function"
+        # TODO: Examples.
         lhs = fix_misparsed!(node.children[1])
         rhs = fix_misparsed!(node.children[2])
         # If it's a long form function definition, the lhs is a `tuple` node and should be
@@ -183,7 +189,7 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         # If the lhs is constrained to `:identifier`, the node should be an assignment,
         # not a function definition.
         _get_var_syntax_class_name(lhs) === :identifier &&
-            return funcall_to_assign(lhs, rhs, node)
+            return fundef_to_assign(lhs, rhs, node)
         new_node_data = OrSyntaxData()
         # Use the original pattern form variable name.
         id = _get_var_id(lhs)
@@ -211,7 +217,7 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         return new_node
     end
 
-    error("No disambiguation method for [$(JuliaSyntax.untokenize(head(node)))] node.")
+    error("No misparse fix for [$(JuliaSyntax.untokenize(head(node)))] node.")
 end
 
 ## -------------------------------------------
@@ -318,28 +324,7 @@ _strip_quote_node(node::JuliaSyntax.SyntaxNode) =
 _strip_string_node(node::JuliaSyntax.SyntaxNode) =
     kind(node) === K"string" ? node.children[1] : node
 
-#### Pass 3 (disambiguation).
-
-function update_data_head(old_data::JuliaSyntax.SyntaxData,
-                          new_head::JuliaSyntax.SyntaxHead)
-    old_raw = old_data.raw
-    new_raw = JuliaSyntax.GreenNode(
-        new_head,
-        old_raw.span,
-        old_raw.children
-    )
-    new_data = JuliaSyntax.SyntaxData(
-        old_data.source,
-        new_raw,
-        old_data.position,
-        old_data.val
-    )
-
-    return new_data
-end
-
-is_short_form_function_def(node) =
-    JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+#### Pass 3 (misparse fix).
 
 function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
@@ -361,13 +346,34 @@ function is_misparsed(node::SyntaxPatternNode)
     return false
 end
 
-function funcall_to_assign(lhs::SyntaxPatternNode,
+is_short_form_function_def(node) =
+    JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+
+function fundef_to_assign(lhs::SyntaxPatternNode,
                            rhs::SyntaxPatternNode,
                            old_node::SyntaxPatternNode)
     old_data = old_node.data
     new_node_data = update_data_head(old_data, JuliaSyntax.SyntaxHead(K"=", 0))
 
     return SyntaxPatternNode(old_node.parent, [lhs, rhs], new_node_data)
+end
+
+function update_data_head(old_data::JuliaSyntax.SyntaxData,
+                          new_head::JuliaSyntax.SyntaxHead)
+    old_raw = old_data.raw
+    new_raw = JuliaSyntax.GreenNode(
+        new_head,
+        old_raw.span,
+        old_raw.children
+    )
+    new_data = JuliaSyntax.SyntaxData(
+        old_data.source,
+        new_raw,
+        old_data.position,
+        old_data.val
+    )
+
+    return new_data
 end
 
 ### Pattern form utils.

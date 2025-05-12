@@ -12,6 +12,7 @@ end
 Rule(name::String, description::String, pattern) =
     Rule(name, description, Pattern(pattern))
 
+# TODO: Create pattern inside macro instead of returning as `Expr`.
 macro rule(name, ex)
     # Remove line number nodes and unescape.
     rule = MacroTools.striplines(ex)
@@ -25,6 +26,8 @@ macro rule(name, ex)
         error("Invalid rule syntax: $rule\n",
               "Expected 2 arguments, got $(length(rule.args))")
     # Get the first argument and see whether it's a description or a pattern argument.
+    #
+    # TODO: Remove duplicate code. Or don't allow pattern before description?
     arg1 = rule.args[1]
     @isexpr(arg1, :(=), 2) || error("Invalid rule argument syntax:\n$arg1")
     arg1_name = arg1.args[1]
@@ -134,26 +137,10 @@ Base.show(io::IO, rg::RuleGroup) =
 # --------------------------------------------
 # Rule definition in groups.
 
-function define_rule_in_group(group::RuleGroup, rule_name::String, rule::Rule)
-    # rule = @rule(rule_name, rule_expr)
+define_rule_in_group(group::RuleGroup, rule_name::String, rule::Rule) =
     register_rule!(group, rule)
 
-    return rule
-end
-
-# # TODO: Make internal.
-# function define_rule_in_group(group::RuleGroup, rule_name::String, rule_str::String)
-#     rule = Meta.parse(rule_str)
-#     return define_rule_in_group(group, rule_name, rule)
-# end
-
-# # TODO: Find a way to make this nicer...
-# handle_define_rule_in_group(group, rule_name, rule_str) =
-#     esc( :($define_rule_in_group($group, $rule_name, $rule_str)) )
-
 macro define_rule_in_group(group, rule_name, rule_expr)
-    # rule_str = string(rule)
-    # handle_define_rule_in_group(group, rule_name, rule_str)
     rule = :( @rule($(esc(rule_name)), $(esc(rule_expr))) )
     return :( define_rule_in_group($(esc(group)), $(esc(rule_name)), $rule) )
 end
@@ -170,20 +157,10 @@ end
 # Rule matching.
 
 struct RuleMatchResult
-    failures::Vector{MatchFail}
     matches::Vector{BindingSet}
+    failures::Vector{MatchFail}
 end
 RuleMatchResult() = RuleMatchResult([], [])
-
-Base.push!(rule_match_result::RuleMatchResult, res) =
-    isa(res, MatchFail)                    ?
-    push!(rule_match_result.failures, res) :
-    push!(rule_match_result.matches, res)
-
-function Base.append!(res1::RuleMatchResult, res2::RuleMatchResult)
-    append!(res1.failures, res2.failures)
-    append!(res1.matches, res2.matches)
-end
 
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
@@ -194,23 +171,28 @@ Match a rule against an AST. Return the set of all matches. If `only_matches` is
 function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
     match_result = syntax_match(rule.pattern, src)
-    push!(rule_result, match_result)
-    # Recurse on children, if any. Collect all match results.
-    is_leaf(src) && return only_matches ? rule_result.matches : rule_result
-    for c in children(src)
-        rule_result_child = rule_match(rule, c; only_matches=false)
-        append!(rule_result, rule_result_child)
+    if isa(match_result, MatchFail)
+        only_matches || push!(rule_result.failures, match_result)
+    else
+        push!(rule_result.matches, match_result)
     end
-    return only_matches ? rule_result.matches : rule_result
+    # Recurse on children, if any.
+    is_leaf(src) && return rule_result
+    for c in children(src)
+        rule_result_child = rule_match(rule, c; only_matches)
+        append!(rule_result.failures, rule_result_child.failures)
+        append!(rule_result.matches, rule_result_child.matches)
+    end
+    return rule_result
 end
 """
-    rule_match(rule::Rule, src_file::String; only_matches=true)
+    rule_match(rule::Rule, filename::String; only_matches=true)
 
 Match a rule against a source file.
 """
-function rule_match(rule::Rule, src_file::String; only_matches=true)
-    src_txt = read(src_file, String)
-    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=src_file)
+function rule_match(rule::Rule, filename::String; only_matches=true)
+    src_txt = read(filename, String)
+    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
 
     return rule_match(rule, src; only_matches)
 end

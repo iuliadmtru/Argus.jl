@@ -35,6 +35,8 @@ before matching using [`syntax_class_registry_check`](@ref).
 """
 SYNTAX_CLASS_REGISTRY = Dict{Symbol, Union{Nothing, SyntaxClass}}()
 
+# TODO: Allow registering to specific registry.
+# TODO: Remove.
 function register_syntax_class!(name::Symbol)
     # TODO: Interactive overwrite?
     SYNTAX_CLASS_REGISTRY[name] = nothing
@@ -44,6 +46,7 @@ function register_syntax_class!(name::Symbol, syntax_class::SyntaxClass)
     SYNTAX_CLASS_REGISTRY[name] = syntax_class
 end
 
+# TODO: Remove
 function syntax_class_registry_check()
     for (syntax_class_name, syntax_class) in SYNTAX_CLASS_REGISTRY
         isnothing(syntax_class) &&
@@ -57,12 +60,14 @@ end
 
 function _register_syntax_classes()
     # `expr`: match any expression.
-    register_syntax_class!(:expr, @syntax_class "expr" quote
+    register_syntax_class!(:expr,
+                           @syntax_class "expr" quote
                                ~fail(:false, "")
                            end)
 
     # `identifier`: match an identifier.
-    register_syntax_class!(:identifier, @syntax_class "identifier" quote
+    register_syntax_class!(:identifier,
+                           @syntax_class "identifier" quote
                                ~and(__id,
                                     ~fail(begin
                                               using JuliaSyntax: is_identifier
@@ -71,14 +76,16 @@ function _register_syntax_classes()
                                           "not an identifier"))
                            end)
 
-    # TODO: Change to general function call after adding repetitions.
-    # `funcall`: match a function call.
-    register_syntax_class!(:funcall, @syntax_class "function call" quote
-                               (__id:::identifier)()
+    # `assign`: match an assignment.
+    register_syntax_class!(:assign,
+                           @syntax_class "assignment" quote
+                               __lhs:::identifier = __rhs:::expr
                            end)
 
-    # `assign`: match an assignment.
-    register_syntax_class!(:assign, @syntax_class "assignment" quote
-                               __lhs:::identifier = __rhs:::expr
+    # TODO: Change to general function call after adding repetitions.
+    # `funcall`: match a function call.
+    register_syntax_class!(:funcall,
+                           @syntax_class "function call" quote
+                               (__id:::identifier)()
                            end)
 end

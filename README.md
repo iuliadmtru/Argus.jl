@@ -584,14 +584,13 @@ found inside `semgrep-to-argus/`, grouped according to their category.
 Argus is the final project for my Computer Science and Engineering
 degree at University Politehnica of Bucharest.
 
-## Aknowledgements
+## Acknowledgements
 
-[Andrei Duma](https://github.com/AndreiDuma) for being my main
-unofficial coordinator, providing me with reading recommendations,
-feedback and constant motivation. Thank you for the idea to push this
-project towards the amazing `syntax/parse` library and for spending so
-many hours with me discussing software design, metaprogramming and
-more.
+[Andrei Duma](https://github.com/AndreiDuma) for being providing me
+with reading recommendations, feedback and constant motivation. Thank
+you for telling me about the amazing `syntax/parse` library and for
+spending so many hours with me discussing software design,
+metaprogramming and more.
 
 ## References
 
@@ -602,7 +601,6 @@ more.
 - [Resyntax](https://docs.racket-lang.org/resyntax/index.html)
 - [Semgrep](https://semgrep.dev/docs/)
 
----
 
 [^1]: It is not really an operator. `_x:::identifier` is parsed in
     Julia as `(::-i _x (quote-: identifier))`. Argus interprets this

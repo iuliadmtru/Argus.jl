@@ -49,6 +49,9 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
     function FailSyntaxData(condition::Expr, msg::String)
         pattern_variables = get_pattern_vars(condition)
         cond_fun = function (binding_context)
+            # TODO: Leave the binding context as is.
+            # TODO: Import and use `BindingSet`.
+
             # Create a smaller binding context containg only the bindings from `condition`.
             condition_binding_context = Dict{Symbol, Any}()
             for pattern_var_name in pattern_variables
@@ -71,6 +74,8 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
                 Core.eval(ConditionContext, :($var_name = $binding))
             end
             # Evaluate the condition within the evaluation context.
+            #
+            # TODO: Should `eval` exceptions be caught here?
             result = Core.eval(ConditionContext, condition)
             isa(result, Bool) ||
                 error("Fail condition evaluated to non-Boolean value: ",

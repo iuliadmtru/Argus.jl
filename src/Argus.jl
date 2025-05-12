@@ -4,7 +4,8 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
     children, is_leaf, is_identifier, source_location,
     @isexpr
 
-# Part 1: Pattern matching mechanism.
+
+# Part 1: Syntax matching mechanism.
 
 export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class
 export register_syntax_class!, syntax_class_registry_check
@@ -23,6 +24,7 @@ export Rule, @rule, RuleGroup, @define_rule_in_group, register_rule!
 export RuleMatchResult, rule_match
 
 include("rules.jl")
+
 
 function __init__()
     _register_kinds()
