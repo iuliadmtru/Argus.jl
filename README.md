@@ -9,20 +9,83 @@ library for writing and processing macros in Racket, and
 [Resyntax](https://docs.racket-lang.org/resyntax/index.html), a
 refactoring tool for Racket based on `syntax/parse`.
 
-Argus provides a mechanism for matching Julia syntax through patterns
-that resemble Julia syntax but contain special forms: pattern
-variables which can be annotated by syntax classes. This mechanism
-serves as a base for Argus' rule writing framework, a static analysis
-tool similar to [Clippy](https://doc.rust-lang.org/clippy/) for Rust,
-[Resyntax](https://docs.racket-lang.org/resyntax/index.html) for
-Racket or [Semgrep](https://semgrep.dev/docs/) for multiple languages.
+## Overview
+
+Argus implements a framework for writing static analysis rules on top
+of a syntax matching mechanism. It is structured around several core
+concepts:
+
+  - Syntax patterns
+  - Pattern variables
+  - Syntax classes
+  - Rules
+
+_Syntax patterns_ form the basis for syntax matching and closely
+resemble Julia code. For example, `@pattern :( x = 2 )` matches an
+assignment where the left-hand side is a variable named `x` and the
+right-hand side is the literal `2`. On the other hand, `@pattern :( _x
+= 2 )` matches any assignment or short-form function definition where
+the right-hand side is the literal `2`; the expression on the
+left-hand side is bound to the _pattern variable_ `_x`.
+
+A _pattern variable_ is one of several special forms permitted within
+patterns. It can be seen as a "hole" that is filled by matching
+syntax. For example, when matching `@pattern :( _x = 2 )` against the
+expression `f(a) = 2`, `_x` is bound to `f(a)`. The result of a
+pattern match is either a set of bindings corresponding to the syntax
+matched by each pattern variable, or an error explaining why the
+matching failed.
+
+A pattern variable can be constrained by a _syntax class_. In the
+example above, `@pattern :( _x = 2)` is equivalent to `@pattern :(
+_x:::expr = 2 )`, where `expr` is the syntax class that matches any
+expression. Syntax classes are defined through patterns and can
+reference other syntax classes. For example, a syntax class matching
+any assignment may be defined as such:
+
+```julia
+assign = @syntax_class "assignment" quote
+    _lhs:::identifier = _rhs
+end
+```
+
+Argus provides a set of pre-defined syntax classes, including `expr`,
+`identifier` and `assign`.
+
+A _rule_ contains a description and a pattern. In the case of rules,
+matching recursively traverses a given unit of source code (e.g. a
+file) and collects the sub-expressions that match the rule's
+pattern. Pattern variables bound by these identifications are returned
+in corresponding _binding sets_.
+
+Rules may be organised into _rule groups_. For example, it may be
+useful to group all rules related to Julia usage in a `lang` group:
+
+```julia
+lang_rules = RuleGroup("lang")
+
+@define_rule_in_group lang_rules "compare-nothing" begin
+    description = """
+    Comparisons to `nothing` should use ===, !== or isnothing().
+    """
+
+    pattern = :(
+        ~or(
+            nothing == _,
+            _ == nothing,
+            nothing != _,
+            _ != nothing
+        )
+    )
+end
+```
 
 ## Syntax matching
 
-The first part of Argus defines a syntax matching language (_pattern
-language_) capable to match Julia syntax and provide relevant
-information in case of match failure. The pattern language has three
-types of building blocks:
+Argus defines a syntax matching language (_pattern language_) capable
+to match Julia syntax and provide relevant information in case of
+match failure. The pattern language has three types of building
+blocks:
   - regular Julia syntax
   - pattern variables
   - syntax classes
@@ -452,8 +515,8 @@ Pattern:
 
 ## Rule writing
 
-The second part of Argus allows the writing on rules based on the
-syntax matching system described so far.
+Argus allows the writing on rules based on the syntax matching system
+described so far.
 
 Rules are described by a pattern and a rule description.
 
@@ -585,15 +648,15 @@ degree at University Politehnica of Bucharest.
 
 ## Acknowledgements
 
+[JuliaHub](https://juliahub.com) in general and Avik Sengupta in
+particular for allowing me to partly work on this project during my
+internship and for guiding me in the process.
+
 [Andrei Duma](https://github.com/AndreiDuma) for being providing me
 with reading recommendations, feedback and constant motivation. Thank
 you for telling me about the amazing `syntax/parse` library and for
 spending so many hours with me discussing software design,
 metaprogramming and more.
-
-[JuliaHub](https://juliahub.com) in general and Avik Sengupta in
-particular for allowing me to partly work on this project during my
-internship and for guiding me in the process.
 
 ## References
 
