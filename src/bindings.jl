@@ -58,9 +58,37 @@ Binding of a pattern variable to a syntax tree. Pattern variables are created wi
 `~var` pattern form.
 """
 struct Binding <: AbstractBinding
-    name::Symbol
+    bname::Symbol
     ast::JuliaSyntax.SyntaxNode
     bindings::BindingSet
+end
+
+## `Base` overwrites.
+
+# Allow accessing sub-bindings as fields.
+function Base.getproperty(b::Binding, name::Symbol)
+    name === :bname && return getfield(b, :bname)
+    ast = getfield(b, :ast)
+    name === :ast && return ast
+    bindings = getfield(b, :bindings)
+    name === :bindings && return bindings
+    if name === :value
+        JuliaSyntax.is_literal(ast) && return ast.val
+        error("binding `$(b.bname)` has no field `value` because ",
+              "the bound expression is not a literal")
+    end
+    if name === :name
+        JuliaSyntax.is_identifier(ast) && return string(ast.val)
+        error("binding `$(b.bname)` has no field `name` because ",
+              "the bound expression is not an identifier")
+    end
+    return get(bindings, name) do
+        sub_bindings = isempty(bindings) ?
+            "none"                       :
+            join(map(string, collect(keys(bindings))), ", ")
+        error("binding `$(b.bname)` has no sub-binding `$name`; ",
+              "available sub-bindings: $sub_bindings")
+    end
 end
 
 ## Display.
