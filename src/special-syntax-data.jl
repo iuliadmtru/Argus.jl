@@ -6,8 +6,8 @@ Supertype for all special syntax data such as pattern forms.
 abstract type AbstractSpecialSyntaxData end
 
 function get_pattern_vars(ex::Expr)::Vector{Symbol}
-    pattern_vars = Symbol[]
     isempty(ex.args) && return Symbol[]
+    pattern_vars = Symbol[]
     for arg in ex.args
         append!(pattern_vars, get_pattern_vars(arg))
     end
@@ -74,8 +74,6 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
                 Core.eval(ConditionContext, :($var_name = $binding))
             end
             # Evaluate the condition within the evaluation context.
-            #
-            # TODO: Should `eval` exceptions be caught here?
             result = Core.eval(ConditionContext, condition)
             isa(result, Bool) ||
                 error("Fail condition evaluated to non-Boolean value: ",
