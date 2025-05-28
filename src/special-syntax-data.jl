@@ -7,10 +7,16 @@ abstract type AbstractSpecialSyntaxData end
 
 function get_pattern_vars(ex::Expr)::Vector{Symbol}
     isempty(ex.args) && return Symbol[]
+
     pattern_vars = Symbol[]
-    for arg in ex.args
-        append!(pattern_vars, get_pattern_vars(arg))
+    if ex.head === :.
+        append!(pattern_vars, get_pattern_vars(ex.args[1]))
+    else
+        for arg in ex.args
+            append!(pattern_vars, get_pattern_vars(arg))
+        end
     end
+
     return pattern_vars
 end
 function get_pattern_vars(ex::QuoteNode)::Vector{Symbol}
