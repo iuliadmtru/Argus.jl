@@ -16,22 +16,24 @@ struct SyntaxClass
     pattern_alternatives::Vector{Pattern}
 end
 
-# TODO: Support for fail conditions.
-macro syntax_class(description, patterns)
-    args = striplines(patterns).args
-    # TODO: Document examples.
-    alternatives =
-        if length(args) == 1 && Meta.isexpr(args[1], :block)
-            if length(args[1].args) == 1 && Meta.isexpr(args[1].args[1], :tuple)
-                Pattern.(args[1].args[1].args)
-            else
-                Pattern.(args[1].args)
-            end
-        else
-            Pattern.(args)
-        end
+macro syntax_class(description, body)
+    @isexpr(body, :quote) ||
+        error("Invalid syntax class syntax.\n",
+              "The syntax class body should be defined using a `quote ... end` block")
+    pattern_exprs = MacroTools.striplines(body).args[1].args
+    for expr in pattern_exprs
+        # Each expression in a syntax class should evaluate to a `Pattern`:
+        #   - `@pattern ...`
+        #   - `Pattern(...)`
+        #   - `<variable>(::Pattern)`
+        #
+        # TODO: Expression and position information.
+        cannot_eval_to_Pattern(expr) &&
+            error("Invalid syntax class syntax.\n",
+                  "All expressions in a syntax class should be `Pattern`s.")
+    end
 
-    return :( SyntaxClass($description, $alternatives) )
+    return :( SyntaxClass($description, [$(esc.(pattern_exprs)...)]) )
 end
 
 """
@@ -54,30 +56,31 @@ function _register_syntax_classes()
     # `expr`: match any expression.
     register_syntax_class!(:expr,
                            @syntax_class "expr" quote
-                               ~fail(:false, "")
+                               @pattern :( ~fail(:false, "") )
                            end)
 
     # `identifier`: match an identifier.
     register_syntax_class!(:identifier,
                            @syntax_class "identifier" quote
-                               ~and(__id,
-                                    ~fail(begin
-                                              using JuliaSyntax: is_identifier
-                                              !is_identifier(__id.ast)
-                                          end,
-                                          "not an identifier"))
+                               @pattern quote
+                                   __id
+                                   @fail begin
+                                       using JuliaSyntax: is_identifier
+                                       !is_identifier(__id.ast)
+                                   end "not an identifier"
+                               end
                            end)
 
     # `assign`: match an assignment.
     register_syntax_class!(:assign,
                            @syntax_class "assignment" quote
-                               __lhs:::identifier = __rhs:::expr
+                               @pattern :( __lhs:::identifier = __rhs:::expr )
                            end)
 
     # TODO: Change to general function call after adding repetitions.
     # `funcall`: match a function call.
     register_syntax_class!(:funcall,
                            @syntax_class "function call" quote
-                               (__id:::identifier)()
+                               @pattern :( (__id:::identifier)() )
                            end)
 end

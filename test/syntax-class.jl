@@ -1,7 +1,9 @@
 @testset "Syntax classes" begin
     fundef = @syntax_class "fundef" quote
-        function (_f:::funcall)
-            _body
+        @pattern quote
+            function (_f:::funcall)
+                _body
+            end
         end
     end
     @test length(fundef.pattern_alternatives) == 1

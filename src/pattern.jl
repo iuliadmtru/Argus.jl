@@ -75,6 +75,8 @@ macro pattern(expr)
             message = fail_macro.args[end]
             push!(fail_exprs, :( ~fail($condition_expr, $message) ))
             # Add the fail condition functions to the pattern.
+            #
+            # TODO: This is really not necessary.
             push!(fail_conditions, fail_condition(condition_expr))
         end
         # Create the pattern as an `~and` between the pattern expression and the
@@ -87,8 +89,15 @@ end
 
 # Utils.
 
-# TODO: Why does `:( @fail cond msg )` have 4 children, not 3?
+# TODO: Why do macrocalls have 1 extra child?
 is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
+
+function cannot_eval_to_Pattern(ex)
+    isa(ex, Symbol) && return false
+    @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@pattern") && return false
+    @isexpr(ex, :call, 3) && ex.args[1] === :Pattern && return false
+    return true
+end
 
 # Display.
 

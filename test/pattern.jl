@@ -1,5 +1,6 @@
 @testset "Pattern" begin
 
+    # TODO: Make `@test_throws` tests robust (probably after implementing error types).
     @testset "Pattern forms" begin
         # `~var`.
         let
@@ -9,10 +10,11 @@
         end
 
         # `~or`.
+        # TODO: Move this to `test/syntax-class.jl`. Write an explicit `@pattern` test here.
         let
             fundef = @syntax_class "function definition" quote
-                (_f:::funcall = _),
-                function (_g:::funcall) _ end
+                @pattern :( _f:::funcall = _ )
+                @pattern :( function (_g:::funcall) _ end )
             end
             match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
             @test isa(match_first, BindingSet)
@@ -30,7 +32,6 @@
         end
 
         # `~fail`.
-        # TODO: Make these tests robust.
         let
             pattern = @pattern :( ~fail(_x, "") )
             err = "Binding context does not contain a binding for _x."
@@ -75,7 +76,10 @@
             end
         end
         let
-            even = @pattern :( ~and(_x, ~fail(!iseven(_x.value), "not even")) )
+            even = @pattern quote
+                _x
+                @fail !iseven(_x.value) "not even"
+            end
             match = syntax_match(even, parsestmt(SyntaxNode, "2"))
             @test isa(match, BindingSet)
             fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
