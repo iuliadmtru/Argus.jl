@@ -59,10 +59,7 @@ end
     VarSyntaxData
 
 Data for a `~var` pattern form holding an id name and a [`SyntaxClass`](@ref) name. The
-latter is a name expected to be found in the syntax class registry (TODO: docs) when the
-[`syntax_class_registry_check`](@ref) function is called. I.e. forward references are
-allowed as long as the "promise" to define missing syntax classes is fulfilled when checking
-the registry for consistency.
+latter is a name expected to be found in the syntax class registry.
 """
 struct VarSyntaxData <: AbstractSpecialSyntaxData
     id::Symbol

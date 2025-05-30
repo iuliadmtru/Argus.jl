@@ -44,23 +44,9 @@ before matching using [`syntax_class_registry_check`](@ref).
 SYNTAX_CLASS_REGISTRY = Dict{Symbol, Union{Nothing, SyntaxClass}}()
 
 # TODO: Allow registering to specific registry.
-# TODO: Remove.
-function register_syntax_class!(name::Symbol)
-    # TODO: Interactive overwrite?
-    SYNTAX_CLASS_REGISTRY[name] = nothing
-end
 function register_syntax_class!(name::Symbol, syntax_class::SyntaxClass)
     # TODO: Interactive overwrite?
     SYNTAX_CLASS_REGISTRY[name] = syntax_class
-end
-
-# TODO: Remove
-function syntax_class_registry_check()
-    for (syntax_class_name, syntax_class) in SYNTAX_CLASS_REGISTRY
-        isnothing(syntax_class) &&
-            error("Syntax class $syntax_class_name is referenced but undefined.")
-        # TODO: Check for syntax classes that reference undefined syntax classes.
-    end
 end
 
 # ------------------------------------------------------------------------------------------

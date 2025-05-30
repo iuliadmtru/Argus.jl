@@ -8,7 +8,7 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
 # Part 1: Syntax matching mechanism.
 
 export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class
-export register_syntax_class!, syntax_class_registry_check
+export register_syntax_class!
 export Binding, BindingSet, MatchFail
 export syntax_match
 
