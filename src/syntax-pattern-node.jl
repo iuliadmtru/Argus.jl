@@ -47,8 +47,6 @@ Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 const SyntaxPatternNode =
     JuliaSyntax.TreeNode{Union{JuliaSyntax.SyntaxData, AbstractSpecialSyntaxData}}
 
-# TODO: `function _f end` is valid syntax, `function _f:::cls end` is not. The incorrect
-#       syntax handling should be done when desugaring.
 """
     SyntaxPatternNode(ex::Expr)
 
@@ -255,16 +253,15 @@ function _get_var_id(ex::Expr)
 end
 
 is_pattern_form(ex) =
-    @isexpr(ex, :call, 2) &&
-    ex.args[1] === :~ &&
-    Meta.isexpr(ex.args[2], :call) &&
+    # A pattern form expression has the following structure:
+    #   `~<form_name>(<args>*)`
+    @isexpr(ex, :call, 2)               &&
+    ex.args[1] === :~                   &&
+    Meta.isexpr(ex.args[2], :call)      &&
     ex.args[2].args[1] in PATTERN_FORMS
 is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
-
-function remove_tuple_node(ex::Expr)
-end
 
 #### Pass 2 (pattern form parsing).
 
