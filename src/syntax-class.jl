@@ -1,5 +1,3 @@
-using MacroTools: striplines
-
 # TODO: Let syntax classes take arguments.
 """
     SyntaxClass
