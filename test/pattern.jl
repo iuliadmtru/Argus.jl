@@ -3,7 +3,7 @@
     @testset "Pattern forms" begin
         # `~var`.
         let
-            @test_nowarn Pattern(:( ~var(:_ex, :expr) ))
+            @test_nowarn @pattern :( ~var(:_ex, :expr) )
             @test_throws "Invalid pattern form argument `x` at (1, 7)" Pattern(:( ~var(x, :identifier) ))
             @test_throws "Invalid pattern variable name x" Pattern(:( ~var(:x, :identifier) ))
         end
@@ -45,7 +45,7 @@
 
     @testset "General" begin
         # Invalid syntax.
-        @test_throws "Invalid pattern variable name x" @pattern :( x:::identifier )
+        @test_throws "Invalid pattern variable name x" Pattern(:( x:::identifier ))
 
         # Pattern matching.
         binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _) )
