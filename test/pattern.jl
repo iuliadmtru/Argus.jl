@@ -12,7 +12,7 @@
         # `~or`.
         # TODO: Move this to `test/syntax-class.jl`. Write an explicit `@pattern` test here.
         let
-            fundef = @syntax_class "function definition" quote
+            fundef = @syntax_class "function definition" begin
                 @pattern :( _f:::funcall = _ )
                 @pattern :( function (_g:::funcall) _ end )
             end
@@ -26,7 +26,9 @@
 
         # `~and`.
         let
-            conflicting = @pattern :( ~and(_x + 2, _x + 3) )
+            conflicting = @pattern begin
+                ~and(_x + 2, _x + 3)
+            end
             match_result = syntax_match(conflicting, parsestmt(SyntaxNode, "1 + 2"))
             @test match_result == MatchFail("no match")
         end
@@ -47,6 +49,14 @@
     @testset "General" begin
         # Invalid syntax.
         @test_throws "Invalid pattern variable name x" Pattern(:( x:::identifier ))
+        # @test_throws "Invalid `@pattern` syntax" @pattern quote x end
+        # @test_throws "Invalid `@pattern` syntax" @pattern quote
+        #     _x:::identifier
+        #     @fail _x.value == 2 "not two"
+        # end
+        # @test_throws "The first expression cannot be a fail condition" @pattern begin
+        #     @fail :true ""
+        # end
 
         # Pattern matching.
         binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _) )
@@ -76,7 +86,7 @@
             end
         end
         let
-            even = @pattern quote
+            even = @pattern begin
                 _x
                 @fail !iseven(_x.value) "not even"
             end

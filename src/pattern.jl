@@ -10,78 +10,76 @@ function Pattern(ex)
 end
 
 macro pattern(expr)
+    pattern_macro_err =
+        """
+        Invalid `@pattern` syntax:
+        ```
+        $(Meta.quot(expr))
+        ```
+
+        Patterns should be created in one of the following ways:
+
+        `@pattern <expr>`
+
+        or
+
+        ```
+        @pattern begin
+            <expr>
+            (@fail <condition> <message>)*
+        end
+        ```
+        """
+
     expr = MacroTools.striplines(expr)
+    @isexpr(expr, :quote, 1) && Meta.isexpr(expr.args[1], :block) &&
+        error(pattern_macro_err)
     # Here, `expr` is one of the following:
-    #   - `<atom>`                                -- e.g. `2`
-    #   - `:($(QuoteNode(<atom>)))`               -- e.g. `:( _x )`
-    #   - `:($(Expr(:quote, quote <expr>* end)))` -- syntax for patterns with fail
-    #                                                conditions
-    #   - `<expr>`                                -- other expressions such as
-    #                                                `~var(<var_name>, <syntax_class_name>)`
-    if @isexpr(expr, :quote)
-        expr = expr.args[1]
-    end
-    # Here, `expr` is one of the following:
-    #   - `<atom>`
-    #   - `:($(QuoteNode(<atom>)))`
-    #   - `quote <expr>* end`
-    #   - `<expr>`
+    #   - `<atom>`                   -- e.g. `2`
+    #   - `:($(QuoteNode(<atom>)))`  -- e.g. `:( _x )`
+    #   - `quote <expr>* end`        -- syntax for patterns with fail conditions
+    #   - `<expr>`                   -- other expressions such as
+    #                                   `~var(<var_name>, <syntax_class_name>)`
+
     pattern_expr =
-        isa(expr, QuoteNode) ? expr.value   :
+        @isexpr(expr, :quote) || @isexpr(expr, :block) ? expr.args[1] :
+        isa(expr, QuoteNode)                           ? expr.value   :
         expr
-    if @isexpr(expr, :block)
-        # Here, `expr` can only be `quote <expr>* end`.
-        pattern_expr = expr.args[1]
-    end
     # `pattern_expr` is one of the following:
     #   - <atom>  -- from either of the first two `expr` possibilities
     #   - <expr>  -- the first `<expr>` from the third `expr` possibility or
     #                the last `expr` possibility.
     fail_conditions = Function[]
-    if @isexpr(expr, :block) && length(expr.args) > 1
-        # The pattern has fail conditions. The user pattern syntax should be:
-        #   ```
-        #   @pattern quote
-        #       <pattern_expr>
-        #       @fail <condition> <msg>
-        #       (@fail <condition> <msg>)*
-        #   end
-        #   ```
+    if @isexpr(expr, :block)
+        length(expr.args) == 1 && is_fail_macro(expr.args[1]) &&
+            error("Invalid `@pattern` syntax.\n",
+                  "The first expression cannot be a fail condition.")
+        if length(expr.args) > 1
+            # The pattern has fail conditions. The user pattern syntax should be:
+            #   ```
+            #   @pattern begin
+            #       <pattern_expr>
+            #       @fail <condition> <msg>
+            #       (@fail <condition> <msg>)*
+            #   end
+            #   ```
 
-        # Turn `@fail` macros into `~fail` expressions.
-        fail_exprs = Expr[]
-        for fail_macro in expr.args[2:end]
-            is_fail_macro(fail_macro) ||
-                error("""
-                      Invalid `@pattern` syntax:
-                      ```
-                      $(Meta.quot(expr))
-                      ```
-
-                      Patterns should be created in one of the following ways:
-
-                      `@pattern <expr>`
-
-                      or
-
-                      ```
-                      @pattern quote
-                          <expr>
-                          (@fail <condition> <message>)*
-                      end
-                      ```
-                      """)
-            condition_expr = fail_macro.args[end-1]
-            message = fail_macro.args[end]
-            push!(fail_exprs, :( ~fail($condition_expr, $message) ))
-            # Add the fail condition functions to the pattern.
-            #
-            # TODO: This is really not necessary.
-            push!(fail_conditions, fail_condition(condition_expr))
+            # Turn `@fail` macros into `~fail` expressions.
+            fail_exprs = Expr[]
+            for fail_macro in expr.args[2:end]
+                is_fail_macro(fail_macro) || error(pattern_macro_err)
+                condition_expr = fail_macro.args[end-1]
+                message = fail_macro.args[end]
+                push!(fail_exprs, :( ~fail($condition_expr, $message) ))
+                # Add the fail condition functions to the pattern.
+                #
+                # TODO: This is really not necessary.
+                push!(fail_conditions, fail_condition(condition_expr))
+            end
+            # Create the pattern as an `~and` between the pattern expression and the
+            # fail conditions.
+            pattern_expr = :( ~and($pattern_expr, $(fail_exprs...)) )
         end
-        # Create the pattern as an `~and` between the pattern expression and the
-        # fail conditions.
-        pattern_expr = :( ~and($pattern_expr, $(fail_exprs...)) )
     end
     pattern_node = SyntaxPatternNode(pattern_expr)
     return :( Pattern($pattern_node, $fail_conditions) )

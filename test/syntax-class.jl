@@ -1,6 +1,6 @@
 @testset "Syntax classes" begin
-    fundef = @syntax_class "fundef" quote
-        @pattern quote
+    fundef = @syntax_class "fundef" begin
+        @pattern begin
             function (_f:::funcall)
                 _body
             end

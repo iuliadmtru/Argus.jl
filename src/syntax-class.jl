@@ -17,10 +17,10 @@ struct SyntaxClass
 end
 
 macro syntax_class(description, body)
-    @isexpr(body, :quote) ||
+    @isexpr(body, :block) ||
         error("Invalid syntax class syntax.\n",
-              "The syntax class body should be defined using a `quote ... end` block")
-    pattern_exprs = MacroTools.striplines(body).args[1].args
+              "The syntax class body should be defined using a `begin ... end` block")
+    pattern_exprs = MacroTools.striplines(body).args
     for expr in pattern_exprs
         # Each expression in a syntax class should evaluate to a `Pattern`:
         #   - `@pattern ...`
@@ -55,14 +55,14 @@ end
 function _register_syntax_classes()
     # `expr`: match any expression.
     register_syntax_class!(:expr,
-                           @syntax_class "expr" quote
+                           @syntax_class "expr" begin
                                @pattern :( ~fail(:false, "") )
                            end)
 
     # `identifier`: match an identifier.
     register_syntax_class!(:identifier,
-                           @syntax_class "identifier" quote
-                               @pattern quote
+                           @syntax_class "identifier" begin
+                               @pattern begin
                                    __id
                                    @fail begin
                                        using JuliaSyntax: is_identifier
@@ -73,14 +73,14 @@ function _register_syntax_classes()
 
     # `assign`: match an assignment.
     register_syntax_class!(:assign,
-                           @syntax_class "assignment" quote
+                           @syntax_class "assignment" begin
                                @pattern :( __lhs:::identifier = __rhs:::expr )
                            end)
 
     # TODO: Change to general function call after adding repetitions.
     # `funcall`: match a function call.
     register_syntax_class!(:funcall,
-                           @syntax_class "function call" quote
+                           @syntax_class "function call" begin
                                @pattern :( (__id:::identifier)() )
                            end)
 end
