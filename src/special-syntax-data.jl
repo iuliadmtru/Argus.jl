@@ -52,43 +52,7 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
     message::String
 
     FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
-    function FailSyntaxData(condition::Expr, msg::String)
-        pattern_variables = get_pattern_vars(condition)
-        cond_fun = function (binding_context)
-            # TODO: Leave the binding context as is.
-            # TODO: Import and use `BindingSet`.
-
-            # Create a smaller binding context containg only the bindings from `condition`.
-            condition_binding_context = Dict{Symbol, Any}()
-            for pattern_var_name in pattern_variables
-                condition_binding_context[pattern_var_name] =
-                    try
-                        binding_context[pattern_var_name]
-                    catch e
-                        if isa(e, KeyError)
-                            # TODO: Throw specific error type.
-                            error("Binding context does not contain a binding for ",
-                                  "$pattern_var_name.")
-                        else
-                            rethrow(e)
-                        end
-                    end
-            end
-            # Create an evaluation context with the condition binding context.
-            ConditionContext = Module()
-            for (var_name, binding) in condition_binding_context
-                Core.eval(ConditionContext, :($var_name = $binding))
-            end
-            # Evaluate the condition within the evaluation context.
-            result = Core.eval(ConditionContext, condition)
-            isa(result, Bool) ||
-                error("Fail condition evaluated to non-Boolean value: ",
-                      "$result (::$(typeof(result)))")
-            return result
-        end
-
-        return new(cond_fun, msg)
-    end
+    FailSyntaxData(cond::Expr, msg::String) = new(fail_condition(cond), msg)
 end
 
 """
@@ -160,3 +124,43 @@ Base.getproperty(data::OrSyntaxData, name::Symbol) =
 
 Base.getproperty(data::AndSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
+
+## Utils.
+
+function fail_condition(condition::Expr)
+    pattern_variables = get_pattern_vars(condition)
+    cond_fun = function (binding_context)
+        # TODO: Leave the binding context as is.
+        # TODO: Import and use `BindingSet`.
+
+        # Create a smaller binding context containg only the bindings from `condition`.
+        condition_binding_context = Dict{Symbol, Any}()
+        for pattern_var_name in pattern_variables
+            condition_binding_context[pattern_var_name] =
+                try
+                    binding_context[pattern_var_name]
+                catch e
+                    if isa(e, KeyError)
+                        # TODO: Throw specific error type.
+                        error("Binding context does not contain a binding for ",
+                              "$pattern_var_name.")
+                    else
+                        rethrow(e)
+                    end
+                end
+        end
+        # Create an evaluation context with the condition binding context.
+        ConditionContext = Module()
+        for (var_name, binding) in condition_binding_context
+            Core.eval(ConditionContext, :($var_name = $binding))
+        end
+        # Evaluate the condition within the evaluation context.
+        result = Core.eval(ConditionContext, condition)
+        isa(result, Bool) ||
+            error("Fail condition evaluated to non-Boolean value: ",
+                  "$result (::$(typeof(result)))")
+        return result
+    end
+
+    return cond_fun
+end

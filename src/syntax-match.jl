@@ -92,16 +92,16 @@ Try to match a `fail` pattern form. If the fail condition is satisfied, return a
 function syntax_match_fail(fail_node::SyntaxPatternNode,
                            src::JuliaSyntax.SyntaxNode,
                            bindings::BindingSet)::MatchResult
-    fail_condition = _get_fail_condition(fail_node)
-    fail_message = _get_fail_message(fail_node)
+    condition = _get_fail_condition(fail_node)
+    message = _get_fail_message(fail_node)
     # Evaluate the fail condition.
     fail = try
-        fail_condition(bindings)
+        condition(bindings)
     catch err
-        fail_message = sprint(showerror, err)
+        message = sprint(showerror, err)
         true
     end
-    return fail ? MatchFail(fail_message) : BindingSet()
+    return fail ? MatchFail(message) : BindingSet()
 end
 
 """
