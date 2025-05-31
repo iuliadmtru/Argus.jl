@@ -60,7 +60,7 @@
             SyntaxPatternNode(:( x:::identifier )),
             []
         )
-        @test_throws ParseError @macroexpand @pattern quote _x:::expr = 2 end
+        @test_throws ArgusSyntaxError @macroexpand @pattern quote _x:::expr = 2 end
         @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
            @fail _ex.value == 2 "is two"
         end

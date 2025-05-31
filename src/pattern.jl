@@ -3,42 +3,29 @@ struct Pattern
     fail_conditions::Vector{Function}
 end
 
-# TODO: More efficient and location-specific error handling.
 macro pattern(expr)
-    expr = MacroTools.striplines(expr)
-
-    # Error handling preparation.
-    code = string("@pattern ", expr)
-    ## Error messages.
+    # Error messages.
     err_msg_general =
         """
-        Invalid `@pattern` syntax
-
+        Invalid `@pattern` syntax.
         Patterns should be created in one of the following ways:
+         -- `@pattern <expr>`
 
-        `@pattern <expr>`
-
-        or
-
-        ```
-        @pattern begin
-            <expr>
-            (@fail <condition> <message>)*
-        end
-        ```
+         -- ```
+        |   @pattern begin
+        |       <expr>
+        |       (@fail <condition> <message>)*
+        |   end
+         -- ```
         """
     err_msg_fail_cond_first =
         """
-        Invalid `@pattern` syntax
-
+        Invalid `@pattern` syntax.
         The first expression cannot be a fail condition.
         """
-    ## Error first and last bytes.
-    first_byte = length("@pattern ") + 1
-    last_byte = length(code)
 
     @isexpr(expr, :quote, 1) && Meta.isexpr(expr.args[1], :block) &&
-        throw(_ParseError(code, first_byte, last_byte, err_msg_general))
+        throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
     # Here, `expr` is one of the following:
     #   - `<atom>`                   -- e.g. `2`
     #   - `:($(QuoteNode(<atom>)))`  -- e.g. `:( _x )`
@@ -47,7 +34,7 @@ macro pattern(expr)
     #                                   `~var(<var_name>, <syntax_class_name>)`
 
     pattern_expr =
-        @isexpr(expr, :quote) || @isexpr(expr, :block) ? expr.args[1] :
+        @isexpr(expr, :quote) || @isexpr(expr, :block) ? expr.args[2] :  # Skip `LineNumberNode`.
         isa(expr, QuoteNode)                           ? expr.value   :
         expr
     # `pattern_expr` is one of the following:
@@ -56,9 +43,12 @@ macro pattern(expr)
     #                the last `expr` possibility.
     fail_conditions = Function[]
     if @isexpr(expr, :block)
-        length(expr.args) == 1 && is_fail_macro(expr.args[1]) &&
-            throw(_ParseError(code, first_byte, last_byte, err_msg_fail_cond_first))
-        if length(expr.args) > 1
+        first_expr_line_number = expr.args[1]
+        length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
+            throw(ArgusSyntaxError(err_msg_fail_cond_first,
+                                   first_expr_line_number.file,
+                                   first_expr_line_number.line))
+        if length(expr.args) > 2
             # The pattern has fail conditions. The user pattern syntax should be:
             #   ```
             #   @pattern begin
@@ -69,12 +59,18 @@ macro pattern(expr)
             #   ```
 
             # Turn `@fail` macros into `~fail` expressions.
+            # Skip `LineNumberNode`s when iterating but include them in the error message.
             fail_exprs = Expr[]
-            for fail_macro in expr.args[2:end]
+            for (i, fail_macro) in zip(Iterators.countfrom(3, 2), expr.args[4:2:end])
+                # Only `@fail` conditions can appear from the second `@pattern` body
+                # expression onwards.
+                fail_macro_line_number = expr.args[i - 1]
                 is_fail_macro(fail_macro) ||
-                    throw(_ParseError(code, first_byte, last_byte, err_msg_general))
-                condition_expr = fail_macro.args[end-1]
-                message = fail_macro.args[end]
+                    throw(ArgusSyntaxError(err_msg_general,
+                                           fail_macro_line_number.file,
+                                           fail_macro_line_number.line))
+                condition_expr = fail_macro.args[3]
+                message = fail_macro.args[4]
                 push!(fail_exprs, :( ~fail($condition_expr, $message) ))
                 # Add the fail condition functions to the pattern.
                 #
@@ -92,7 +88,6 @@ end
 
 # Utils.
 
-# TODO: Why do macrocalls have 1 extra child?
 is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
 
 function cannot_eval_to_Pattern(ex)

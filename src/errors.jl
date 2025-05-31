@@ -1,5 +1,11 @@
-function _ParseError(code::String, first_byte::Int, last_byte::Int, msg::String)
-    source = JuliaSyntax.SourceFile(code)
-    diagnostic = JuliaSyntax.Diagnostic(first_byte, last_byte; error=msg)
-    return JuliaSyntax.ParseError(source, [diagnostic], :none)
+struct ArgusSyntaxError <: Exception
+    msg::String
+    file::Symbol
+    line::Int
+end
+
+function Base.showerror(io::IO, err::ArgusSyntaxError)
+    println(io, "ArgusSyntaxError:")
+    println(err.msg)
+    println("@ $(err.file):$(err.line)")
 end
