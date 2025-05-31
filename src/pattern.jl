@@ -3,13 +3,16 @@ struct Pattern
     fail_conditions::Vector{Function}
 end
 
+# TODO: More efficient and location-specific error handling.
 macro pattern(expr)
-    pattern_macro_err =
+    expr = MacroTools.striplines(expr)
+
+    # Error handling preparation.
+    code = string("@pattern ", expr)
+    ## Error messages.
+    err_msg_general =
         """
-        Invalid `@pattern` syntax:
-        ```
-        $(Meta.quot(expr))
-        ```
+        Invalid `@pattern` syntax
 
         Patterns should be created in one of the following ways:
 
@@ -24,10 +27,18 @@ macro pattern(expr)
         end
         ```
         """
+    err_msg_fail_cond_first =
+        """
+        Invalid `@pattern` syntax
 
-    expr = MacroTools.striplines(expr)
+        The first expression cannot be a fail condition.
+        """
+    ## Error first and last bytes.
+    first_byte = length("@pattern ") + 1
+    last_byte = length(code)
+
     @isexpr(expr, :quote, 1) && Meta.isexpr(expr.args[1], :block) &&
-        error(pattern_macro_err)
+        throw(_ParseError(code, first_byte, last_byte, err_msg_general))
     # Here, `expr` is one of the following:
     #   - `<atom>`                   -- e.g. `2`
     #   - `:($(QuoteNode(<atom>)))`  -- e.g. `:( _x )`
@@ -46,8 +57,7 @@ macro pattern(expr)
     fail_conditions = Function[]
     if @isexpr(expr, :block)
         length(expr.args) == 1 && is_fail_macro(expr.args[1]) &&
-            error("Invalid `@pattern` syntax.\n",
-                  "The first expression cannot be a fail condition.")
+            throw(_ParseError(code, first_byte, last_byte, err_msg_fail_cond_first))
         if length(expr.args) > 1
             # The pattern has fail conditions. The user pattern syntax should be:
             #   ```
@@ -61,7 +71,8 @@ macro pattern(expr)
             # Turn `@fail` macros into `~fail` expressions.
             fail_exprs = Expr[]
             for fail_macro in expr.args[2:end]
-                is_fail_macro(fail_macro) || error(pattern_macro_err)
+                is_fail_macro(fail_macro) ||
+                    throw(_ParseError(code, first_byte, last_byte, err_msg_general))
                 condition_expr = fail_macro.args[end-1]
                 message = fail_macro.args[end]
                 push!(fail_exprs, :( ~fail($condition_expr, $message) ))

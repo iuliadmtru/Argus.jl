@@ -1,7 +1,7 @@
 using Test
 using Argus
 using JuliaSyntax
-using JuliaSyntax: source_location, kind, @K_str, is_leaf
+using JuliaSyntax: source_location, kind, @K_str, is_leaf, ParseError
 
 include("pattern.jl")
 include("syntax-class.jl")

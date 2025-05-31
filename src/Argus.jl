@@ -6,6 +6,8 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
     children, is_leaf, is_identifier, source_location,
     @isexpr
 
+include("errors.jl")
+
 
 # Part 1: Syntax matching mechanism.
 

@@ -60,6 +60,14 @@
             SyntaxPatternNode(:( x:::identifier )),
             []
         )
+        @test_throws ParseError @macroexpand @pattern quote _x:::expr = 2 end
+        @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
+           @fail _ex.value == 2 "is two"
+        end
+        @test_throws "Patterns should be created" @macroexpand @pattern begin
+            ex1
+            ex2
+        end
 
         # Pattern matching.
         binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _) )
