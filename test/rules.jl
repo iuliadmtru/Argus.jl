@@ -1,12 +1,13 @@
 @testset "Rules" begin
+    p = @pattern begin
+        const _a:::identifier = _b:::identifier = _
+    end
     chained_const_assignment = @rule "chained-const-assignment" begin
         description = """
         Do not chain assignments with const. The right hand side is not constant here.
         """
 
-        pattern = :(
-            const _a:::identifier = _b:::identifier = _
-        )
+        pattern = p
     end
     ## Match.
     src = "f(a, b) = const a = b = 1 + 2"

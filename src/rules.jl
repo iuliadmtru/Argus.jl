@@ -7,59 +7,55 @@ struct Rule
     pattern::Pattern
 end
 
-Rule(name::String, description::String, pattern) =
-    Rule(name, description, Pattern(pattern))
-
-# TODO: Create pattern inside macro instead of returning as `Expr`.
 macro rule(name, ex)
+    err_invalid_arg_syntax(arg) =
+        """
+        Invalid rule argument syntax:
+        ```
+        $arg
+        ```
+        """
     # Remove line number nodes.
     rule = MacroTools.striplines(ex)
     # Check the rule syntax.
     @isexpr(rule, :block) ||
-        error("Invalid rule syntax:\n```\n$rule\n```\n",
-              "Rules should be defined inside `begin ... end`.")
-    length(rule.args) == 2 ||
-        error("Invalid rule syntax: $rule\n",
-              "Expected 2 arguments, got $(length(rule.args))")
-    # Get the first argument and see whether it's a description or a pattern argument.
-    #
-    # TODO: Remove duplicate code. Or don't allow pattern before description?
-    arg1 = rule.args[1]
-    @isexpr(arg1, :(=), 2) || error("Invalid rule argument syntax:\n$arg1")
-    arg1_name = arg1.args[1]
-    if arg1_name === :description
-        description = arg1.args[2]
-        isa(description, String) ||
-            error("Invalid description type in $description\n",
-                  "Expected String, got $(typeof(description))")
-        # Get the second argument, which should be the pattern.
-        pattern_node = rule.args[2]
-        @isexpr(pattern_node, :(=), 2) ||
-            error("Invalid rule argument syntax:\n$pattern_node")
-        pattern_node.args[1] === :description &&
-            error("Duplicate rule argument: description")
-        pattern_node.args[1] === :pattern ||
-            error("Invalid rule argument: $(pattern_node.args[1])")
-        pattern = pattern_node.args[2]
-    elseif arg1_name === :pattern
-        pattern = arg1.args[2]
-        # Get the second argument, which should be the description.
-        description_node = rule.args[2]
-        @isexpr(description_node, :(=), 2) ||
-            error("Invalid rule argument syntax:\n$description_node")
-        description_node.args[1] === :pattern &&
-            error("Duplicate rule argument: pattern")
-        description_node.args[1] === :description ||
-            error("Invalid rule argument: $(description_node.args[1])")
-        description = description_node.args[2]
-        isa(description, String) ||
-            error("Invalid description type in $description\n",
-                  "Expected String, got $(typeof(description))")
-    else
-        error("Invalid rule argument: $arg1_name")
-    end
+        error("""
+              Invalid rule syntax:
+              ```
+              $rule
+              ```
 
-    return :( Rule($name, $description, $pattern) )
+              Rules should be defined inside `begin ... end`.
+              """)
+    length(rule.args) == 2 ||
+        error("""
+              Invalid rule syntax:
+              ```
+              $rule
+              ```
+
+              Expected 2 arguments, got $(length(rule.args)).
+              """)
+    # Get the first argument, which should be the description.
+    arg1 = rule.args[1]
+    @isexpr(arg1, :(=), 2) || error(err_invalid_arg_syntax(arg1))
+    arg1_name = arg1.args[1]
+    arg1_name === :description ||
+        error("Invalid rule argument name: $arg1_name\n",
+              "The first argument of `@rule` should be `description`.")
+    description = arg1.args[2]
+    isa(description, String) ||
+        error("Invalid description type in $description\n",
+              "Expected String, got $(typeof(description))")
+    # Get the second argument, which should be the pattern.
+    arg2 = rule.args[2]
+    @isexpr(arg2, :(=), 2) || error(err_invalid_arg_syntax(arg2))
+    arg2.args[1] === :pattern ||
+        error("Invalid rule argument name: $(arg2.args[1])\n",
+              "The second argument of `@rule` should be `pattern`.")
+    pattern_expr = arg2.args[2]
+
+    return :( Rule($name, $description, $(esc(pattern_expr))) )
 end
 
 # Display.

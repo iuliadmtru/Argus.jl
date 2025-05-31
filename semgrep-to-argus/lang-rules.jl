@@ -7,9 +7,9 @@ lang_rules = RuleGroup("lang")
     Do not chain assignments with const. The right hand side is not constant here.
     """
 
-    pattern = :(
+    pattern = @pattern begin
         const _:::identifier = _:::identifier = _
-    )
+    end
 end
 
 @define_rule_in_group lang_rules "compare-nothing" begin
@@ -17,14 +17,14 @@ end
     Comparisons of `nothing` should be made with === or !== or with isnothing().
     """
 
-    pattern = :(
+    pattern = @pattern begin
         ~or(
             nothing == _,
             _ == nothing,
             nothing != _,
             _ != nothing
         )
-    )
+    end
 end
 
 
@@ -33,12 +33,12 @@ end
     Comparing the same object in the RHS and LHS is pointless.
     """
 
-    pattern = :(
+    pattern = @pattern begin
         ~or(
             _x == _x,
             _x != _x,
             _x === _x,
             _x !== _x
         )
-    )
+    end
 end
