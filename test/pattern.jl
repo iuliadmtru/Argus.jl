@@ -43,12 +43,12 @@
 
         # `~fail`.
         let
-            pattern = @pattern :( ~fail(_x, "") )
+            pattern = @pattern ~fail(_x, "")
             err = "Binding context does not contain a binding for _x."
             @test syntax_match(pattern, parsestmt(SyntaxNode, "dummy")) == MatchFail(err)
         end
         let
-            pattern = @pattern :( ~fail(:(x + 1), "") )
+            pattern = @pattern ~fail(:(x + 1), "")
             err = "Fail condition evaluated to non-Boolean value: x + 1 (::Expr)"
             @test syntax_match(pattern, parsestmt(SyntaxNode, "dummy")) == MatchFail(err)
         end
@@ -64,13 +64,13 @@
         @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
            @fail _ex.value == 2 "is two"
         end
-        @test_throws "Patterns should be created" @macroexpand @pattern begin
+        @test_throws "Only fail conditions" @macroexpand @pattern begin
             ex1
             ex2
         end
 
         # Pattern matching.
-        binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _) )
+        binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
         let
             ## Match.
             let
@@ -110,10 +110,10 @@
                 "because the bound expression is not a literal")
         end
         let
-            is_x = @pattern :(
+            is_x = @pattern begin
                 ~and((_f:::identifier)(),
                      ~fail(_f.__id.name != "x", "not x"))
-            )
+            end
             match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
             @test isa(match, BindingSet)
             fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))

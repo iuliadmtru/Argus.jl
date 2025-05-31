@@ -52,7 +52,7 @@ struct FailSyntaxData <: AbstractSpecialSyntaxData
     message::String
 
     FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
-    FailSyntaxData(cond::Expr, msg::String) = new(fail_condition(cond), msg)
+    FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
 end
 
 """
@@ -124,7 +124,7 @@ Base.getproperty(data::AndSyntaxData, name::Symbol) =
 
 ## Utils.
 
-function fail_condition(condition::Expr)
+function fail_condition(condition)
     pattern_variables = get_pattern_vars(condition)
     cond_fun = function (binding_context)
         # TODO: Leave the binding context as is.

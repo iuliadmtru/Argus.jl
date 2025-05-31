@@ -16,8 +16,8 @@
 
     let
         fundef = @syntax_class "function definition" begin
-            @pattern :( _f:::funcall = _ )
-            @pattern :( function (_g:::funcall) _ end )
+            @pattern _f:::funcall = _
+            @pattern function (_g:::funcall) _ end
         end
         match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
         @test isa(match_first, BindingSet)

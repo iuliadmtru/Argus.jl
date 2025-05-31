@@ -10,7 +10,6 @@ macro pattern(expr)
         Invalid `@pattern` syntax.
         Patterns should be created in one of the following ways:
          -- `@pattern <expr>`
-
          -- ```
         |   @pattern begin
         |       <expr>
@@ -18,13 +17,18 @@ macro pattern(expr)
         |   end
          -- ```
         """
-    err_msg_fail_cond_first =
+    err_msg_should_not_be_fail =
         """
         Invalid `@pattern` syntax.
         The first expression cannot be a fail condition.
         """
+    err_msg_should_be_fail =
+        """
+        Invalid `@pattern` syntax.
+        Only fail conditions can appear from the second `@pattern` body expression onwards.
+        """
 
-    @isexpr(expr, :quote, 1) && Meta.isexpr(expr.args[1], :block) &&
+    @isexpr(expr, :quote) &&
         throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
     # Here, `expr` is one of the following:
     #   - `<atom>`                   -- e.g. `2`
@@ -34,8 +38,7 @@ macro pattern(expr)
     #                                   `~var(<var_name>, <syntax_class_name>)`
 
     pattern_expr =
-        @isexpr(expr, :quote) || @isexpr(expr, :block) ? expr.args[2] :  # Skip `LineNumberNode`.
-        isa(expr, QuoteNode)                           ? expr.value   :
+        @isexpr(expr, :block) ? expr.args[2] :  # Skip `LineNumberNode`.
         expr
     # `pattern_expr` is one of the following:
     #   - <atom>  -- from either of the first two `expr` possibilities
@@ -45,7 +48,7 @@ macro pattern(expr)
     if @isexpr(expr, :block)
         first_expr_line_number = expr.args[1]
         length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
-            throw(ArgusSyntaxError(err_msg_fail_cond_first,
+            throw(ArgusSyntaxError(err_msg_should_not_be_fail,
                                    first_expr_line_number.file,
                                    first_expr_line_number.line))
         if length(expr.args) > 2
@@ -61,12 +64,13 @@ macro pattern(expr)
             # Turn `@fail` macros into `~fail` expressions.
             # Skip `LineNumberNode`s when iterating but include them in the error message.
             fail_exprs = Expr[]
-            for (i, fail_macro) in zip(Iterators.countfrom(3, 2), expr.args[4:2:end])
+            for (line_number_idx, fail_macro) in zip(Iterators.countfrom(3, 2),
+                                                     expr.args[4:2:end])
                 # Only `@fail` conditions can appear from the second `@pattern` body
                 # expression onwards.
-                fail_macro_line_number = expr.args[i - 1]
+                fail_macro_line_number = expr.args[line_number_idx]
                 is_fail_macro(fail_macro) ||
-                    throw(ArgusSyntaxError(err_msg_general,
+                    throw(ArgusSyntaxError(err_msg_should_be_fail,
                                            fail_macro_line_number.file,
                                            fail_macro_line_number.line))
                 condition_expr = fail_macro.args[3]
@@ -93,7 +97,7 @@ is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
 function cannot_eval_to_Pattern(ex)
     isa(ex, Symbol) && return false
     @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@pattern") && return false
-    @isexpr(ex, :call, 3) && ex.args[1] === :Pattern && return false
+    @isexpr(ex, :call) && ex.args[1] === :Pattern && return false
     return true
 end
 

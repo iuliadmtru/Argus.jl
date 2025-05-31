@@ -6,6 +6,6 @@ end
 
 function Base.showerror(io::IO, err::ArgusSyntaxError)
     println(io, "ArgusSyntaxError:")
-    println(err.msg)
-    println("@ $(err.file):$(err.line)")
+    println(io, err.msg)
+    println(io, "@ $(err.file):$(err.line)")
 end
