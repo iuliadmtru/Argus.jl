@@ -26,4 +26,16 @@
         @test isa(match_second, BindingSet)
         @test collect(keys(match_second)) == [:_g]
     end
+
+    # Invalid syntax.
+    @test_nowarn @macroexpand @syntax_class "abc" begin
+        @pattern 2
+        Pattern(SyntaxPatternNode(2), [])
+    end
+    @test_throws "body should be defined using a `begin" @macroexpand(
+        @syntax_class "" @pattern 2
+    )
+    @test_throws "should be `Pattern`" @macroexpand @syntax_class "" begin
+        2
+    end
 end

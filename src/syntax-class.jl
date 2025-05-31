@@ -17,21 +17,34 @@ struct SyntaxClass
 end
 
 macro syntax_class(description, body)
+    # Error messages.
+    err_msg_general =
+        """
+        Invalid `@syntax_class` syntax.
+        The `@syntax_class` body should be defined using a `begin ... end` block.
+        """
+    err_msg_body =
+        """
+        Invalid `@syntax_class` syntax.
+        All expressions in a `@syntax_class` body should be `Pattern`s.
+        """
+
     @isexpr(body, :block) ||
-        error("Invalid syntax class syntax.\n",
-              "The syntax class body should be defined using a `begin ... end` block")
-    pattern_exprs = MacroTools.striplines(body).args
-    for expr in pattern_exprs
+        throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
+    pattern_exprs = body.args
+    for (line_number_idx, expr) in zip(Iterators.countfrom(1, 2), pattern_exprs[2:2:end])
+        expr_line_number = pattern_exprs[line_number_idx]
         # Each expression in a syntax class should evaluate to a `Pattern`:
         #   - `@pattern ...`
         #   - `Pattern(...)`
         #   - `<variable>(::Pattern)`
-        #
-        # TODO: Expression and position information.
         cannot_eval_to_Pattern(expr) &&
-            error("Invalid syntax class syntax.\n",
-                  "All expressions in a syntax class should be `Pattern`s.")
+            throw(ArgusSyntaxError(err_msg_body,
+                                   expr_line_number.file,
+                                   expr_line_number.line))
     end
+    # Skip the `LineNumberNode`.
+    pattern_exprs = pattern_exprs[2:2:end]
 
     return :( SyntaxClass($description, [$(esc.(pattern_exprs)...)]) )
 end
@@ -56,7 +69,7 @@ function _register_syntax_classes()
     # `expr`: match any expression.
     register_syntax_class!(:expr,
                            @syntax_class "expr" begin
-                               @pattern :( ~fail(:false, "") )
+                               @pattern ~fail(:false, "")
                            end)
 
     # `identifier`: match an identifier.
@@ -74,13 +87,13 @@ function _register_syntax_classes()
     # `assign`: match an assignment.
     register_syntax_class!(:assign,
                            @syntax_class "assignment" begin
-                               @pattern :( __lhs:::identifier = __rhs:::expr )
+                               @pattern __lhs:::identifier = __rhs:::expr
                            end)
 
     # TODO: Change to general function call after adding repetitions.
     # `funcall`: match a function call.
     register_syntax_class!(:funcall,
                            @syntax_class "function call" begin
-                               @pattern :( (__id:::identifier)() )
+                               @pattern (__id:::identifier)()
                            end)
 end
