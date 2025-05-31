@@ -10,18 +10,20 @@
         end
 
         # `~or`.
-        # TODO: Move this to `test/syntax-class.jl`. Write an explicit `@pattern` test here.
         let
-            fundef = @syntax_class "function definition" begin
-                @pattern :( _f:::funcall = _ )
-                @pattern :( function (_g:::funcall) _ end )
+            pattern = @pattern begin
+                ~or(_x + 2,
+                    ~and(_, _y + 3))
             end
-            match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
+            match_first = syntax_match(pattern, parsestmt(SyntaxNode, "1 + 2"))
             @test isa(match_first, BindingSet)
-            @test collect(keys(match_first)) == [:_f]
-            match_second = syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
+            @test length(match_first) == 1
+            @test match_first[:_x].ast.val === 1
+            match_second = syntax_match(pattern, parsestmt(SyntaxNode, "a + 3"))
             @test isa(match_second, BindingSet)
-            @test collect(keys(match_second)) == [:_g]
+            @test length(match_second) == 1
+            @test match_second[:_y].ast.val === :a
+            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "2 + 1")), MatchFail)
         end
 
         # `~and`.
