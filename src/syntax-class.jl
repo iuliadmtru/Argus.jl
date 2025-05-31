@@ -6,7 +6,7 @@ Syntax classes provide the basis for a syntax matching mechanism. A `SyntaxClass
 specifies a syntactic "shape" and provides a description for that shape. For example,
 a syntax class corresponding to a binary function call could be defined as such:
 ```
-binary_funcall = @syntax_class "binary function call" quote
+binary_funcall = @syntax_class "binary function call" begin
     _(_, _)
 end
 ```

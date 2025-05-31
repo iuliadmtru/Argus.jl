@@ -1,12 +1,6 @@
-# TODO: Support for fail conditions.
 struct Pattern
     ast::SyntaxPatternNode
     fail_conditions::Vector{Function}
-end
-
-# TODO: Remove.
-function Pattern(ex)
-    return Pattern(SyntaxPatternNode(ex), Function[])
 end
 
 macro pattern(expr)

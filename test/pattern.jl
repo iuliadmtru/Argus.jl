@@ -4,9 +4,15 @@
     @testset "Pattern forms" begin
         # `~var`.
         let
-            @test_nowarn @pattern :( ~var(:_ex, :expr) )
-            @test_throws "Invalid pattern form argument `x` at (1, 7)" Pattern(:( ~var(x, :identifier) ))
-            @test_throws "Invalid pattern variable name x" Pattern(:( ~var(:x, :identifier) ))
+            @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:_ex, :expr) )), Function[])
+            @test_throws "Invalid pattern form argument `x` at (1, 7)" Pattern(
+                SyntaxPatternNode(:( ~var(x, :identifier) )),
+                Function[]
+            )
+            @test_throws "Invalid pattern variable name x" Pattern(
+                SyntaxPatternNode(:( ~var(:x, :identifier) )),
+                Function[]
+            )
         end
 
         # `~or`.
@@ -50,15 +56,10 @@
 
     @testset "General" begin
         # Invalid syntax.
-        @test_throws "Invalid pattern variable name x" Pattern(:( x:::identifier ))
-        # @test_throws "Invalid `@pattern` syntax" @pattern quote x end
-        # @test_throws "Invalid `@pattern` syntax" @pattern quote
-        #     _x:::identifier
-        #     @fail _x.value == 2 "not two"
-        # end
-        # @test_throws "The first expression cannot be a fail condition" @pattern begin
-        #     @fail :true ""
-        # end
+        @test_throws "Invalid pattern variable name x" Pattern(
+            SyntaxPatternNode(:( x:::identifier )),
+            []
+        )
 
         # Pattern matching.
         binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _) )
