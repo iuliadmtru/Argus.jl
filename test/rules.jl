@@ -54,23 +54,33 @@
         description = ""
         other = p
     end
-    
-    # Rule groups.
+end
+
+@testset "Rule groups" begin
     dir = "../semgrep-to-argus"
     include(joinpath(dir, "lang-rules.jl"))
-    ## Chained `const` assignment.
-    chained_const_assignment = lang_rules["chained-const-assignment"]
-    test_file = joinpath(dir, "chained-const-assignment.jl")
-    match_result = rule_match(chained_const_assignment, test_file)
-    @test length(match_result.matches) == 4
-    ## Compare `nothing`.
-    compare_nothing = lang_rules["compare-nothing"]
-    test_file = joinpath(dir, "compare-nothing.jl")
-    match_result = rule_match(compare_nothing, test_file)
-    @test length(match_result.matches) == 6
-    ## Useless `equals`.
-    useless_equals = lang_rules["useless-equals"]
-    test_file = joinpath(dir, "useless-equals.jl")
-    match_result = rule_match(useless_equals, test_file)
-    @test length(match_result.matches) == 4
+
+    # Chained `const` assignment.
+    let
+        chained_const_assignment = lang_rules["chained-const-assignment"]
+        test_file = joinpath(dir, "chained-const-assignment.jl")
+        match_result = rule_match(chained_const_assignment, test_file)
+        @test length(match_result.matches) == 4
+    end
+
+    # Compare `nothing`.
+    let
+        compare_nothing = lang_rules["compare-nothing"]
+        test_file = joinpath(dir, "compare-nothing.jl")
+        match_result = rule_match(compare_nothing, test_file)
+        @test length(match_result.matches) == 6
+    end
+
+    # Useless `equals`.
+    let
+        useless_equals = lang_rules["useless-equals"]
+        test_file = joinpath(dir, "useless-equals.jl")
+        match_result = rule_match(useless_equals, test_file)
+        @test length(match_result.matches) == 4
+    end
 end
