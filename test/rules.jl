@@ -9,19 +9,52 @@
 
         pattern = p
     end
-    ## Match.
-    src = "f(a, b) = const a = b = 1 + 2"
-    match_result = rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
-    @test isempty(match_result.failures)
-    @test length(match_result.matches) == 1
-    @test length(match_result.matches[1]) == 2
-    ## No match.
-    src = "const a = b"
-    match_result =
-        rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
-    @test length(match_result.failures) == 4
-    @test isempty(match_result.matches)
 
+    # Match.
+    let
+        src = "f(a, b) = const a = b = 1 + 2"
+        match_result = rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
+        @test isempty(match_result.failures)
+        @test length(match_result.matches) == 1
+        @test length(match_result.matches[1]) == 2
+    end
+
+    # No match.
+    let
+        src = "const a = b"
+        match_result =
+            rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
+        @test length(match_result.failures) == 4
+        @test isempty(match_result.matches)
+    end
+
+    # Invalid syntax.
+    @test_throws ArgusSyntaxError @macroexpand @rule "" quote
+        description = ""
+        pattern = p
+    end
+    @test_throws "Expected 2 arguments, got 3" @macroexpand @rule "" begin
+        description = ""
+        pattern = p
+        arg3 = "bla"
+    end
+    @test_throws "Invalid `@rule` argument syntax" @macroexpand @rule "" begin
+        description => ""
+        pattern = p
+    end
+    @test_throws "Invalid `@rule` argument syntax" @macroexpand @rule "" begin
+        description = ""
+        pattern(p)
+    end
+    @test_throws "should be `description`" @macroexpand @rule "" begin
+        other = ""
+        pattern = p
+    end
+    @test_throws "should be `pattern`" @macroexpand @rule "" begin
+        description = ""
+        other = p
+    end
+    
     # Rule groups.
     dir = "../semgrep-to-argus"
     include(joinpath(dir, "lang-rules.jl"))
