@@ -21,30 +21,30 @@ concepts:
   - Rules
 
 _Syntax patterns_ form the basis for syntax matching and closely
-resemble Julia code. For example, `@pattern :( x = 2 )` matches an
+resemble Julia code. For example, `@pattern x = 2` matches an
 assignment where the left-hand side is a variable named `x` and the
-right-hand side is the literal `2`. On the other hand, `@pattern :( _x
-= 2 )` matches any assignment or short-form function definition where
-the right-hand side is the literal `2`; the expression on the
-left-hand side is bound to the _pattern variable_ `_x`.
+right-hand side is the literal `2`. On the other hand, `@pattern _x =
+2` matches any assignment or short-form function definition where the
+right-hand side is the literal `2`; the expression on the left-hand
+side is bound to the _pattern variable_ `_x`.
 
 A _pattern variable_ is one of several special forms permitted within
 patterns. It can be seen as a "hole" that is filled by matching
-syntax. For example, when matching `@pattern :( _x = 2 )` against the
+syntax. For example, when matching `@pattern _x = 2` against the
 expression `f(a) = 2`, `_x` is bound to `f(a)`. The result of a
 pattern match is either a set of bindings corresponding to the syntax
 matched by each pattern variable, or an error explaining why the
 matching failed.
 
 A pattern variable can be constrained by a _syntax class_. In the
-example above, `@pattern :( _x = 2)` is equivalent to `@pattern :(
-_x:::expr = 2 )`, where `expr` is the syntax class that matches any
+example above, `@pattern _x = 2` is equivalent to `@pattern _x:::expr
+= 2`, where `expr` is the syntax class that matches any
 expression. Syntax classes are defined through patterns and can
 reference other syntax classes. For example, a syntax class matching
 any assignment may be defined as such:
 
 ```julia
-assign = @syntax_class "assignment" quote
+assign = @syntax_class "assignment" begin
     _lhs:::identifier = _rhs
 end
 ```
@@ -69,14 +69,14 @@ lang_rules = RuleGroup("lang")
     Comparisons to `nothing` should use ===, !== or isnothing().
     """
 
-    pattern = :(
+    pattern = @pattern begin
         ~or(
             nothing == _,
             _ == nothing,
             nothing != _,
             _ != nothing
         )
-    )
+    end
 end
 ```
 
@@ -98,7 +98,7 @@ Here is a pattern that matches binary function calls:
 ```julia
 julia> using Argus, JuliaSyntax
 
-julia> binary_funcall_pattern = @pattern :( (_f:::identifier)(_arg1, _arg2) )
+julia> binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _arg2)
 Pattern:
 [call]
   _f:::identifier                        :: ~var
@@ -152,26 +152,7 @@ Pattern construction fails if a pattern variable constraint if the
 `:::` "operator"[^1] is preceded by a non-pattern variable node (for
 example: `x:::identifier`).
 ```julia
-julia> @pattern :( _x::identifier )
-ERROR: Invalid constraint syntax: _x::identifier
-Pattern variable constraints should follow the syntax: <pattern_variable>:::<syntax_class>
-Stacktrace:
- [1] error(::String, ::String, ::String)
-   @ Base ./error.jl:54
- [2] _desugar_expr(ex::Expr; is_and_context::Bool, bindings::Vector{Symbol})
-   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:79
- [3] _desugar_expr
-   @ ~/.../Argus.jl/src/syntax-pattern-node.jl:78 [inlined]
- [4] desugar_expr
-   @ ~/.../Argus.jl/src/syntax-pattern-node.jl:75 [inlined]
- [5] SyntaxPatternNode(ex::Expr)
-   @ Argus ~/.../Argus.jl/src/syntax-pattern-node.jl:62
- [6] Pattern(ex::Expr)
-   @ Argus ~/.../Argus.jl/src/pattern.jl:8
- [7] top-level scope
-   @ REPL[42]:1
-
-julia> @pattern :( x:::identifier )
+julia> @pattern x:::identifier
 ERROR: Invalid pattern variable name x.
 Pattern variable names should start with _.
 Stacktrace:
@@ -202,8 +183,8 @@ TODO: Provide a more in-depth description myself...
 
 Here is a syntax class that matches an assignment:
 ```julia
-julia> assign =  @syntax_class "assignment" quote
-           __lhs:::identifier = __rhs:::expr
+julia> assign =  @syntax_class "assignment" begin
+           @pattern __lhs:::identifier = __rhs:::expr
        end
 SyntaxClass("assignment", Pattern[(= (~var (quote-: __lhs) (quote-: identifier)) (~var (quote-: __rhs) (quote-: expr)))])
 ```
@@ -212,8 +193,8 @@ This is one of the built-in syntax classes and it uses two other
 built-in syntax classes, `identifier` and `expr`. The most "primitive"
 syntax class is `expr`. It is defined as:
 ```julia
-@syntax_class "expr" quote
-    ~fail(:false, "")
+@syntax_class "expr" begin
+    @pattern ~fail(:false, "")
 end
 ```
 
@@ -231,13 +212,15 @@ is by modifying and extending Argus.
 The `identifier` syntax class is more interesing, because it has a
 more complex fail condition:
 ```julia
-@syntax_class "identifier" quote
-    ~and(__id,
-         ~fail(begin
-                   using JuliaSyntax: is_identifier
-                   !is_identifier(__id.ast)
-               end,
-               "not an identifier"))
+@syntax_class "identifier" begin
+    @pattern begin
+        ~and(__id,
+             ~fail(begin
+                       using JuliaSyntax: is_identifier
+                       !is_identifier(__id.ast)
+                   end,
+                   "not an identifier"))
+    end
 end
 ```
 
@@ -246,15 +229,15 @@ checks whether the bound AST is not an identifier using JuliaSyntax's
 `is_identifier` predicate. If the fail check succeeds, the match
 fails with the message "not an identifier".
 ```julia
-julia> syntax_match(Pattern(:( _x:::identifier )), parsestmt(SyntaxNode, "1 + 2"))
+julia> syntax_match((@pattern _x:::identifier), parsestmt(SyntaxNode, "1 + 2"))
 MatchFail("not an identifier")
 ```
 
 Syntax classes need to be registered in order to use them in
 patterns. This is done through `register_syntax_class!`:
 ```julia
-register_syntax_class!(:assign, @syntax_class "assignment" quote
-                           __lhs:::identifier = __rhs:::expr
+register_syntax_class!(:assign, @syntax_class "assignment" begin
+                           @pattern __lhs:::identifier = __rhs:::expr
                        end)
 ```
 
@@ -275,12 +258,12 @@ more details on pattern forms in general.
 Binds a pattern variable to a syntax class.
 
 ```julia
-julia> @pattern :( ~var(:_ex, :expr) )
+julia> @pattern ~var(:_ex, :expr)
 Pattern:
 _ex:::expr                               :: ~var
 
 
-julia> @pattern :( ~var(x, :identifier) )
+julia> @pattern ~var(x, :identifier)
 ERROR: Invalid pattern form argument `x` at (1, 7).
 `~var` pattern form arguments should be `Symbol`s.
 Stacktrace:
@@ -301,7 +284,7 @@ Stacktrace:
  [8] top-level scope
    @ REPL[40]:1
 
-julia> @pattern :( ~var(:x, :identifier) )
+julia> @pattern ~var(:x, :identifier)
 ERROR: Invalid pattern variable name x.
 Pattern variable names should start with _.
 Stacktrace:
@@ -328,8 +311,8 @@ Stacktrace:
 Short-circuits a match (success) at the first matching pattern alternative.
 
 ```julia
-julia> fundef = @syntax_class "function definition" quote
-           ~or(_f:::funcall = _, function (_g:::funcall) _ end)
+julia> fundef = @syntax_class "function definition" begin
+           @pattern ~or(_f:::funcall = _, function (_g:::funcall) _ end)
        end
 SyntaxClass("function definition", Pattern[(~or (function-= (~var (quote-: _f) (quote-: funcall)) (~var (quote-: _) (quote-: expr))) (function (~var (quote-: _g) (quote-: funcall)) (block (~var (quote-: _) (quote-: expr)))))])
 
@@ -358,7 +341,7 @@ branch. Pattern variables from a branch are bound in succeeding
 branches.
 
 ```julia
-julia> conflicting = @pattern :( ~and(_x + 2, _x + 3) )
+julia> conflicting = @pattern ~and(_x + 2, _x + 3)
 Pattern:
 [~and]
   [call-i]
@@ -383,14 +366,14 @@ Contains a fail condition and a message to be shown if the fail
 condition evaluates to `true`.
 
 ```julia
-julia> @pattern :(
-    ~and(__id,
-         ~fail(begin
-                   using JuliaSyntax: is_identifier
-                   !is_identifier(__id.ast)
-               end,
-               "not an identifier"))
-)
+julia> @pattern begin
+          ~and(__id,
+               ~fail(begin
+                         using JuliaSyntax: is_identifier
+                         !is_identifier(__id.ast)
+                     end,
+                     "not an identifier"))
+       end
 Pattern:
 [~and]
   __id:::expr                            :: ~var
@@ -417,7 +400,7 @@ references a pattern variable that was not previously bound or if the
 fail condition evaluates to a non-Boolean value.
 
 ```julia
-julia> pattern = @pattern :( ~fail(_x, "") )
+julia> pattern = @pattern ~fail(_x, "")
 Pattern:
 [~fail]
   _x:::expr                              :: ~var
@@ -459,7 +442,7 @@ Stacktrace:
  [7] top-level scope
    @ REPL[53]:1
 
-julia> pattern = @pattern :( ~fail(:(x + 1), "") )
+julia> pattern = @pattern ~fail(:(x + 1), "")
 Pattern:
 [~fail]
   [call-i]
@@ -488,6 +471,27 @@ Stacktrace:
    @ REPL[63]:1
 ```
 
+`~fail` pattern forms appear implicitly in pattern fail
+conditions. For example, the `identifier` syntax class can also be
+defined using the following syntax:
+```julia
+@syntax_class "identifier" begin
+    @pattern begin
+        __id
+        @fail begin
+            using JuliaSyntax: is_identifier
+            !is_identifier(__id.ast)
+        end "not an identifier"
+    end
+end
+```
+
+The first expression in a `@pattern` body is the pattern
+expression. The following expressions are pattern fail
+conditions. `@pattern begin <expr>; @fail <condition> <message>; end`
+is equivalent to `@pattern ~and(<expr>, ~fail(<condition>,
+<message>))`.
+
 The value of sub-bindings becomes clear when thinking of what could be
 expressed in a fail condition. It would be useful to be able to access
 the components bound within a pattern variable in order to do more
@@ -496,9 +500,10 @@ sophisticated checks.
 For example, in some cases in might be necessary to match an
 assignment where the right hand side satisfies some
 constraint. Allowing a syntax similar to the following would be
-desirable (and is in plan for the future):
+desirable (and is in plan for the future -- I am currently working on
+it):
 ```julia
-julia> @pattern :( ~and(_x:::assign, ~fail(!is_literal(_x.rhs), "rhs not a literal")) )
+julia> @pattern ~and(_x:::assign, ~fail(!is_literal(_x.rhs), "rhs not a literal"))
 Pattern:
 [~and]
   _x:::assign                            :: ~var
@@ -526,9 +531,9 @@ julia> chained_const_assignment = @rule "chained-const-assignment" begin
            Do not chain assignments with const. The right hand side is not constant here.
            """
 
-           pattern = :(
+           pattern = @pattern begin
                const _a:::identifier = _b:::identifier = _
-           )
+           end
        end
 chained-const-assignment: Do not chain assignments with const. The right hand side is not constant here.
 Pattern:
@@ -541,8 +546,7 @@ Pattern:
 
 
 julia> rule_match(chained_const_assignment, parsestmt(SyntaxNode, "f(a, b) = const a = b = 1 + 2"))
-1-element Vector{BindingSet}:
- BindingSet(:_a => Binding(:_a, a, BindingSet(:__id => Binding(:__id, a, BindingSet()))), :_b => Binding(:_b, b, BindingSet(:__id => Binding(:__id, b, BindingSet()))))
+RuleMatchResult(BindingSet[BindingSet(:_a => Binding(:_a, a, BindingSet(:__id => Binding(:__id, a, BindingSet()))), :_b => Binding(:_b, b, BindingSet(:__id => Binding(:__id, b, BindingSet()))))], MatchFail[])
 ```
 
 `rule_match` can either return the set of matches, like above, or it
@@ -550,7 +554,7 @@ can return both matches and failures.
 
 ```julia
 julia> rule_match(chained_const_assignment, parsestmt(SyntaxNode, "const a = b"); only_matches=false)
-Argus.RuleMatchResult(MatchFail[MatchFail("no match"), MatchFail("no match"), MatchFail("no match"), MatchFail("no match")], BindingSet[])
+RuleMatchResult(BindingSet[], MatchFail[MatchFail("no match"), MatchFail("no match"), MatchFail("no match"), MatchFail("no match")])
 ```
 
 There are four failures and no matches, accounting for four AST
@@ -568,14 +572,14 @@ julia> compare_nothing = @rule "compare-nothing" begin
            Comparisons of `nothing` should be made with === or !== or with isnothing().
            """
 
-           pattern = :(
+           pattern = @pattern begin
                ~or(
                    nothing == _,
                    _ == nothing,
                    nothing != _,
                    _ != nothing
 			   )
-           )
+           end
        end;
 
 julia> rule_match(compare_nothing, "semgrep-to-argus/compare-nothing.jl")
@@ -598,11 +602,11 @@ RuleGroup("style")
 
 julia> @define_rule_in_group style_rules "useless-bool" begin
            description = "Useless boolean in if condition."
-           pattern = :(
-           if true
-               _
+           pattern = @pattern begin
+               if true
+                   _
+               end
            end
-           )
        end
 useless-bool: Useless boolean in if condition.
 Pattern:
@@ -629,11 +633,10 @@ julia> test_src_no_match = """
        """;
 
 julia> rule_match(style_rules["useless-bool"], parsestmt(SyntaxNode, test_src_match))
-1-element Vector{BindingSet}:
- BindingSet()
+RuleMatchResult(BindingSet[BindingSet()], MatchFail[])
 
 julia> rule_match(style_rules["useless-bool"], parsestmt(SyntaxNode, test_src_no_match))
-BindingSet[]
+RuleMatchResult(BindingSet[], MatchFail[])
 ```
 
 These are examples of rules that exist in the
