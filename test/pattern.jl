@@ -4,11 +4,11 @@
         # `~var`.
         let
             @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:_ex, :expr) )), Function[])
-            @test_throws "Invalid pattern form argument `x`" Pattern(
+            @test_throws "invalid pattern form argument `x`" Pattern(
                 SyntaxPatternNode(:( ~var(x, :identifier) )),
                 Function[]
             )
-            @test_throws "Invalid pattern variable name x" Pattern(
+            @test_throws "invalid pattern variable name x" Pattern(
                 SyntaxPatternNode(:( ~var(:x, :identifier) )),
                 Function[]
             )
@@ -55,7 +55,7 @@
 
     @testset "General" begin
         # Invalid syntax.
-        @test_throws "Invalid pattern variable name x" Pattern(
+        @test_throws "invalid pattern variable name x" Pattern(
             SyntaxPatternNode(:( x:::identifier )),
             []
         )
@@ -71,7 +71,7 @@
         # Pattern matching.
         binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
         let
-            ## Match.
+            # Match.
             let
                 match_result =
                     syntax_match(binary_funcall_pattern,
@@ -80,14 +80,14 @@
                 # No binding for the anonymous pattern variable.
                 @test length(match_result) == 2
                 @test sort(collect(keys(match_result))) == [:_arg1, :_f]
-                ## TODO: Sort by order of appearance and add tests.
+                # TODO: Sort by order of appearance and add tests.
                 f_node = match_result[:_f].ast
                 @test isa(f_node, JuliaSyntax.SyntaxNode)
                 @test source_location(f_node) == (1, 1)
                 x_node = match_result[:_arg1].ast
                 @test source_location(x_node) == (1, 3)
             end
-            ## No match.
+            # No match.
             let
                 match_result =
                     syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x)"))

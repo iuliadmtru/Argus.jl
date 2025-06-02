@@ -10,54 +10,51 @@ end
 macro rule(name, ex)
     err_msg_general =
         """
-        Invalid `@rule` syntax.
+        invalid `@rule` syntax
         The `@rule` body should be defined using a `begin ... end` block.
         """
     err_msg_invalid_arg_syntax =
         """
-        Invalid `@rule` argument syntax.
+        invalid `@rule` argument syntax
         """
     # Check the rule syntax.
     @isexpr(ex, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     length(ex.args) == 4 ||
         throw(SyntaxError("""
-                               Invalid `@rule` syntax.
-                               Expected 2 arguments, got $(length(ex.args)/2).
-                               """,
-                               __source__.file,
-                               __source__.line))
+                          invalid `@rule` syntax
+                          Expected 2 arguments, got $(length(ex.args)/2).""",
+                          __source__.file,
+                          __source__.line))
     # Get the first argument, which should be the description.
     line_number_arg1 = ex.args[1]
     arg1 = MacroTools.striplines(ex.args[2])
     @isexpr(arg1, :(=), 2) ||
         throw(SyntaxError(err_msg_invalid_arg_syntax,
-                               line_number_arg1.file,
-                               line_number_arg1.line))
+                          line_number_arg1.file,
+                          line_number_arg1.line))
     arg1_name = arg1.args[1]
     arg1_name === :description ||
         throw(SyntaxError("""
-                               Invalid rule argument name: $arg1_name.
-                               The first argument of `@rule` should be `description`.
-                               """,
-                               line_number_arg1.file,
-                               line_number_arg1.line))
+                          invalid rule argument name: $arg1_name
+                          The first argument of `@rule` should be `description`.""",
+                          line_number_arg1.file,
+                          line_number_arg1.line))
     description = arg1.args[2]
     # Get the second argument, which should be the pattern.
     line_number_arg2 = ex.args[3]
     arg2 = ex.args[4]
     @isexpr(arg2, :(=), 2) ||
         throw(SyntaxError(err_msg_invalid_arg_syntax,
-                               line_number_arg2.file,
-                               line_number_arg2.line))
+                          line_number_arg2.file,
+                          line_number_arg2.line))
     arg2_name = arg2.args[1]
     arg2_name === :pattern ||
         throw(SyntaxError("""
-                               Invalid rule argument name: $arg2_name.
-                               The second argument of `@rule` should be `pattern`.
-                               """,
-                               line_number_arg2.file,
-                               line_number_arg2.line))
+                          invalid rule argument name: $arg2_name
+                          The second argument of `@rule` should be `pattern`.""",
+                          line_number_arg2.file,
+                          line_number_arg2.line))
     pattern_expr = arg2.args[2]
 
     return :( Rule($name, $description, $(esc(pattern_expr))) )

@@ -7,7 +7,7 @@ macro pattern(expr)
     # Error messages.
     err_msg_general =
         """
-        Invalid `@pattern` syntax.
+        invalid `@pattern` syntax
         Patterns should be created in one of the following ways:
          -- `@pattern <expr>`
          -- ```
@@ -15,18 +15,15 @@ macro pattern(expr)
         |       <expr>
         |       (@fail <condition> <message>)*
         |   end
-         -- ```
-        """
+         -- ```"""
     err_msg_should_not_be_fail =
         """
-        Invalid `@pattern` syntax.
-        The first expression cannot be a fail condition.
-        """
+        invalid `@pattern` syntax
+        The first expression cannot be a fail condition."""
     err_msg_should_be_fail =
         """
-        Invalid `@pattern` syntax.
-        Only fail conditions can appear from the second `@pattern` body expression onwards.
-        """
+        invalid `@pattern` syntax
+        Only fail conditions can appear from the second body expression onwards."""
 
     @isexpr(expr, :quote) &&
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))

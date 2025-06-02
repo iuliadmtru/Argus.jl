@@ -20,14 +20,12 @@ macro syntax_class(description, body)
     # Error messages.
     err_msg_general =
         """
-        Invalid `@syntax_class` syntax.
-        The `@syntax_class` body should be defined using a `begin ... end` block.
-        """
+        invalid `@syntax_class` syntax
+        The `@syntax_class` body should be defined using a `begin ... end` block."""
     err_msg_body =
         """
-        Invalid `@syntax_class` syntax.
-        All expressions in a `@syntax_class` body should be `Pattern`s.
-        """
+        invalid `@syntax_class` syntax
+        All expressions in a `@syntax_class` body should be `Pattern`s."""
 
     @isexpr(body, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))

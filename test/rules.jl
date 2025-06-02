@@ -38,11 +38,11 @@
         pattern = p
         arg3 = "bla"
     end
-    @test_throws "Invalid `@rule` argument syntax" @macroexpand @rule "" begin
+    @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
         description => ""
         pattern = p
     end
-    @test_throws "Invalid `@rule` argument syntax" @macroexpand @rule "" begin
+    @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
         description = ""
         pattern(p)
     end

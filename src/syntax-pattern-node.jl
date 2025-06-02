@@ -392,7 +392,7 @@ function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
         cs = children(c)
         is_symbol_node(c) ||
             throw(SyntaxError("""
-                              Invalid pattern form argument `$c`.
+                              invalid pattern form argument `$c`
                               `~var` pattern form arguments should be `Symbol`s."""))
         push!(arg_names, c.children[1].val)
     end
