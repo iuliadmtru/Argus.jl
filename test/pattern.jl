@@ -1,11 +1,10 @@
 @testset "Pattern" begin
 
-    # TODO: Make `@test_throws` tests robust (probably after implementing error types).
     @testset "Pattern forms" begin
         # `~var`.
         let
             @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:_ex, :expr) )), Function[])
-            @test_throws "Invalid pattern form argument `x` at (1, 7)" Pattern(
+            @test_throws "Invalid pattern form argument `x`" Pattern(
                 SyntaxPatternNode(:( ~var(x, :identifier) )),
                 Function[]
             )

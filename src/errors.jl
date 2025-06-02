@@ -1,13 +1,15 @@
 struct SyntaxError <: Exception
     msg::String
-    file::Symbol
-    line::Int
+    file::Union{Nothing, Symbol, String}
+    line::Union{Nothing, Int}
 end
+SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing)
 
 function Base.showerror(io::IO, err::SyntaxError)
     println(io, "ArgusSyntaxError:")
     println(io, err.msg)
-    println(io, "@ $(err.file):$(err.line)")
+    isnothing(err.file) && return
+    println(io, "@ $(err.file):(err.line)")
 end
 
 struct BindingSetKeyError <: Exception
