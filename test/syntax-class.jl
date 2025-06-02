@@ -30,7 +30,7 @@
     # Invalid syntax.
     @test_nowarn @macroexpand @syntax_class "abc" begin
         @pattern 2
-        Pattern(SyntaxPatternNode(2), [])
+        Pattern(SyntaxPatternNode(2))
     end
     @test_throws "body should be defined using a `begin" @macroexpand(
         @syntax_class "" @pattern 2

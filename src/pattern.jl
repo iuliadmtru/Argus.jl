@@ -1,6 +1,5 @@
 struct Pattern
     ast::SyntaxPatternNode
-    fail_conditions::Vector{Function}
 end
 
 macro pattern(expr)
@@ -41,7 +40,6 @@ macro pattern(expr)
     #   - <atom>  -- from either of the first two `expr` possibilities
     #   - <expr>  -- the first `<expr>` from the third `expr` possibility or
     #                the last `expr` possibility.
-    fail_conditions = Function[]
     if @isexpr(expr, :block)
         first_expr_line_number = expr.args[1]
         length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
@@ -73,10 +71,6 @@ macro pattern(expr)
                 condition_expr = fail_macro.args[3]
                 message = fail_macro.args[4]
                 push!(fail_exprs, :( ~fail($condition_expr, $message) ))
-                # Add the fail condition functions to the pattern.
-                #
-                # TODO: This is really not necessary.
-                push!(fail_conditions, fail_condition(condition_expr))
             end
             # Create the pattern as an `~and` between the pattern expression and the
             # fail conditions.
@@ -84,7 +78,7 @@ macro pattern(expr)
         end
     end
     pattern_node = SyntaxPatternNode(pattern_expr)
-    return :( Pattern($pattern_node, $fail_conditions) )
+    return :( Pattern($pattern_node) )
 end
 
 # Utils.

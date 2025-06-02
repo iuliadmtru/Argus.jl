@@ -6,23 +6,10 @@ MatchFail() = MatchFail("no match")
 
 const MatchResult = Union{MatchFail, BindingSet}
 
-"""
-    check(fail_conditions::Vector{Function}, match_result)
-
-If the fail conditions are satisfied or if `match_result` is a `MatchFail` return a
-corresponding `MatchFail`. Otherwise, return `match_result::BindingSet`.
-"""
-function check(fail_conditions::Vector{Function}, bindings::BindingSet)::MatchResult
-    # TODO.
-    return bindings
-end
-check(::Vector{Function}, failure::MatchFail)::MatchFail = failure
-
 function syntax_match(pattern::Pattern,
                       src::JuliaSyntax.SyntaxNode,
                       bindings::BindingSet = BindingSet())::MatchResult
-    bindings = syntax_match(pattern.ast, src, bindings)
-    return check(pattern.fail_conditions, bindings)
+    return syntax_match(pattern.ast, src, bindings)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JuliaSyntax.SyntaxNode,

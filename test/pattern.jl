@@ -3,14 +3,12 @@
     @testset "Pattern forms" begin
         # `~var`.
         let
-            @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:_ex, :expr) )), Function[])
+            @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:_ex, :expr) )))
             @test_throws "invalid pattern form argument `x`" Pattern(
-                SyntaxPatternNode(:( ~var(x, :identifier) )),
-                Function[]
+                SyntaxPatternNode(:( ~var(x, :identifier) ))
             )
             @test_throws "invalid pattern variable name x" Pattern(
-                SyntaxPatternNode(:( ~var(:x, :identifier) )),
-                Function[]
+                SyntaxPatternNode(:( ~var(:x, :identifier) ))
             )
         end
 
@@ -63,8 +61,7 @@
     @testset "General" begin
         # Invalid syntax.
         @test_throws "invalid pattern variable name x" Pattern(
-            SyntaxPatternNode(:( x:::identifier )),
-            []
+            SyntaxPatternNode(:( x:::identifier ))
         )
         @test_throws SyntaxError @macroexpand @pattern quote _x:::expr = 2 end
         @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
