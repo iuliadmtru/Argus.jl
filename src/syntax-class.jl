@@ -30,7 +30,7 @@ macro syntax_class(description, body)
         """
 
     @isexpr(body, :block) ||
-        throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
+        throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     pattern_exprs = body.args
     for (line_number_idx, expr) in zip(Iterators.countfrom(1, 2), pattern_exprs[2:2:end])
         expr_line_number = pattern_exprs[line_number_idx]
@@ -39,7 +39,7 @@ macro syntax_class(description, body)
         #   - `Pattern(...)`
         #   - `<variable>(::Pattern)`
         cannot_eval_to_Pattern(expr) &&
-            throw(ArgusSyntaxError(err_msg_body,
+            throw(SyntaxError(err_msg_body,
                                    expr_line_number.file,
                                    expr_line_number.line))
     end

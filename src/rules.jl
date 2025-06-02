@@ -19,9 +19,9 @@ macro rule(name, ex)
         """
     # Check the rule syntax.
     @isexpr(ex, :block) ||
-        throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
+        throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     length(ex.args) == 4 ||
-        throw(ArgusSyntaxError("""
+        throw(SyntaxError("""
                                Invalid `@rule` syntax.
                                Expected 2 arguments, got $(length(ex.args)/2).
                                """,
@@ -31,12 +31,12 @@ macro rule(name, ex)
     line_number_arg1 = ex.args[1]
     arg1 = MacroTools.striplines(ex.args[2])
     @isexpr(arg1, :(=), 2) ||
-        throw(ArgusSyntaxError(err_msg_invalid_arg_syntax,
+        throw(SyntaxError(err_msg_invalid_arg_syntax,
                                line_number_arg1.file,
                                line_number_arg1.line))
     arg1_name = arg1.args[1]
     arg1_name === :description ||
-        throw(ArgusSyntaxError("""
+        throw(SyntaxError("""
                                Invalid rule argument name: $arg1_name.
                                The first argument of `@rule` should be `description`.
                                """,
@@ -47,12 +47,12 @@ macro rule(name, ex)
     line_number_arg2 = ex.args[3]
     arg2 = ex.args[4]
     @isexpr(arg2, :(=), 2) ||
-        throw(ArgusSyntaxError(err_msg_invalid_arg_syntax,
+        throw(SyntaxError(err_msg_invalid_arg_syntax,
                                line_number_arg2.file,
                                line_number_arg2.line))
     arg2_name = arg2.args[1]
     arg2_name === :pattern ||
-        throw(ArgusSyntaxError("""
+        throw(SyntaxError("""
                                Invalid rule argument name: $arg2_name.
                                The second argument of `@rule` should be `pattern`.
                                """,

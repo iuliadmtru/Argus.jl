@@ -29,7 +29,7 @@
     end
 
     # Invalid syntax.
-    @test_throws ArgusSyntaxError @macroexpand @rule "" quote
+    @test_throws SyntaxError @macroexpand @rule "" quote
         description = ""
         pattern = p
     end

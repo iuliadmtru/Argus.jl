@@ -29,7 +29,7 @@ macro pattern(expr)
         """
 
     @isexpr(expr, :quote) &&
-        throw(ArgusSyntaxError(err_msg_general, __source__.file, __source__.line))
+        throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     # Here, `expr` is one of the following:
     #   - `<atom>`                   -- e.g. `2`
     #   - `:($(QuoteNode(<atom>)))`  -- e.g. `:( _x )`
@@ -48,7 +48,7 @@ macro pattern(expr)
     if @isexpr(expr, :block)
         first_expr_line_number = expr.args[1]
         length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
-            throw(ArgusSyntaxError(err_msg_should_not_be_fail,
+            throw(SyntaxError(err_msg_should_not_be_fail,
                                    first_expr_line_number.file,
                                    first_expr_line_number.line))
         if length(expr.args) > 2
@@ -70,7 +70,7 @@ macro pattern(expr)
                 # expression onwards.
                 fail_macro_line_number = expr.args[line_number_idx]
                 is_fail_macro(fail_macro) ||
-                    throw(ArgusSyntaxError(err_msg_should_be_fail,
+                    throw(SyntaxError(err_msg_should_be_fail,
                                            fail_macro_line_number.file,
                                            fail_macro_line_number.line))
                 condition_expr = fail_macro.args[3]

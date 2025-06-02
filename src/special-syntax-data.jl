@@ -136,13 +136,11 @@ function fail_condition(condition)
             condition_binding_context[pattern_var_name] =
                 try
                     binding_context[pattern_var_name]
-                catch e
-                    if isa(e, KeyError)
-                        # TODO: Throw specific error type.
-                        error("Binding context does not contain a binding for ",
-                              "$pattern_var_name.")
+                catch err
+                    if isa(err, KeyError)
+                        throw(BindingSetKeyError(pattern_var_name))
                     else
-                        rethrow(e)
+                        rethrow(err)
                     end
                 end
         end
@@ -154,8 +152,7 @@ function fail_condition(condition)
         # Evaluate the condition within the evaluation context.
         result = Core.eval(ConditionContext, condition)
         isa(result, Bool) ||
-            error("Fail condition evaluated to non-Boolean value: ",
-                  "$result (::$(typeof(result)))")
+            throw(MatchError(result))
         return result
     end
 

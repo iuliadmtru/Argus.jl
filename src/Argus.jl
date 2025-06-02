@@ -9,7 +9,7 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
 
 # Part 0: Errors.
 
-export ArgusSyntaxError
+export SyntaxError, BindingSetKeyError, MatchError
 
 include("errors.jl")
 

@@ -44,13 +44,13 @@
         # `~fail`.
         let
             pattern = @pattern ~fail(_x, "")
-            err = "Binding context does not contain a binding for _x."
-            @test syntax_match(pattern, parsestmt(SyntaxNode, "dummy")) == MatchFail(err)
+            @test_throws BindingSetKeyError syntax_match(pattern,
+                                                         parsestmt(SyntaxNode, "dummy"))
         end
         let
             pattern = @pattern ~fail(:(x + 1), "")
-            err = "Fail condition evaluated to non-Boolean value: x + 1 (::Expr)"
-            @test syntax_match(pattern, parsestmt(SyntaxNode, "dummy")) == MatchFail(err)
+            @test_throws MatchError syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "dummy"))
         end
     end
 
@@ -60,7 +60,7 @@
             SyntaxPatternNode(:( x:::identifier )),
             []
         )
-        @test_throws ArgusSyntaxError @macroexpand @pattern quote _x:::expr = 2 end
+        @test_throws SyntaxError @macroexpand @pattern quote _x:::expr = 2 end
         @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
            @fail _ex.value == 2 "is two"
         end

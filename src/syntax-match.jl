@@ -98,8 +98,12 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
     fail = try
         condition(bindings)
     catch err
-        message = sprint(showerror, err)
-        true
+        if isa(err, BindingSetKeyError) || isa(err, MatchError)
+            rethrow(err)
+        else
+            message = sprint(showerror, err)
+            true
+        end
     end
     return fail ? MatchFail(message) : BindingSet()
 end
