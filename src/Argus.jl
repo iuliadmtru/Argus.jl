@@ -7,17 +7,11 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
     @isexpr
 
 
-# Part 0: Errors.
-
-export SyntaxError, BindingSetKeyError, MatchError
-
-include("errors.jl")
-
 # Part 1: Syntax matching mechanism.
 
-export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class
+export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class, SyntaxError
 export register_syntax_class!
-export Binding, BindingSet, MatchFail
+export Binding, BindingSet, BindingFieldError, BindingSetKeyError, MatchFail, MatchError
 export syntax_match
 
 include("syntax-pattern-node.jl")
