@@ -7,22 +7,20 @@ MatchFail() = MatchFail("no match")
 const MatchResult = Union{MatchFail, BindingSet}
 
 function syntax_match(pattern::Pattern,
-                      src::JuliaSyntax.SyntaxNode,
-                      bindings::BindingSet = BindingSet())::MatchResult
-    return syntax_match(pattern.ast, src, bindings)
+                      src::JuliaSyntax.SyntaxNode)::MatchResult
+    return syntax_match(pattern.ast, src)
 end
 function syntax_match(syntax_class::SyntaxClass,
-                      src::JuliaSyntax.SyntaxNode,
-                      bindings::BindingSet = BindingSet())::MatchResult
+                      src::JuliaSyntax.SyntaxNode)::MatchResult
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
-        match_result = syntax_match(pattern, src, bindings)
+        match_result = syntax_match(pattern, src)
         # Return the first successful match.
         isa(match_result, BindingSet) && return match_result
         # TODO: Track the failures and return the most relevant one.
         failure = match_result
     end
-    # If neither of the pattern alternatives matched, `src` does not match the syntax_class.
+    # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
     return failure
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
@@ -32,25 +30,21 @@ function syntax_match(pattern_node::SyntaxPatternNode,
     is_pattern_form(pattern_node) &&
         return syntax_match_pattern_form(pattern_node, src, bindings)
     # Regular syntax.
-    # TODO: Replace `success` with just `bindings`?
-    success = bindings
     head(pattern_node) != head(src) && return MatchFail()
     pattern_node.data.val != src.data.val && return MatchFail()
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.
-    is_leaf(src) && return success
+    is_leaf(src) && return bindings
     length(children(pattern_node)) != length(children(src)) && return MatchFail()
     zipped_children = zip(children(pattern_node), children(src))
     for c_pair in zipped_children
-        match_result = syntax_match(c_pair[1], c_pair[2], success)
-        if isa(match_result, MatchFail)
-            return match_result
-        end
-        # TODO: Don't mutate the result here. Only mutate for `var` form.
-        #       `bindings = match_result`
-        merge!(success, match_result)
+        match_result = syntax_match(c_pair[1], c_pair[2], bindings)
+        # If the match failed, return the corresponding failure. Otherwise, update the
+        # bindings (`~var` pattern forms may have added bindings to the binding set).
+        isa(match_result, MatchFail) && return match_result
+        bindings = match_result
     end
-    return success
+    return bindings
 end
 
 # --------------------------------------------
@@ -63,12 +57,13 @@ match function.
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JuliaSyntax.SyntaxNode,
                                    bindings::BindingSet)::MatchResult
-    nodes = (pattern_node, src)
-    isa(pattern_node.data, FailSyntaxData) && return syntax_match_fail(nodes...,
-                                                                       bindings)
-    isa(pattern_node.data, VarSyntaxData) && return syntax_match_var(nodes...)
-    isa(pattern_node.data, OrSyntaxData) && return syntax_match_or(nodes...)
-    isa(pattern_node.data, AndSyntaxData) && return syntax_match_and(nodes...)
+    args = (pattern_node, src, bindings)
+    node_data = pattern_node.data
+    # Dispatch on form type.
+    isa(node_data, FailSyntaxData) && return syntax_match_fail(args...)
+    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...)
+    isa(node_data, OrSyntaxData)   && return syntax_match_or(pattern_node, src)
+    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...)
     return MatchFail("unknown pattern form")
 end
 
@@ -92,14 +87,15 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
             rethrow(err)
         end
     end
-    return fail ? MatchFail(message) : BindingSet()
+    return fail ? MatchFail(message) : bindings
 end
 
 """
 Try to match a `var` pattern form. If there's a match, bind the pattern variable.
 """
 function syntax_match_var(var_node::SyntaxPatternNode,
-                          src::JuliaSyntax.SyntaxNode)::MatchResult
+                          src::JuliaSyntax.SyntaxNode,
+                          bindings::BindingSet)::MatchResult
     pattern_var_name = var_node.data.id
     syntax_class_name = var_node.data.syntax_class_name
     syntax_class =
@@ -112,18 +108,16 @@ function syntax_match_var(var_node::SyntaxPatternNode,
                 rethrow(e)
             end
         end
-    # @info "syntax class" syntax_class
     # Try to match the pattern syntax class to the AST.
     match_result = syntax_match(syntax_class, src)
     isa(match_result, MatchFail) && return match_result
     # If there's a match and the pattern variable is not anonymous, bind the pattern
-    # variable and return the binding as a `BindingSet`.
-    is_anonymous_pattern_variable(pattern_var_name) &&
-        return BindingSet()
-    binding = Binding(pattern_var_name, src, match_result)
+    # variable and add it to the `BindingSet`.
+    is_anonymous_pattern_variable(pattern_var_name) && return bindings
     # TODO: Check for already existing binding. The new binding must be "compatible" with
     #       the old one.
-    return BindingSet(pattern_var_name => binding)
+    bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result)
+    return bindings
 end
 
 """
@@ -134,7 +128,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          src::JuliaSyntax.SyntaxNode)::MatchResult
     failure = MatchFail("no matching alternative")
     for p in children(or_node)
-        match_result = syntax_match(p, src)
+        match_result = syntax_match(p, src, BindingSet())
         isa(match_result, BindingSet) && return match_result
         failure = match_result
     end
@@ -147,12 +141,12 @@ Try to match an `and` pattern form. Return the bindings resulted from all branch
 the `MatchFail` of the first failing branch.
 """
 function syntax_match_and(and_node::SyntaxPatternNode,
-                          src::JuliaSyntax.SyntaxNode)::MatchResult
-    bindings = BindingSet()
+                          src::JuliaSyntax.SyntaxNode,
+                          bindings::BindingSet)::MatchResult
     for p in children(and_node)
         match_result = syntax_match(p, src, bindings)
         isa(match_result, MatchFail) && return match_result
-        merge!(bindings, match_result)
+        bindings = match_result
     end
     return bindings
 end
