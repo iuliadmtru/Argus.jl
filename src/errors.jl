@@ -6,19 +6,10 @@ end
 SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing)
 
 function Base.showerror(io::IO, err::SyntaxError)
-    println(io, "ArgusSyntaxError:")
+    print(io, "SyntaxError: ")
     println(io, err.msg)
     isnothing(err.file) && return
-    println(io, "@ $(err.file):(err.line)")
-end
-
-struct BindingSetKeyError <: Exception
-    key
-end
-
-function Base.showerror(io::IO, err::BindingSetKeyError)
-    print(io, "BindingSetKeyError: ")
-    println(io, "binding ", err.key, " not found")
+    println(io, "@ $(err.file):$(err.line)")
 end
 
 struct MatchError <: Exception

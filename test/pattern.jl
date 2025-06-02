@@ -68,6 +68,44 @@
             ex2
         end
 
+        # Bindings fields access.
+        let
+            pattern = @pattern begin
+                _x
+                @fail _x.name == "a" "is a"
+            end
+            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "b")), BindingSet)
+            @test syntax_match(pattern, parsestmt(SyntaxNode, "a")) == MatchFail("is a")
+            field_err_literal = syntax_match(pattern, parsestmt(SyntaxNode, "2"))
+            @test isa(field_err_literal, MatchFail)
+            @test field_err_literal.message ==
+                """
+                BindingFieldError: binding _x has no field `name` because the bound expression is not an identifier.
+                Available fields: `bname`, `ast`, `bindings`, `value`
+                """
+            field_err_expr = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
+            @test isa(field_err_literal, MatchFail)
+            @test endswith(field_err_expr.message,
+                           "Available fields: `bname`, `ast`, `bindings`\n")
+        end
+        let
+            pattern = @pattern begin
+                _x:::assign
+                @fail _x.__rhs.value == 2 "rhs is two"
+            end
+            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
+            @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) == MatchFail("no match")
+            @test syntax_match(pattern, parsestmt(SyntaxNode, "x = 2")) ==
+                MatchFail("rhs is two")
+            field_err = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
+            @test isa(field_err, MatchFail)
+            @test field_err.message ==
+                """
+                BindingFieldError: binding __rhs has no field `value` because the bound expression is not a literal.
+                Available fields: `bname`, `ast`, `bindings`, `name`
+                """
+        end
+
         # Pattern matching.
         binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
         let
@@ -104,9 +142,6 @@
             @test isa(match, BindingSet)
             fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
             @test fail == MatchFail("not even")
-            err = syntax_match(even, parsestmt(SyntaxNode, "f"))
-            @test err == MatchFail("binding `_x` has no field `value` " *
-                "because the bound expression is not a literal")
         end
         let
             is_x = @pattern begin

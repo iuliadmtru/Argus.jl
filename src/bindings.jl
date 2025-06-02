@@ -51,6 +51,35 @@ Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
 # --------------------------------------------
+# Errors.
+
+struct BindingFieldError <: Exception
+    binding::AbstractBinding
+    field::Symbol
+    available_fields::Vector{Symbol}
+    reason::String
+end
+
+struct BindingSetKeyError <: Exception
+    key
+end
+
+## Display.
+
+function Base.showerror(io::IO, err::BindingFieldError)
+    print(io, "BindingFieldError: ")
+    println(io,
+            "binding ", err.binding.bname, " has no field `", err.field, "` ",
+            "because ", err.reason, ".")
+    println(io, "Available fields: ", join(map(s -> "`$s`", err.available_fields), ", "))
+end
+
+function Base.showerror(io::IO, err::BindingSetKeyError)
+    print(io, "BindingSetKeyError: ")
+    println(io, "binding ", err.key, " not found")
+end
+
+# --------------------------------------------
 # Binding.
 
 """
@@ -72,22 +101,33 @@ function Base.getproperty(b::Binding, name::Symbol)
     name === :ast && return ast
     bindings = getfield(b, :bindings)
     name === :bindings && return bindings
+    # Gather available fields to show in error messages.
+    available_fields = [:bname, :ast, :bindings]
+    [push!(available_fields, subb) for subb in keys(bindings)]
+    # Check for node-specific field access.
     if name === :value
         JuliaSyntax.is_literal(ast) && return ast.val
-        error("binding `$(b.bname)` has no field `value` because ",
-              "the bound expression is not a literal")
+        # Only literals have a `value` field.
+        JuliaSyntax.is_identifier(ast) && push!(available_fields, :name)
+        throw(BindingFieldError(b,
+                                :value,
+                                available_fields,
+                                "the bound expression is not a literal"))
     end
     if name === :name
         JuliaSyntax.is_identifier(ast) && return string(ast.val)
-        error("binding `$(b.bname)` has no field `name` because ",
-              "the bound expression is not an identifier")
+        # Only identifiers have a `name` field.
+        JuliaSyntax.is_literal(ast) && push!(available_fields, :value)
+        throw(BindingFieldError(b,
+                                :name,
+                                available_fields,
+                                "the bound expression is not an identifier"))
     end
     return get(bindings, name) do
-        sub_bindings = isempty(bindings) ?
-            "none"                       :
-            join(map(string, collect(keys(bindings))), ", ")
-        error("binding `$(b.bname)` has no sub-binding `$name`; ",
-              "available sub-bindings: $sub_bindings")
+        throw(BindingFieldError(b,
+                                name,
+                                available_fields,
+                                "$name is not a sub-binding of $(b.name)"))
     end
 end
 
