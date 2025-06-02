@@ -25,7 +25,7 @@ function syntax_match(syntax_class::SyntaxClass,
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JuliaSyntax.SyntaxNode,
-                      bindings::BindingSet = BindingSet())::MatchResult
+                      bindings::BindingSet=BindingSet())::MatchResult
     # Special syntax.
     is_pattern_form(pattern_node) &&
         return syntax_match_pattern_form(pattern_node, src, bindings)
@@ -35,10 +35,14 @@ function syntax_match(pattern_node::SyntaxPatternNode,
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
-    length(children(pattern_node)) != length(children(src)) && return MatchFail()
-    zipped_children = zip(children(pattern_node), children(src))
-    for c_pair in zipped_children
-        match_result = syntax_match(c_pair[1], c_pair[2], bindings)
+    return syntax_match(children(pattern_node), children(src), bindings)
+end
+function syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
+                      srcs::Vector{JuliaSyntax.SyntaxNode},
+                      bindings::BindingSet=BindingSet())::MatchResult
+    length(pattern_nodes) != length(srcs) && return MatchFail()
+    for node_pair in zip(pattern_nodes, srcs)
+        match_result = syntax_match(node_pair[1], node_pair[2], bindings)
         # If the match failed, return the corresponding failure. Otherwise, update the
         # bindings (`~var` pattern forms may have added bindings to the binding set).
         isa(match_result, MatchFail) && return match_result
