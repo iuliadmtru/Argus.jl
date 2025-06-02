@@ -48,8 +48,15 @@
         end
         let
             pattern = @pattern ~fail(:(x + 1), "")
-            @test_throws MatchError syntax_match(pattern,
-                                                 parsestmt(SyntaxNode, "dummy"))
+            @test try
+                syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+            catch err
+                isa(err, MatchError) &&
+                    sprint(showerror, err) ==
+                    "MatchError: Fail condition evaluated to Expr instead of Bool (`x + 1`)\n"
+            else
+                false
+            end
         end
     end
 
@@ -68,6 +75,7 @@
             ex2
         end
 
+        # TODO: Move these to `test/bindings.jl`.
         # Bindings fields access.
         let
             pattern = @pattern begin
@@ -80,7 +88,7 @@
             @test isa(field_err_literal, MatchFail)
             @test field_err_literal.message ==
                 """
-                BindingFieldError: binding _x has no field `name` because the bound expression is not an identifier.
+                BindingFieldError: binding `_x` has no field `name` because the bound expression is not an identifier.
                 Available fields: `bname`, `ast`, `bindings`, `value`
                 """
             field_err_expr = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
@@ -101,8 +109,21 @@
             @test isa(field_err, MatchFail)
             @test field_err.message ==
                 """
-                BindingFieldError: binding __rhs has no field `value` because the bound expression is not a literal.
+                BindingFieldError: binding `__rhs` has no field `value` because the bound expression is not a literal.
                 Available fields: `bname`, `ast`, `bindings`, `name`
+                """
+        end
+        let
+            pattern = @pattern begin
+                _x:::identifier
+                @fail _x._abc.name == "abc" "is abc"
+            end
+            field_err = syntax_match(pattern, parsestmt(SyntaxNode, "a"))
+            @test isa(field_err, MatchFail)
+            @test field_err.message ==
+                """
+                BindingFieldError: binding `_x` has no field `_abc` because `_abc` is not a sub-binding of `_x`.
+                Available fields: `bname`, `ast`, `bindings`, `__id`, `name`
                 """
         end
 
@@ -172,5 +193,7 @@
         show(buff, binary_funcall_pattern)
         show_str_sexpr = String(take!(buff))
         @test show_str_sexpr == "(call (~var (quote-: _f) (quote-: identifier)) (~var (quote-: _arg1) (quote-: expr)) (~var (quote-: _) (quote-: expr)))"
+        show(buff, "text/x.sexpression", binary_funcall_pattern)
+        @test show_str_sexpr == String(take!(buff))
     end
 end
