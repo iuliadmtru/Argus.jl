@@ -76,44 +76,29 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     desugared_ex = _desugar_expr(ex)
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex))
 end
-function _desugar_expr(ex; is_context_dependent=true, bindings::Vector{Symbol}=Symbol[])
-    if is_sugared_var(ex)
-        id = _get_sugared_var_id(ex)
-        # TODO: Move pattern variable tracking/binding to match time.
+function _desugar_expr(ex; inside_fail=false)
+    if is_sugared_var(ex) && !inside_fail
+        # `<pattern_var>:::<syntax_class>` -> `~var(<pattern_var>, <syntax_class>)`
         #
-        # Pattern variables that occur multiple times in a regular pattern or among the
-        # branches of an `~and` pattern should bind together.
-        if is_context_dependent && !is_anonymous_pattern_variable(id)
-            # The first apparition of a pattern variable should be added to the `bindings`
-            # list.
-            id in bindings && return ex
-            push!(bindings, id)
-        end
+        # `<pattern_var>`                  -> `~var(<pattern_var>, :expr)`
+        #                                  -> Remains the same inside `~fail` conditions.
+        id = _get_sugared_var_id(ex)
         syntax_class_name = _get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
-    elseif is_var(ex)                                   &&
-        !is_anonymous_pattern_variable(_get_var_id(ex)) &&
-        is_context_dependent
-        push!(bindings, _get_var_id(ex))
     elseif @isexpr(ex, :function) && Meta.isexpr(ex.args[1], :tuple, 1)
         # Remove the extra `:tuple` node in the function signature for expressions like:
         # `function (_f:::funcall) _body end`
         fun_ex = ex.args[1].args[1]
         if is_sugared_var(fun_ex) || is_var(fun_ex)
             args = [fun_ex, ex.args[2:end]...]
-            return Expr(ex.head, _desugar_expr.(args; is_context_dependent, bindings)...)
+            return Expr(ex.head, _desugar_expr.(args; inside_fail)...)
         end
+    elseif is_fail(ex)
+        inside_fail = true
     end
-    !isa(ex, Expr) && return ex
-    # Pattern variables should be tracked along `~and` pattern branches and inside regular
-    # patterns and should not be tracked along `~or` pattern alternatives.
-    if is_and(ex)
-        is_context_dependent = true
-    elseif is_or(ex)
-        is_context_dependent = false
-    end
-    # Recurse on children.
-    return Expr(ex.head, _desugar_expr.(ex.args; is_context_dependent, bindings)...)
+    !isa(ex, Expr) && return ex  # Literals remain the same.
+    # Recurse on children
+    return Expr(ex.head, _desugar_expr.(ex.args; inside_fail)...)
 end
 
 """
@@ -260,6 +245,7 @@ is_pattern_form(ex) =
     Meta.isexpr(ex.args[2], :call)      &&
     ex.args[2].args[1] in PATTERN_FORMS
 is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
+is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
 is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
 
