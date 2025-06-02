@@ -69,7 +69,7 @@ end
 function Base.showerror(io::IO, err::BindingFieldError)
     print(io, "BindingFieldError: ")
     println(io,
-            "binding ", err.binding.bname, " has no field `", err.field, "` ",
+            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
             "because ", err.reason, ".")
     println(io, "Available fields: ", join(map(s -> "`$s`", err.available_fields), ", "))
 end
@@ -104,11 +104,12 @@ function Base.getproperty(b::Binding, name::Symbol)
     # Gather available fields to show in error messages.
     available_fields = [:bname, :ast, :bindings]
     [push!(available_fields, subb) for subb in keys(bindings)]
+    JuliaSyntax.is_identifier(ast) && push!(available_fields, :name)
+    JuliaSyntax.is_literal(ast) && push!(available_fields, :value)
     # Check for node-specific field access.
     if name === :value
         JuliaSyntax.is_literal(ast) && return ast.val
         # Only literals have a `value` field.
-        JuliaSyntax.is_identifier(ast) && push!(available_fields, :name)
         throw(BindingFieldError(b,
                                 :value,
                                 available_fields,
@@ -117,7 +118,6 @@ function Base.getproperty(b::Binding, name::Symbol)
     if name === :name
         JuliaSyntax.is_identifier(ast) && return string(ast.val)
         # Only identifiers have a `name` field.
-        JuliaSyntax.is_literal(ast) && push!(available_fields, :value)
         throw(BindingFieldError(b,
                                 :name,
                                 available_fields,
@@ -127,7 +127,7 @@ function Base.getproperty(b::Binding, name::Symbol)
         throw(BindingFieldError(b,
                                 name,
                                 available_fields,
-                                "$name is not a sub-binding of $(b.name)"))
+                                "`$name` is not a sub-binding of `$(b.bname)`"))
     end
 end
 
