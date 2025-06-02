@@ -67,10 +67,10 @@
         @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
            @fail _ex.value == 2 "is two"
         end
-        @test_throws "Only fail conditions" @macroexpand @pattern begin
-            ex1
-            ex2
-        end
+        # @test_throws "Only fail conditions" @macroexpand @pattern begin
+        #     ex1
+        #     ex2
+        # end
 
         # TODO: Move these to `test/bindings.jl`.
         # Bindings fields access.

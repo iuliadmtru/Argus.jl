@@ -2,6 +2,56 @@ struct Pattern
     ast::SyntaxPatternNode
 end
 
+"""
+    @pattern(expr)
+
+Create a `Pattern` from the given expression.
+
+# Examples
+
+julia> @pattern a + b  # Simple expression with no pattern variables.
+Pattern:
+[call-i]
+  a                                      :: Identifier
+  +                                      :: Identifier
+  b                                      :: Identifier
+
+julia> assign_to_x = @pattern begin
+           _x:::assign                                   # Pattern variable matching an assignment.
+           @fail _x.__lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
+       end
+Pattern:
+[~and]
+  _x:::assign                            :: ~var
+  [~fail]
+    [call-i]
+      [.]
+        [.]
+          _x                             :: Identifier
+          __lhs                          :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        "x"                              :: String
+    "assignment to x"                    :: String
+
+
+julia> syntax_match(assign_to_x, JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x = 2"))
+MatchFail("assignment to x")
+
+julia> @pattern begin
+           _a:::identifier = _
+           _a:::identifier = _  # Two consecutive assignments to the same variable.
+       end
+Pattern:
+[toplevel]
+  [=]
+    _a:::identifier                      :: ~var
+    _:::expr                             :: ~var
+  [=]
+    _a:::identifier                      :: ~var
+    _:::expr                             :: ~var
+"""
 macro pattern(expr)
     # Error messages.
     err_msg_general =
@@ -11,7 +61,7 @@ macro pattern(expr)
          -- `@pattern <expr>`
          -- ```
         |   @pattern begin
-        |       <expr>
+        |       <expr>+
         |       (@fail <condition> <message>)*
         |   end
          -- ```"""
@@ -22,7 +72,7 @@ macro pattern(expr)
     err_msg_should_be_fail =
         """
         invalid `@pattern` syntax
-        Only fail conditions can appear from the second body expression onwards."""
+        Pattern expressions and fail conditions cannot be intercalated."""
 
     @isexpr(expr, :quote) &&
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
@@ -32,8 +82,7 @@ macro pattern(expr)
     #   - `quote <expr>* end`        -- syntax for patterns with fail conditions
     #   - `<expr>`                   -- other expressions such as
     #                                   `~var(<var_name>, <syntax_class_name>)`
-
-    pattern_expr =
+    pattern_expr =  # The first pattern expression.
         @isexpr(expr, :block) ? expr.args[2] :  # Skip `LineNumberNode`.
         expr
     # `pattern_expr` is one of the following:
@@ -44,30 +93,51 @@ macro pattern(expr)
         first_expr_line_number = expr.args[1]
         length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
             throw(SyntaxError(err_msg_should_not_be_fail,
-                                   first_expr_line_number.file,
-                                   first_expr_line_number.line))
-        if length(expr.args) > 2
-            # The pattern has fail conditions. The user pattern syntax should be:
+                              first_expr_line_number.file,
+                              first_expr_line_number.line))
+        # The pattern has at least one pattern expression.
+        #
+        #   ```
+        #   @pattern begin
+        #       <pattern_expr>
+        #       <pattern_expr>*
+        #       (@fail <condition> <msg>)*
+        #   end
+        #   ```
+        idx = 4  # Index of expressions inside the macro body, skipping `LineNumberNode`s.
+        toplevel_children = [pattern_expr]
+        while idx <= length(expr.args) && !is_fail_macro(expr.args[idx])
+            # The pattern has more than one pattern expression.
+            #
             #   ```
             #   @pattern begin
             #       <pattern_expr>
-            #       @fail <condition> <msg>
+            #       <pattern_expr>
+            #       <pattern_expr>*
             #       (@fail <condition> <msg>)*
             #   end
             #   ```
-
+            #
+            # Pattern expressions should be wrapped in a `toplevel` node.
+            push!(toplevel_children, expr.args[idx])
+            idx += 2
+        end
+        if length(toplevel_children) > 1
+            pattern_expr = :( [$(toplevel_children...)] )
+        end
+        # All expressions from `idx` onwards, if any, should be fail conditions.
+        if idx <= length(expr.args)
             # Turn `@fail` macros into `~fail` expressions.
             # Skip `LineNumberNode`s when iterating but include them in the error message.
             fail_exprs = Expr[]
-            for (line_number_idx, fail_macro) in zip(Iterators.countfrom(3, 2),
-                                                     expr.args[4:2:end])
-                # Only `@fail` conditions can appear from the second `@pattern` body
-                # expression onwards.
+            for (line_number_idx, fail_macro) in zip(Iterators.countfrom(idx - 1, 2),
+                                                     expr.args[idx:2:end])
+                # Pattern expressions and fail conditions cannot be intercalated.
                 fail_macro_line_number = expr.args[line_number_idx]
                 is_fail_macro(fail_macro) ||
                     throw(SyntaxError(err_msg_should_be_fail,
-                                           fail_macro_line_number.file,
-                                           fail_macro_line_number.line))
+                                      fail_macro_line_number.file,
+                                      fail_macro_line_number.line))
                 condition_expr = fail_macro.args[3]
                 message = fail_macro.args[4]
                 push!(fail_exprs, :( ~fail($condition_expr, $message) ))
