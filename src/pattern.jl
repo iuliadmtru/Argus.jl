@@ -16,6 +16,7 @@ Pattern:
   +                                      :: Identifier
   b                                      :: Identifier
 
+
 julia> assign_to_x = @pattern begin
            _x:::assign                                   # Pattern variable matching an assignment.
            @fail _x.__lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
@@ -39,7 +40,7 @@ Pattern:
 julia> syntax_match(assign_to_x, JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x = 2"))
 MatchFail("assignment to x")
 
-julia> @pattern begin
+julia> pattern = @pattern begin
            _a:::identifier = _
            _a:::identifier = _  # Two consecutive assignments to the same variable.
        end
@@ -51,6 +52,16 @@ Pattern:
   [=]
     _a:::identifier                      :: ~var
     _:::expr                             :: ~var
+
+
+julia> syntax_match(pattern, parseall(SyntaxNode,
+                                      """
+                                      x = 2
+                                      x = 3
+                                      """))
+
+BindingSet with 1 entry:
+  :_a => Binding(:_a, x, BindingSet(:__id=>Binding(:__id, x, BindingSet())))
 """
 macro pattern(expr)
     # Error messages.

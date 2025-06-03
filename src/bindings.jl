@@ -14,8 +14,8 @@ Set of bindings. Implemented as a dict for ease of access.
 struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
     bindings::Dict{Symbol, T}
 end
-BindingSet() = BindingSet(Dict{Symbol, Binding}())
-BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...))
+BindingSet() = BindingSet(Dict{Symbol, AbstractBinding}())
+BindingSet(kvs...) = BindingSet(Dict{Symbol, AbstractBinding}(kvs...))
 
 ## Dict interface.
 
@@ -90,6 +90,14 @@ struct Binding <: AbstractBinding
     bname::Symbol
     ast::JuliaSyntax.SyntaxNode
     bindings::BindingSet
+end
+
+"""
+Internal binding type used for validating bindings corresponding to multiple appearances
+of the same pattern variable.
+"""
+struct InvalidBinding <: AbstractBinding
+    msg::String
 end
 
 ## `Base` overwrites.

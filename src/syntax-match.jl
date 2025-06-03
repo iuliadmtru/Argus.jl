@@ -24,8 +24,18 @@ function syntax_match(syntax_class::SyntaxClass,
     return failure
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
-                      src::JuliaSyntax.SyntaxNode,
-                      bindings::BindingSet=BindingSet())::MatchResult
+                      src::JuliaSyntax.SyntaxNode)::MatchResult
+    match_result = _syntax_match(pattern_node, src)
+    isa(match_result, MatchFail) && return match_result
+    return remove_invalid_bindings(match_result)
+end
+
+"""
+Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s.
+"""
+function _syntax_match(pattern_node::SyntaxPatternNode,
+                       src::JuliaSyntax.SyntaxNode,
+                       bindings::BindingSet=BindingSet())::MatchResult
     # Special syntax.
     is_pattern_form(pattern_node) &&
         return syntax_match_pattern_form(pattern_node, src, bindings)
@@ -35,14 +45,14 @@ function syntax_match(pattern_node::SyntaxPatternNode,
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
-    return syntax_match(children(pattern_node), children(src), bindings)
+    return _syntax_match(children(pattern_node), children(src), bindings)
 end
-function syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                      srcs::Vector{JuliaSyntax.SyntaxNode},
-                      bindings::BindingSet=BindingSet())::MatchResult
+function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
+                       srcs::Vector{JuliaSyntax.SyntaxNode},
+                       bindings::BindingSet=BindingSet())::MatchResult
     length(pattern_nodes) != length(srcs) && return MatchFail()
     for node_pair in zip(pattern_nodes, srcs)
-        match_result = syntax_match(node_pair[1], node_pair[2], bindings)
+        match_result = _syntax_match(node_pair[1], node_pair[2], bindings)
         # If the match failed, return the corresponding failure. Otherwise, update the
         # bindings (`~var` pattern forms may have added bindings to the binding set).
         isa(match_result, MatchFail) && return match_result
@@ -118,8 +128,19 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     # If there's a match and the pattern variable is not anonymous, bind the pattern
     # variable and add it to the `BindingSet`.
     is_anonymous_pattern_variable(pattern_var_name) && return bindings
-    # TODO: Check for already existing binding. The new binding must be "compatible" with
-    #       the old one.
+    # If the binding already exists, check if the new binding is compatible with the
+    # old one.
+    if haskey(bindings, pattern_var_name)
+        b = bindings[pattern_var_name]
+        isa(b, InvalidBinding) && return MatchFail(b.msg)
+        # If the bindings are not compatible, mark the binding so that it won't bind
+        # further.
+        if !compatible(b.ast, src)
+            fail_msg = "conflicting bindings for pattern variable $pattern_var_name"
+            bindings[pattern_var_name] = InvalidBinding(fail_msg)
+            return MatchFail(fail_msg)
+        end
+    end
     bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result)
     return bindings
 end
@@ -132,7 +153,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          src::JuliaSyntax.SyntaxNode)::MatchResult
     failure = MatchFail("no matching alternative")
     for p in children(or_node)
-        match_result = syntax_match(p, src, BindingSet())
+        match_result = _syntax_match(p, src, BindingSet())
         isa(match_result, BindingSet) && return match_result
         failure = match_result
     end
@@ -148,9 +169,22 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode,
                           bindings::BindingSet)::MatchResult
     for p in children(and_node)
-        match_result = syntax_match(p, src, bindings)
+        match_result = _syntax_match(p, src, bindings)
         isa(match_result, MatchFail) && return match_result
         bindings = match_result
     end
     return bindings
 end
+
+## Utils.
+
+function compatible(ex1::JuliaSyntax.SyntaxNode, ex2::JuliaSyntax.SyntaxNode)
+    head(ex1) == head(ex2) || return false
+    ex1.data.val == ex2.data.val || return false
+    xor(is_leaf(ex1), is_leaf(ex2)) && return false
+    is_leaf(ex1) && return true
+    return all(map(p -> p[1] == p[2], zip(children(ex1), children(ex2))))
+end
+
+remove_invalid_bindings(bs::BindingSet)::BindingSet{Binding} =
+    filter(p -> isa(p.second, Binding), bs)

@@ -59,18 +59,20 @@
     end
 
     @testset "General" begin
-        # Invalid syntax.
-        @test_throws "invalid pattern variable name x" Pattern(
-            SyntaxPatternNode(:( x:::identifier ))
-        )
-        @test_throws SyntaxError @macroexpand @pattern quote _x:::expr = 2 end
-        @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
-           @fail _ex.value == 2 "is two"
+
+        @testset "Invalid syntax" begin
+            @test_throws "invalid pattern variable name x" Pattern(
+                SyntaxPatternNode(:( x:::identifier ))
+            )
+            @test_throws SyntaxError @macroexpand @pattern quote _x:::expr = 2 end
+            @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
+                @fail _ex.value == 2 "is two"
+            end
+            # @test_throws "Only fail conditions" @macroexpand @pattern begin
+            #     ex1
+            #     ex2
+            # end
         end
-        # @test_throws "Only fail conditions" @macroexpand @pattern begin
-        #     ex1
-        #     ex2
-        # end
 
         # TODO: Move these to `test/bindings.jl`.
         # Bindings fields access.
@@ -124,73 +126,115 @@
                 """
         end
 
-        # Pattern matching.
-        binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
-        let
-            # Match.
+        @testset "Pattern matching" begin
+            binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
             let
-                match_result =
-                    syntax_match(binary_funcall_pattern,
-                                 parsestmt(SyntaxNode, "f(x, 1 + 2)"))
-                @test isa(match_result, BindingSet)
-                # No binding for the anonymous pattern variable.
-                @test length(match_result) == 2
-                @test sort(collect(keys(match_result))) == [:_arg1, :_f]
-                # TODO: Sort by order of appearance and add tests.
-                f_node = match_result[:_f].ast
-                @test isa(f_node, JuliaSyntax.SyntaxNode)
-                @test source_location(f_node) == (1, 1)
-                x_node = match_result[:_arg1].ast
-                @test source_location(x_node) == (1, 3)
+                ## Match.
+                let
+                    match_result =
+                        syntax_match(binary_funcall_pattern,
+                                     parsestmt(SyntaxNode, "f(x, 1 + 2)"))
+                    @test isa(match_result, BindingSet)
+                    # No binding for the anonymous pattern variable.
+                    @test length(match_result) == 2
+                    @test sort(collect(keys(match_result))) == [:_arg1, :_f]
+                    # TODO: Sort by order of appearance and add tests.
+                    f_node = match_result[:_f].ast
+                    @test isa(f_node, JuliaSyntax.SyntaxNode)
+                    @test source_location(f_node) == (1, 1)
+                    x_node = match_result[:_arg1].ast
+                    @test source_location(x_node) == (1, 3)
+                end
+                ## No match.
+                let
+                    match_result =
+                        syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x)"))
+                    @test isa(match_result, MatchFail)
+                    @test match_result == MatchFail("no match")
+                end
             end
-            # No match.
             let
-                match_result =
-                    syntax_match(binary_funcall_pattern, parsestmt(SyntaxNode, "f(x)"))
-                @test isa(match_result, MatchFail)
-                @test match_result == MatchFail("no match")
+                even = @pattern begin
+                    _x
+                    @fail !iseven(_x.value) "not even"
+                end
+                match = syntax_match(even, parsestmt(SyntaxNode, "2"))
+                @test isa(match, BindingSet)
+                fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
+                @test fail == MatchFail("not even")
             end
-        end
-        let
-            even = @pattern begin
-                _x
-                @fail !iseven(_x.value) "not even"
+            let
+                is_x = @pattern begin
+                    ~and((_f:::identifier)(),
+                         ~fail(_f.__id.name != "x", "not x"))
+                end
+                match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
+                @test isa(match, BindingSet)
+                fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
+                @test fail_name == MatchFail("not x")
+                fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
+                @test fail_inner == MatchFail("not an identifier")
+                fail = syntax_match(is_x, parsestmt(SyntaxNode, "2"))
+                @test fail == MatchFail("no match")
             end
-            match = syntax_match(even, parsestmt(SyntaxNode, "2"))
-            @test isa(match, BindingSet)
-            fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
-            @test fail == MatchFail("not even")
-        end
-        let
-            is_x = @pattern begin
-                ~and((_f:::identifier)(),
-                     ~fail(_f.__id.name != "x", "not x"))
+            ## Multiple pattern expressions.
+            let
+                pattern = @pattern begin
+                    _a:::identifier = _
+                    _a:::identifier = _
+                    @fail _a.name == "x" "is x"
+                end
+                let
+                    src = parseall(SyntaxNode, """
+                    a = 2
+                    x = 3
+                    """)
+                    @test syntax_match(pattern, src) ==
+                        MatchFail("conflicting bindings for pattern variable _a")
+                end
+                let
+                    src = parseall(SyntaxNode, """
+                    x = 2
+                    x = 3
+                    """)
+                    @test syntax_match(pattern, src) ==
+                        MatchFail("is x")
+                end
+                let
+                    src = parseall(SyntaxNode, """
+                    a = 2
+                    a = 3
+                    """)
+                    @test isa(syntax_match(pattern, src), BindingSet)
+                end
+                let
+                    src = parseall(SyntaxNode, """
+                    a = 2
+                    a = 3
+                    a + 1
+                    """)
+                    @test syntax_match(pattern, src) == MatchFail()
+                end
             end
-            match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
-            @test isa(match, BindingSet)
-            fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
-            @test fail_name == MatchFail("not x")
-            fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
-            @test fail_inner == MatchFail("not an identifier")
-            fail = syntax_match(is_x, parsestmt(SyntaxNode, "2"))
-            @test fail == MatchFail("no match")
         end
 
-        # Display methods.
-        buff = IOBuffer()
-        show(buff, "text/plain", binary_funcall_pattern)
-        show_str = String(take!(buff))
-        @test show_str == """
-        Pattern:
-        [call]
-          _f:::identifier                        :: ~var
-          _arg1:::expr                           :: ~var
-          _:::expr                               :: ~var
-        """
-        show(buff, binary_funcall_pattern)
-        show_str_sexpr = String(take!(buff))
-        @test show_str_sexpr == "(call (~var (quote-: _f) (quote-: identifier)) (~var (quote-: _arg1) (quote-: expr)) (~var (quote-: _) (quote-: expr)))"
-        show(buff, "text/x.sexpression", binary_funcall_pattern)
-        @test show_str_sexpr == String(take!(buff))
+        @testset "Display" begin
+            binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
+            buff = IOBuffer()
+            show(buff, "text/plain", binary_funcall_pattern)
+            show_str = String(take!(buff))
+            @test show_str == """
+            Pattern:
+            [call]
+              _f:::identifier                        :: ~var
+              _arg1:::expr                           :: ~var
+              _:::expr                               :: ~var
+            """
+            show(buff, binary_funcall_pattern)
+            show_str_sexpr = String(take!(buff))
+            @test show_str_sexpr == "(call (~var (quote-: _f) (quote-: identifier)) (~var (quote-: _arg1) (quote-: expr)) (~var (quote-: _) (quote-: expr)))"
+            show(buff, "text/x.sexpression", binary_funcall_pattern)
+            @test show_str_sexpr == String(take!(buff))
+        end
     end
 end
