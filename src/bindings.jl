@@ -88,7 +88,7 @@ Binding of a pattern variable to a syntax tree. Pattern variables are created wi
 """
 struct Binding <: AbstractBinding
     bname::Symbol
-    ast::JuliaSyntax.SyntaxNode
+    src::Union{JuliaSyntax.SyntaxNode, Vector{JuliaSyntax.SyntaxNode}}
     bindings::BindingSet
 end
 
@@ -105,12 +105,12 @@ end
 # Allow accessing sub-bindings as fields.
 function Base.getproperty(b::Binding, name::Symbol)
     name === :bname && return getfield(b, :bname)
-    ast = getfield(b, :ast)
-    name === :ast && return ast
+    ast = getfield(b, :src)
+    name === :src && return ast
     bindings = getfield(b, :bindings)
     name === :bindings && return bindings
     # Gather available fields to show in error messages.
-    available_fields = [:bname, :ast, :bindings]
+    available_fields = [:bname, :src, :bindings]
     [push!(available_fields, subb) for subb in keys(bindings)]
     JuliaSyntax.is_identifier(ast) && push!(available_fields, :name)
     JuliaSyntax.is_literal(ast) && push!(available_fields, :value)

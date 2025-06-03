@@ -21,11 +21,11 @@
             match_first = syntax_match(pattern, parsestmt(SyntaxNode, "1 + 2"))
             @test isa(match_first, BindingSet)
             @test length(match_first) == 1
-            @test match_first[:_x].ast.val === 1
+            @test match_first[:_x].src.val === 1
             match_second = syntax_match(pattern, parsestmt(SyntaxNode, "a + 3"))
             @test isa(match_second, BindingSet)
             @test length(match_second) == 1
-            @test match_second[:_y].ast.val === :a
+            @test match_second[:_y].src.val === :a
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "2 + 1")), MatchFail)
         end
 
@@ -88,12 +88,12 @@
             @test field_err_literal.message ==
                 """
                 BindingFieldError: binding `_x` has no field `name` because the bound expression is not an identifier.
-                Available fields: `bname`, `ast`, `bindings`, `value`
+                Available fields: `bname`, `src`, `bindings`, `value`
                 """
             field_err_expr = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
             @test isa(field_err_literal, MatchFail)
             @test endswith(field_err_expr.message,
-                           "Available fields: `bname`, `ast`, `bindings`\n")
+                           "Available fields: `bname`, `src`, `bindings`\n")
         end
         let
             pattern = @pattern begin
@@ -109,7 +109,7 @@
             @test field_err.message ==
                 """
                 BindingFieldError: binding `__rhs` has no field `value` because the bound expression is not a literal.
-                Available fields: `bname`, `ast`, `bindings`, `name`
+                Available fields: `bname`, `src`, `bindings`, `name`
                 """
         end
         let
@@ -122,7 +122,7 @@
             @test field_err.message ==
                 """
                 BindingFieldError: binding `_x` has no field `_abc` because `_abc` is not a sub-binding of `_x`.
-                Available fields: `bname`, `ast`, `bindings`, `__id`, `name`
+                Available fields: `bname`, `src`, `bindings`, `__id`, `name`
                 """
         end
 
@@ -139,10 +139,10 @@
                     @test length(match_result) == 2
                     @test sort(collect(keys(match_result))) == [:_arg1, :_f]
                     # TODO: Sort by order of appearance and add tests.
-                    f_node = match_result[:_f].ast
+                    f_node = match_result[:_f].src
                     @test isa(f_node, JuliaSyntax.SyntaxNode)
                     @test source_location(f_node) == (1, 1)
-                    x_node = match_result[:_arg1].ast
+                    x_node = match_result[:_arg1].src
                     @test source_location(x_node) == (1, 3)
                 end
                 ## No match.

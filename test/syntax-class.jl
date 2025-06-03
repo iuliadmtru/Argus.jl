@@ -8,11 +8,11 @@
     end
     @test length(fundef.pattern_alternatives) == 1
     pattern = fundef.pattern_alternatives[1]
-    @test kind(pattern.ast) === K"function"
-    @test !is_leaf(pattern.ast)
-    @test length(pattern.ast.children) == 2
-    @test kind(pattern.ast.children[1]) === K"~var"
-    @test kind(pattern.ast.children[2]) === K"block"
+    @test kind(pattern.src) === K"function"
+    @test !is_leaf(pattern.src)
+    @test length(pattern.src.children) == 2
+    @test kind(pattern.src.children[1]) === K"~var"
+    @test kind(pattern.src.children[2]) === K"block"
 
     let
         fundef = @syntax_class "function definition" begin

@@ -1,5 +1,5 @@
 struct Pattern
-    ast::SyntaxPatternNode
+    src::SyntaxPatternNode
 end
 
 """
@@ -164,8 +164,8 @@ end
 
 # `JuliaSyntax` overwrites.
 
-JuliaSyntax.head(p::Pattern) = head(p.ast)
-JuliaSyntax.children(p::Pattern) = children(p.ast)
+JuliaSyntax.head(p::Pattern) = head(p.src)
+JuliaSyntax.children(p::Pattern) = children(p.src)
 
 # Utils.
 
@@ -218,11 +218,11 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", pattern::Pattern)
     println(io, "Pattern:")
-    _show_pattern_syntax_node(io, pattern.ast, "")
+    _show_pattern_syntax_node(io, pattern.src, "")
 end
 function Base.show(io::IO, ::MIME"text/x.sexpression", pattern::Pattern; show_kind=false)
-    _show_syntax_node_sexpr(io, pattern.ast, show_kind)
+    _show_syntax_node_sexpr(io, pattern.src, show_kind)
 end
 function Base.show(io::IO, pattern::Pattern)
-    _show_syntax_node_sexpr(io, pattern.ast, false)
+    _show_syntax_node_sexpr(io, pattern.src, false)
 end

@@ -77,7 +77,7 @@ function _register_syntax_classes()
                                    __id
                                    @fail begin
                                        using JuliaSyntax: is_identifier
-                                       !is_identifier(__id.ast)
+                                       !is_identifier(__id.src)
                                    end "not an identifier"
                                end
                            end)

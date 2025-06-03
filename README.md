@@ -217,7 +217,7 @@ more complex fail condition:
         ~and(__id,
              ~fail(begin
                        using JuliaSyntax: is_identifier
-                       !is_identifier(__id.ast)
+                       !is_identifier(__id.src)
                    end,
                    "not an identifier"))
     end
@@ -370,7 +370,7 @@ julia> @pattern begin
           ~and(__id,
                ~fail(begin
                          using JuliaSyntax: is_identifier
-                         !is_identifier(__id.ast)
+                         !is_identifier(__id.src)
                      end,
                      "not an identifier"))
        end
@@ -480,7 +480,7 @@ defined using the following syntax:
         __id
         @fail begin
             using JuliaSyntax: is_identifier
-            !is_identifier(__id.ast)
+            !is_identifier(__id.src)
         end "not an identifier"
     end
 end

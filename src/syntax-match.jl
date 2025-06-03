@@ -8,7 +8,7 @@ const MatchResult = Union{MatchFail, BindingSet}
 
 function syntax_match(pattern::Pattern,
                       src::JuliaSyntax.SyntaxNode)::MatchResult
-    return syntax_match(pattern.ast, src)
+    return syntax_match(pattern.src, src)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JuliaSyntax.SyntaxNode)::MatchResult
@@ -138,7 +138,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
         isa(b, InvalidBinding) && return MatchFail(b.msg)
         # If the bindings are not compatible, mark the binding so that it won't bind
         # further.
-        if !compatible(b.ast, src)
+        if !compatible(b.src, src)
             fail_msg = "conflicting bindings for pattern variable $pattern_var_name"
             bindings[pattern_var_name] = InvalidBinding(fail_msg)
             return MatchFail(fail_msg)
