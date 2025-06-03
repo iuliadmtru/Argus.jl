@@ -86,7 +86,10 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
     return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex_str))
 end
 function _desugar_expr(ex; inside_fail=false)
-    if is_sugared_var(ex) && !inside_fail
+    if is_sugared_rep(ex)
+        var_ex = _desugar_expr(ex.args[1]; inside_fail)
+        return :( ~rep($var_ex) )
+    elseif is_sugared_var(ex) && !inside_fail
         # `<pattern_var>:::<syntax_class>` -> `~var(<pattern_var>, <syntax_class>)`
         #
         # `<pattern_var>`                  -> `~var(<pattern_var>, :expr)`
@@ -108,6 +111,23 @@ function _desugar_expr(ex; inside_fail=false)
     !isa(ex, Expr) && return ex  # Literals remain the same.
     # Recurse on children
     return Expr(ex.head, _desugar_expr.(ex.args; inside_fail)...)
+end
+
+"""
+Inner pass for parsing patterns with multiple same-level pattern expressions.
+"""
+function _parse_toplevel_expr_array(node::SyntaxPatternNode)::SyntaxPatternNode
+    if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
+        new_children = [
+            _parse_toplevel_expr_array(children(node)[1]),
+            children(node)[2:end]...
+        ]
+        return SyntaxPatternNode(nothing, new_children, node.data)
+    elseif kind(node) === K"vect"
+        toplevel_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
+        return SyntaxPatternNode(nothing, children(node), toplevel_data)
+    end
+    return node
 end
 
 """
@@ -149,6 +169,7 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
         pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
         pattern_form_name === :or   ? OrSyntaxData()                       :
         pattern_form_name === :and  ? AndSyntaxData()                      :
+        pattern_form_name === :rep  ? RepSyntaxData()                      :
         nothing
     # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing,
@@ -157,20 +178,6 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
     [c.parent = pattern_node for c in cs]
 
     return pattern_node
-end
-
-function _parse_toplevel_expr_array(node::SyntaxPatternNode)::SyntaxPatternNode
-    if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
-        new_children = [
-            _parse_toplevel_expr_array(children(node)[1]),
-            children(node)[2:end]...
-        ]
-        return SyntaxPatternNode(nothing, new_children, node.data)
-    elseif kind(node) === K"vect"
-        toplevel_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
-        return SyntaxPatternNode(nothing, children(node), toplevel_data)
-    end
-    return node
 end
 
 """
@@ -247,18 +254,6 @@ is_symbol_node(node::JuliaSyntax.SyntaxNode) =
 
 is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
 is_anonymous_pattern_variable(ex) = is_pattern_variable(ex) && ex === :_
-is_sugared_var(ex) =
-    is_pattern_variable(ex)       ||
-    @isexpr(ex, :(::), 2)         &&
-    isa(ex.args[2], QuoteNode)    &&
-    isa(ex.args[2].value, Symbol)
-
-_get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
-_get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
-function _get_var_id(ex::Expr)
-    id_node = ex.args[2].args[2]
-    return isa(id_node, Symbol) ? id_node : id_node.value
-end
 
 is_pattern_form(ex) =
     # A pattern form expression has the following structure:
@@ -267,10 +262,28 @@ is_pattern_form(ex) =
     ex.args[1] === :~                   &&
     Meta.isexpr(ex.args[2], :call)      &&
     ex.args[2].args[1] in PATTERN_FORMS
+
 is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
 is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
+is_rep(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :rep
+
+is_sugared_var(ex) =
+    is_pattern_variable(ex)       ||
+    @isexpr(ex, :(::), 2)         &&
+    isa(ex.args[2], QuoteNode)    &&
+    isa(ex.args[2].value, Symbol)
+is_sugared_rep(ex) =
+    @isexpr(ex, :..., 1) &&
+    (is_sugared_var(ex.args[1]) || is_var(ex.args[1]))
+
+function _get_var_id(ex::Expr)
+    id_node = ex.args[2].args[2]
+    return isa(id_node, Symbol) ? id_node : id_node.value
+end
+_get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
+_get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
 
 #### Pass 2 (pattern form parsing).
 
@@ -300,6 +313,7 @@ function _pattern_form_arg_nodes(node::JuliaSyntax.SyntaxNode)
     name === :var && return args
     name === :or && return _strip_quote_node.(args)
     name === :and && return _strip_quote_node.(args)
+    name === :rep && return args
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
 function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
@@ -310,6 +324,7 @@ function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name === :var && return _var_arg_names(arg_nodes)
     name === :or && return []
     name === :and && return []
+    name === :rep && return []
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 

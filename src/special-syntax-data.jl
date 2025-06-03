@@ -124,23 +124,42 @@ Data for `~and` pattern form.
 """
 struct AndSyntaxData <: AbstractSpecialSyntaxData end
 
+"""
+    RepSyntaxData
+
+Data for repetition nodes.
+"""
+struct RepSyntaxData <: AbstractSpecialSyntaxData end
+
 # TODO: Pattern forms registry? Or remove.
-const PATTERN_FORMS = [:fail, :var, :or, :and]
+const PATTERN_FORMS = [:fail, :var, :or, :and, :rep]
 
 ## `JuliaSyntax` overwrites and utils.
 
 """
 Register new syntax kinds for pattern forms.
 """
-_register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, ["~fail", "~var", "~or", "~and"])
+_register_kinds() = JuliaSyntax.register_kinds!(Argus,
+                                                3,
+                                                [
+                                                    "~fail",
+                                                    "~var",
+                                                    "~or",
+                                                    "~and",
+                                                    "~rep",
+                                                ])
 _register_kinds()
 
 JuliaSyntax.head(data::FailSyntaxData) = JuliaSyntax.SyntaxHead(K"~fail", 0)
 JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
 JuliaSyntax.head(data::OrSyntaxData) = JuliaSyntax.SyntaxHead(K"~or", 0)
 JuliaSyntax.head(data::AndSyntaxData) = JuliaSyntax.SyntaxHead(K"~and", 0)
+JuliaSyntax.head(data::RepSyntaxData) = JuliaSyntax.SyntaxHead(K"~rep", 0)
 
 ## `Base` overwrites.
+
+Base.getproperty(data::RepSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
 
 Base.getproperty(data::FailSyntaxData, name::Symbol) =
     name === :message ? getfield(data, :message) :
