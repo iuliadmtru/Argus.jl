@@ -1,59 +1,97 @@
 @testset "Rules" begin
-    p = @pattern begin
-        const _a:::identifier = _b:::identifier = _
-    end
-    chained_const_assignment = @rule "chained-const-assignment" begin
-        description = """
-        Do not chain assignments with const. The right hand side is not constant here.
-        """
 
-        pattern = p
+    @testset "Invalid syntax" begin
+        # Invalid syntax.
+        @test_throws SyntaxError @macroexpand @rule "" quote
+            description = ""
+            pattern = p
+        end
+        @test_throws "Expected 2 arguments, got 3" @macroexpand @rule "" begin
+            description = ""
+            pattern = p
+            arg3 = "bla"
+        end
+        @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
+            description => ""
+            pattern = p
+        end
+        @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
+            description = ""
+            pattern(p)
+        end
+        @test_throws "should be `description`" @macroexpand @rule "" begin
+            other = ""
+            pattern = p
+        end
+        @test_throws "should be `pattern`" @macroexpand @rule "" begin
+            description = ""
+            other = p
+        end
     end
 
-    # Match.
-    let
-        src = "f(a, b) = const a = b = 1 + 2"
-        match_result = rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
-        @test isempty(match_result.failures)
-        @test length(match_result.matches) == 1
-        @test length(match_result.matches[1]) == 2
+    @testset "Rule matching" begin
+        let
+            p = @pattern begin
+                const _a:::identifier = _b:::identifier = _
+            end
+            chained_const_assignment = @rule "chained-const-assignment" begin
+                description = """
+                Do not chain assignments with const. The right hand side is not constant here.
+                """
+
+                pattern = p
+            end
+            # Match.
+            let
+                src = "f(a, b) = const a = b = 1 + 2"
+                match_result = rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
+                @test isempty(match_result.failures)
+                @test length(match_result.matches) == 1
+                @test length(match_result.matches[1]) == 2
+            end
+            # No match.
+            let
+                src = "const a = b"
+                match_result =
+                    rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
+                @test length(match_result.failures) == 4
+                @test isempty(match_result.matches)
+            end
+        end
+        let
+            rule = @rule "" begin
+                description = ""
+                pattern = @pattern begin
+                    _x = 2
+                    _y()
+                end
+            end
+            let
+                src = """
+                x = 2
+                function f(a)
+                    a = 2
+                    f()
+                    g()
+                end
+                for el in vec
+                    x = 2
+                    el = 2
+                    g()
+                end
+                """
+                match_result = rule_match(rule, parseall(SyntaxNode, src))
+                @test length(match_result.matches) == 2
+                first_match = match_result.matches[1]
+                @test first_match[:_x].name == "a"
+                @test first_match[:_y].name == "f"
+                second_match = match_result.matches[2]
+                @test second_match[:_x].name == "el"
+                @test second_match[:_y].name == "g"
+            end
+        end
     end
 
-    # No match.
-    let
-        src = "const a = b"
-        match_result =
-            rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
-        @test length(match_result.failures) == 4
-        @test isempty(match_result.matches)
-    end
-
-    # Invalid syntax.
-    @test_throws SyntaxError @macroexpand @rule "" quote
-        description = ""
-        pattern = p
-    end
-    @test_throws "Expected 2 arguments, got 3" @macroexpand @rule "" begin
-        description = ""
-        pattern = p
-        arg3 = "bla"
-    end
-    @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
-        description => ""
-        pattern = p
-    end
-    @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
-        description = ""
-        pattern(p)
-    end
-    @test_throws "should be `description`" @macroexpand @rule "" begin
-        other = ""
-        pattern = p
-    end
-    @test_throws "should be `pattern`" @macroexpand @rule "" begin
-        description = ""
-        other = p
-    end
 end
 
 @testset "Rule groups" begin

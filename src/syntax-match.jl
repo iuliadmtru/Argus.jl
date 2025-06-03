@@ -23,9 +23,11 @@ function syntax_match(syntax_class::SyntaxClass,
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
     return failure
 end
-function syntax_match(pattern_node::SyntaxPatternNode,
-                      src::JuliaSyntax.SyntaxNode)::MatchResult
-    match_result = _syntax_match(pattern_node, src)
+function syntax_match(pattern::Union{SyntaxPatternNode,
+                                     Vector{SyntaxPatternNode}},
+                      src::Union{JuliaSyntax.SyntaxNode,
+                                 Vector{JuliaSyntax.SyntaxNode}})::MatchResult
+    match_result = _syntax_match(pattern, src)
     isa(match_result, MatchFail) && return match_result
     return remove_invalid_bindings(match_result)
 end

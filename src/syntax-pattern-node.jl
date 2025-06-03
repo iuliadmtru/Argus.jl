@@ -274,14 +274,6 @@ is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
 
 #### Pass 2 (pattern form parsing).
 
-is_toplevel_expr_call(node::JuliaSyntax.SyntaxNode) =
-    kind(node) === K"$"                         &&
-    !is_leaf(node)                              &&
-    length(children(node)) == 1                 &&
-    kind(node.children[1]) === K"call"          &&
-    is_identifier(node.children[1].children[1]) &&
-    node.children[1].children[1].val === :Expr
-
 is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractSpecialSyntaxData)
 function is_pattern_form(node::JuliaSyntax.SyntaxNode)
     # General checks.

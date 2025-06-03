@@ -178,6 +178,15 @@ function cannot_eval_to_Pattern(ex)
     return true
 end
 
+toplevel_exprs_count(p::Pattern) =
+    if kind(p) === K"toplevel"
+        length(children(p))
+    elseif kind(p) === K"~and" && kind(children(p)[1]) === K"toplevel"
+        length(children(children(p)[1]))
+    else
+        0
+    end
+
 # Display.
 
 function _show_var_node(node::SyntaxPatternNode)

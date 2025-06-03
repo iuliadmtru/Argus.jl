@@ -164,11 +164,16 @@ Match a rule against an AST. Return the set of all matches. If `only_matches` is
 """
 function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
-    match_result = syntax_match(rule.pattern, src)
-    if isa(match_result, MatchFail)
-        only_matches || push!(rule_result.failures, match_result)
-    else
-        push!(rule_result.matches, match_result)
+    # If the pattern has multiple pattern expressions, they must be matched against all
+    # the source "children windows". Otherwise, the pattern must match the source.
+    windows = toplevel_wrapped_windows(src, toplevel_exprs_count(rule.pattern))
+    for window in windows
+        pattern_match_result = syntax_match(rule.pattern, window)
+        if isa(pattern_match_result, MatchFail)
+            only_matches || push!(rule_result.failures, pattern_match_result)
+        else
+            push!(rule_result.matches, pattern_match_result)
+        end
     end
     # Recurse on children, if any.
     is_leaf(src) && return rule_result
@@ -189,4 +194,27 @@ function rule_match(rule::Rule, filename::String; only_matches=true)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
 
     return rule_match(rule, src; only_matches)
+end
+
+# Utils.
+
+function toplevel_wrapped_windows(src::JuliaSyntax.SyntaxNode, window_size::Int)
+    window_size == 0 && return [src]  # The pattern does not have multiple pattern
+                                      # expressions. Match the source node as-is.
+    # Window sizes less than `window_size` will result in `MatchFail()`s.
+    windows = JuliaSyntax.SyntaxNode[]
+    is_leaf(src) && return windows
+    # Get the window ranges.
+    nodes = children(src)
+    window_ranges = (:).(1:length(nodes)-(window_size-1), window_size:length(nodes))
+    windows = JuliaSyntax.SyntaxNode[]
+    # Wrap each window in a `[toplevel]` node.
+    for wr in window_ranges
+        window_nodes = nodes[wr]
+        dummy_toplevel_data =
+            update_data_head(window_nodes[1].data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
+        push!(windows, JuliaSyntax.SyntaxNode(nothing, window_nodes, dummy_toplevel_data))
+    end
+    # Return the array of `[toplevel]` nodes with windows as children.
+    return windows
 end
