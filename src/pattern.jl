@@ -162,6 +162,11 @@ macro pattern(expr)
     return :( Pattern($pattern_node) )
 end
 
+# `JuliaSyntax` overwrites.
+
+JuliaSyntax.head(p::Pattern) = head(p.ast)
+JuliaSyntax.children(p::Pattern) = children(p.ast)
+
 # Utils.
 
 is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
