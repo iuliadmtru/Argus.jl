@@ -393,26 +393,25 @@ is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
 #### Getters.
 
 function _get_fail_condition(node::SyntaxPatternNode)::Union{Nothing, Function}
-    isa(node.data, FailSyntaxData) || return nothing
+    is_fail(node) || return nothing
     return node.data.condition
 end
 function _get_fail_message(node::SyntaxPatternNode)::Union{Nothing, String}
-    isa(node.data, FailSyntaxData) || return nothing
+    is_fail(node) || return nothing
     return node.data.message
 end
 
 function _get_var_id(node::SyntaxPatternNode)::Union{Nothing, Symbol}
-    isa(node.data, VarSyntaxData) || return nothing
+    is_var(node) || return nothing
     return node.data.id
 end
 function _get_var_syntax_class_name(node::SyntaxPatternNode)::Union{Nothing, Symbol}
-    isa(node.data, VarSyntaxData) || return nothing
+    is_var(node) || return nothing
     return node.data.syntax_class_name
 end
 function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
     arg_names = Symbol[]
     for c in args
-        # TODO: Throw and catch error.
         cs = children(c)
         is_symbol_node(c) ||
             throw(SyntaxError("""
@@ -422,6 +421,15 @@ function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
     end
 
     return arg_names
+end
+
+function _get_rep_var(node::SyntaxPatternNode)::Union{Nothing, SyntaxPatternNode}
+    is_rep(node) || return nothing
+    return node.children[1]
+end
+function _get_rep_var_id(node::SyntaxPatternNode)::Union{Nothing, Symbol}
+    is_rep(node) || return nothing
+    return _get_var_id(_get_rep_var(node))
 end
 
 ## -------------------------------------------

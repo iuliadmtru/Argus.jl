@@ -195,7 +195,7 @@ function _show_var_node(node::SyntaxPatternNode)
 
     return string(id, ":::", syntax_class_name)
 end
-_show_rep_node(node::SyntaxPatternNode) = string(_show_var_node(node.children[1]), "...")
+_show_rep_node(node::SyntaxPatternNode) = string(_show_var_node(_get_rep_var(node)), "...")
 
 function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     nodestr =

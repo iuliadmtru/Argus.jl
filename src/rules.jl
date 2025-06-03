@@ -156,6 +156,7 @@ struct RuleMatchResult
 end
 RuleMatchResult() = RuleMatchResult([], [])
 
+# TODO: Special treatment for repetitions. See TODO in `test/rules.jl`.
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
 

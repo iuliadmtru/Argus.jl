@@ -88,10 +88,9 @@ function _register_syntax_classes()
                                @pattern __lhs:::identifier = __rhs:::expr
                            end)
 
-    # TODO: Change to general function call after adding repetitions.
     # `funcall`: match a function call.
     register_syntax_class!(:funcall,
                            @syntax_class "function call" begin
-                               @pattern (__id:::identifier)()
+                               @pattern (__id:::identifier)(__args...)
                            end)
 end

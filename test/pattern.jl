@@ -56,6 +56,23 @@
                 false
             end
         end
+
+        # `~rep`
+        let
+            pattern = @pattern _...
+            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+            @test match_result == BindingSet()
+        end
+        let
+            pattern = @pattern begin
+                _f(_args...)
+            end
+            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(a, b; c=2)"))
+            @test isa(match_result, BindingSet)
+            @test length(match_result) == 2
+            args = match_result[:_args]
+            @test length(args.src) == 3
+        end
     end
 
     @testset "General" begin

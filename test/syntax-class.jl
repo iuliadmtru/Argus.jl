@@ -19,9 +19,11 @@
             @pattern _f:::funcall = _
             @pattern function (_g:::funcall) _ end
         end
-        match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f() = begin 2 end"))
+        match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f(x) = begin 2 end"))
         @test isa(match_first, BindingSet)
         @test collect(keys(match_first)) == [:_f]
+        f_args = match_first[:_f].__args
+        @test length(f_args.src) == 1
         match_second = syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
         @test isa(match_second, BindingSet)
         @test collect(keys(match_second)) == [:_g]

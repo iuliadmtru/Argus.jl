@@ -100,6 +100,17 @@ struct InvalidBinding <: AbstractBinding
     msg::String
 end
 
+"""
+Internal binding type used for storing bindings for unfinished repetitions.
+"""
+struct TemporaryBinding <: AbstractBinding
+    bname::Symbol
+    src::Vector{JuliaSyntax.SyntaxNode}
+    bindings::BindingSet
+end
+TemporaryBinding(b::Binding) = TemporaryBinding(b.bname, [b.src], b.bindings)
+Binding(b::TemporaryBinding) = Binding(b.bname, b.src, b.bindings)
+
 ## `Base` overwrites.
 
 # Allow accessing sub-bindings as fields.

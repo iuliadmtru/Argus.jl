@@ -90,6 +90,28 @@
                 @test second_match[:_y].name == "g"
             end
         end
+        let
+            rule = @rule "" begin
+                description = ""
+                pattern = @pattern begin
+                    _x:::identifier = _
+                    _...
+                    _x = _
+                end
+            end
+            src = """
+            a = :bla
+            while false
+                blu()
+            end
+            a = :bli
+            b = :ble
+            a = :blo
+            """
+            match_result = rule_match(rule, parseall(SyntaxNode, src))
+            # TODO: There should be 3 matches.
+            @test length(match_result.matches) == 2
+        end
     end
 
 end
