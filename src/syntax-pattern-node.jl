@@ -388,6 +388,7 @@ is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
 is_var(node::SyntaxPatternNode) = isa(node.data, VarSyntaxData)
 is_or(node::SyntaxPatternNode) = isa(node.data, OrSyntaxData)
 is_and(node::SyntaxPatternNode) = isa(node.data, AndSyntaxData)
+is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
 
 #### Getters.
 

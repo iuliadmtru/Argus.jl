@@ -23,7 +23,7 @@ function syntax_match(syntax_class::SyntaxClass,
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
     return failure
 end
-# TODO: Should this be split in two separate methods?
+# TODO: Split in two separate methods.
 function syntax_match(pattern::Union{SyntaxPatternNode,
                                      Vector{SyntaxPatternNode}},
                       src::Union{JuliaSyntax.SyntaxNode,

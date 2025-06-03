@@ -195,18 +195,20 @@ function _show_var_node(node::SyntaxPatternNode)
 
     return string(id, ":::", syntax_class_name)
 end
+_show_rep_node(node::SyntaxPatternNode) = string(_show_var_node(node.children[1]), "...")
 
 function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     nodestr =
         is_leaf(node) ? leaf_string(node)    :
         is_var(node)  ? _show_var_node(node) :
+        is_rep(node)  ? _show_rep_node(node) :
         "[$(untokenize(head(node)))]"
     treestr = string(indent, nodestr)
-    if is_leaf(node) || is_var(node)
+    if is_leaf(node) || is_var(node) || is_rep(node)
         treestr = rpad(treestr, 40) * " :: " * string(kind(node))
     end
     println(io, treestr)
-    if !is_leaf(node) && !is_var(node)
+    if !is_leaf(node) && !is_var(node) && !is_rep(node)
         new_indent = indent * "  "
         for n in children(node)
             _show_pattern_syntax_node(io, n, new_indent)

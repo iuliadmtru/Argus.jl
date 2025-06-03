@@ -219,21 +219,43 @@
         end
 
         @testset "Display" begin
-            binary_funcall_pattern = @pattern (_f:::identifier)(_arg1, _)
+            pattern = @pattern begin
+                function (_f:::identifier)(_args...)
+                    _...
+                    return _f
+                end
+                @fail !startswith(_f.name, "_") "does not start with `_`"
+            end
             buff = IOBuffer()
-            show(buff, "text/plain", binary_funcall_pattern)
+            show(buff, "text/plain", pattern)
             show_str = String(take!(buff))
             @test show_str == """
             Pattern:
-            [call]
-              _f:::identifier                        :: ~var
-              _arg1:::expr                           :: ~var
-              _:::expr                               :: ~var
+            [~and]
+              [function]
+                [call]
+                  _f:::identifier                    :: ~var
+                  _args:::expr...                    :: ~rep
+                [block]
+                  _:::expr...                        :: ~rep
+                  [return]
+                    _f:::expr                        :: ~var
+              [~fail]
+                [call-pre]
+                  !                                  :: Identifier
+                  [call]
+                    startswith                       :: Identifier
+                    [.]
+                      _f                             :: Identifier
+                      name                           :: Identifier
+                    [string]
+                      "_"                            :: String
+                "does not start with `_`"            :: String
             """
-            show(buff, binary_funcall_pattern)
+            show(buff, pattern)
             show_str_sexpr = String(take!(buff))
-            @test show_str_sexpr == "(call (~var (quote-: _f) (quote-: identifier)) (~var (quote-: _arg1) (quote-: expr)) (~var (quote-: _) (quote-: expr)))"
-            show(buff, "text/x.sexpression", binary_funcall_pattern)
+            @test show_str_sexpr == "(~and (function (call (~var (quote-: _f) (quote-: identifier)) (~rep (~var (quote-: _args) (quote-: expr)))) (block (~rep (~var (quote-: _) (quote-: expr))) (return (~var (quote-: _f) (quote-: expr))))) (~fail (call-pre ! (call startswith (. _f name) (string \"_\"))) \"does not start with `_`\"))"
+            show(buff, "text/x.sexpression", pattern)
             @test show_str_sexpr == String(take!(buff))
         end
     end
