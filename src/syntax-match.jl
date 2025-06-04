@@ -222,8 +222,6 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     if tmp
         bindings[pattern_var_name] = TemporaryBinding(pattern_var_name, [src], match_result)
     else
-        # TODO: Multiple pattern variable appearances should be bound to multiple source
-        #       nodes.
         bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result)
     end
     return bindings

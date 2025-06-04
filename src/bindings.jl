@@ -86,9 +86,9 @@ end
 Binding of a pattern variable to a syntax tree. Pattern variables are created with the
 `~var` pattern form.
 """
-struct Binding <: AbstractBinding
+struct Binding{T} <: AbstractBinding
     bname::Symbol
-    src::Union{JuliaSyntax.SyntaxNode, Vector{JuliaSyntax.SyntaxNode}}
+    src::T
     bindings::BindingSet
 end
 
@@ -100,12 +100,13 @@ struct InvalidBinding <: AbstractBinding
     msg::String
 end
 
+# TODO: Are these really necessary?
 """
 Internal binding type used for storing bindings for unfinished repetitions.
 """
-struct TemporaryBinding <: AbstractBinding
+struct TemporaryBinding{T} <: AbstractBinding
     bname::Symbol
-    src::Vector{JuliaSyntax.SyntaxNode}
+    src::T
     bindings::BindingSet
 end
 TemporaryBinding(b::Binding) = TemporaryBinding(b.bname, [b.src], b.bindings)
@@ -116,18 +117,18 @@ Binding(b::TemporaryBinding) = Binding(b.bname, b.src, b.bindings)
 # Allow accessing sub-bindings as fields.
 function Base.getproperty(b::Binding, name::Symbol)
     name === :bname && return getfield(b, :bname)
-    ast = getfield(b, :src)
-    name === :src && return ast
+    src = getfield(b, :src)
+    name === :src && return src
     bindings = getfield(b, :bindings)
     name === :bindings && return bindings
     # Gather available fields to show in error messages.
     available_fields = [:bname, :src, :bindings]
     [push!(available_fields, subb) for subb in keys(bindings)]
-    JuliaSyntax.is_identifier(ast) && push!(available_fields, :name)
-    JuliaSyntax.is_literal(ast) && push!(available_fields, :value)
+    JuliaSyntax.is_identifier(src) && push!(available_fields, :name)
+    JuliaSyntax.is_literal(src) && push!(available_fields, :value)
     # Check for node-specific field access.
     if name === :value
-        JuliaSyntax.is_literal(ast) && return ast.val
+        JuliaSyntax.is_literal(src) && return src.val
         # Only literals have a `value` field.
         throw(BindingFieldError(b,
                                 :value,
@@ -135,7 +136,7 @@ function Base.getproperty(b::Binding, name::Symbol)
                                 "the bound expression is not a literal"))
     end
     if name === :name
-        JuliaSyntax.is_identifier(ast) && return string(ast.val)
+        JuliaSyntax.is_identifier(src) && return string(src.val)
         # Only identifiers have a `name` field.
         throw(BindingFieldError(b,
                                 :name,
