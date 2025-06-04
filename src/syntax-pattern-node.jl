@@ -83,12 +83,13 @@ function desugar_expr(ex)::JuliaSyntax.SyntaxNode
         desugared_ex_str =
             replace(desugared_ex_str, regex => string(eval(Meta.parse(m[:ex]))); count=1)
     end
-    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, string(desugared_ex_str))
+    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, desugared_ex_str)
 end
 function _desugar_expr(ex; inside_fail=false)
     if is_sugared_rep(ex)
-        var_ex = _desugar_expr(ex.args[1]; inside_fail)
-        return :( ~rep($var_ex) )
+        rep_arg = _desugar_expr(_get_sugared_rep_arg(ex); inside_fail)
+        ellipsis_depth = _get_sugared_rep_ellipsis_depth(ex)
+        return :( ~rep($rep_arg, $ellipsis_depth) )
     elseif is_sugared_var(ex) && !inside_fail
         # `<pattern_var>:::<syntax_class>` -> `~var(<pattern_var>, <syntax_class>)`
         #
@@ -169,7 +170,7 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
         pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
         pattern_form_name === :or   ? OrSyntaxData()                       :
         pattern_form_name === :and  ? AndSyntaxData()                      :
-        pattern_form_name === :rep  ? RepSyntaxData()                      :
+        pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
         nothing
     # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing,
@@ -276,7 +277,8 @@ is_sugared_var(ex) =
     isa(ex.args[2].value, Symbol)
 is_sugared_rep(ex) =
     @isexpr(ex, :..., 1) &&
-    (is_sugared_var(ex.args[1]) || is_var(ex.args[1]))
+    (is_sugared_var(ex.args[1]) || is_var(ex.args[1]) ||
+    is_sugared_rep(ex.args[1])  || is_rep(ex.args[1]))
 
 function _get_var_id(ex::Expr)
     id_node = ex.args[2].args[2]
@@ -284,6 +286,13 @@ function _get_var_id(ex::Expr)
 end
 _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
+
+_get_sugared_rep_arg(ex) = ex.args[1]
+function _get_sugared_rep_ellipsis_depth(ex)
+    rep_arg = _get_sugared_rep_arg(ex)
+    (is_sugared_var(rep_arg) || is_var(rep_arg)) && return 1
+    return 1 + _get_sugared_rep_ellipsis_depth(rep_arg)
+end
 
 #### Pass 2 (pattern form parsing).
 
@@ -324,7 +333,7 @@ function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name === :var && return _var_arg_names(arg_nodes)
     name === :or && return []
     name === :and && return []
-    name === :rep && return []
+    name === :rep && return [arg_nodes[2].data.val]
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -423,13 +432,9 @@ function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
     return arg_names
 end
 
-function _get_rep_var(node::SyntaxPatternNode)::Union{Nothing, SyntaxPatternNode}
+function _get_rep_arg(node::SyntaxPatternNode)::Union{Nothing, SyntaxPatternNode}
     is_rep(node) || return nothing
     return node.children[1]
-end
-function _get_rep_var_id(node::SyntaxPatternNode)::Union{Nothing, Symbol}
-    is_rep(node) || return nothing
-    return _get_var_id(_get_rep_var(node))
 end
 
 ## -------------------------------------------

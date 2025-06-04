@@ -195,7 +195,11 @@ function _show_var_node(node::SyntaxPatternNode)
 
     return string(id, ":::", syntax_class_name)
 end
-_show_rep_node(node::SyntaxPatternNode) = string(_show_var_node(_get_rep_var(node)), "...")
+_show_rep_node(node::SyntaxPatternNode) = _show_rep_node(node, node.data.ellipsis_depth)
+function _show_rep_node(node::SyntaxPatternNode, depth::Int)
+    depth == 0 && return _show_var_node(node)
+    return string("(", _show_rep_node(_get_rep_arg(node), depth - 1), ")...")
+end
 
 function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     nodestr =

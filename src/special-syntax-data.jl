@@ -129,7 +129,9 @@ struct AndSyntaxData <: AbstractSpecialSyntaxData end
 
 Data for repetition nodes.
 """
-struct RepSyntaxData <: AbstractSpecialSyntaxData end
+struct RepSyntaxData <: AbstractSpecialSyntaxData
+    ellipsis_depth::Int
+end
 
 # TODO: Pattern forms registry? Or remove.
 const PATTERN_FORMS = [:fail, :var, :or, :and, :rep]

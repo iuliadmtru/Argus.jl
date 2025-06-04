@@ -238,7 +238,7 @@
         @testset "Display" begin
             pattern = @pattern begin
                 function (_f:::identifier)(_args...)
-                    _...
+                    (_...)...
                     return _f
                 end
                 @fail !startswith(_f.name, "_") "does not start with `_`"
@@ -252,9 +252,9 @@
               [function]
                 [call]
                   _f:::identifier                    :: ~var
-                  _args:::expr...                    :: ~rep
+                  (_args:::expr)...                  :: ~rep
                 [block]
-                  _:::expr...                        :: ~rep
+                  ((_:::expr)...)...                 :: ~rep
                   [return]
                     _f:::expr                        :: ~var
               [~fail]
@@ -271,7 +271,7 @@
             """
             show(buff, pattern)
             show_str_sexpr = String(take!(buff))
-            @test show_str_sexpr == "(~and (function (call (~var (quote-: _f) (quote-: identifier)) (~rep (~var (quote-: _args) (quote-: expr)))) (block (~rep (~var (quote-: _) (quote-: expr))) (return (~var (quote-: _f) (quote-: expr))))) (~fail (call-pre ! (call startswith (. _f name) (string \"_\"))) \"does not start with `_`\"))"
+            @test show_str_sexpr == "(~and (function (call (~var (quote-: _f) (quote-: identifier)) (~rep (~var (quote-: _args) (quote-: expr)) 1)) (block (~rep (~rep (~var (quote-: _) (quote-: expr)) 1) 2) (return (~var (quote-: _f) (quote-: expr))))) (~fail (call-pre ! (call startswith (. _f name) (string \"_\"))) \"does not start with `_`\"))"
             show(buff, "text/x.sexpression", pattern)
             @test show_str_sexpr == String(take!(buff))
         end
