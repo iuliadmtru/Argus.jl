@@ -125,12 +125,25 @@ Data for `~and` pattern form.
 struct AndSyntaxData <: AbstractSpecialSyntaxData end
 
 """
+    RepVar
+
+Pattern variable that appears in a `~rep` node at any ellipsis depth.
+"""
+struct RepVar
+    name::Symbol
+    ellipsis_depth::Int
+end
+"""
     RepSyntaxData
 
 Data for repetition nodes.
 """
 struct RepSyntaxData <: AbstractSpecialSyntaxData
-    ellipsis_depth::Int
+    rep_vars::Vector{RepVar}
+end
+function RepSyntaxData(node::JuliaSyntax.SyntaxNode)
+    rep_vars = [RepVar(p[1], p[2] + 1) for p in vars(node)]
+    return RepSyntaxData(rep_vars)
 end
 
 # TODO: Pattern forms registry? Or remove.
@@ -160,9 +173,6 @@ JuliaSyntax.head(data::RepSyntaxData) = JuliaSyntax.SyntaxHead(K"~rep", 0)
 
 ## `Base` overwrites.
 
-Base.getproperty(data::RepSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
-
 Base.getproperty(data::FailSyntaxData, name::Symbol) =
     name === :message ? getfield(data, :message) :
     name === :val     ? nothing                  :
@@ -180,13 +190,17 @@ Base.getproperty(data::OrSyntaxData, name::Symbol) =
 Base.getproperty(data::AndSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
+Base.getproperty(data::RepSyntaxData, name::Symbol) =
+    name === :rep_vars ? getfield(data, :rep_vars) :
+    name === :val      ? nothing                   :
+    getfield(data, name)
+
 ## Utils.
 
 function fail_condition(condition)
     pattern_variables = get_pattern_vars(condition)
     cond_fun = function (binding_context)
-        # TODO: Leave the binding context as is.
-        # TODO: Import and use `BindingSet`.
+        # TODO: Import and use `BindingSet`?
 
         # Create a smaller binding context containg only the bindings from `condition`.
         condition_binding_context = Dict{Symbol, Any}()
@@ -215,4 +229,18 @@ function fail_condition(condition)
     end
 
     return cond_fun
+end
+
+"""
+Get all the pattern variables in the given source node, from all ellipsis depths. Return
+and array of tuples containing the pattern variable names and their ellipsis depths.
+"""
+function vars(node::JuliaSyntax.SyntaxNode)
+    is_leaf(node) && return []
+    is_var(node) && return [(_get_var_id(node), 0)]
+    vs = []
+    for c in children(node)
+        append!(vs, vars(c))
+    end
+    return is_rep(node) ? map(p -> (p[1], p[2] + 1), vs) : vs
 end

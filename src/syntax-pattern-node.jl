@@ -64,6 +64,8 @@ function SyntaxPatternNode(ex)
     syntax_pattern_node = parse_pattern_forms(syntax_node)
     # If the pattern has consecutive pattern expressions parse them as toplevel expressions.
     syntax_pattern_node = _parse_toplevel_expr_array(syntax_pattern_node)
+    # TODO: Check that all repetitions contain pattern variables that don't appear anywhere
+    #       else in the pattern.
     return fix_misparsed!(syntax_pattern_node)
 end
 
@@ -88,8 +90,7 @@ end
 function _desugar_expr(ex; inside_fail=false)
     if is_sugared_rep(ex)
         rep_arg = _desugar_expr(_get_sugared_rep_arg(ex); inside_fail)
-        ellipsis_depth = _get_sugared_rep_ellipsis_depth(ex)
-        return :( ~rep($rep_arg, $ellipsis_depth) )
+        return :( ~rep($rep_arg) )
     elseif is_sugared_var(ex) && !inside_fail
         # `<pattern_var>:::<syntax_class>` -> `~var(<pattern_var>, <syntax_class>)`
         #
@@ -110,7 +111,7 @@ function _desugar_expr(ex; inside_fail=false)
         inside_fail = true
     end
     !isa(ex, Expr) && return ex  # Literals remain the same.
-    # Recurse on children
+    # Recurse on children.
     return Expr(ex.head, _desugar_expr.(ex.args; inside_fail)...)
 end
 
@@ -164,7 +165,6 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
     pattern_form_arg_nodes = _pattern_form_arg_nodes(node)
     pattern_form_args = _pattern_form_args(node)
     # Construct a node with the specific special data.
-    cs = parse_pattern_forms.(pattern_form_arg_nodes)
     pattern_data =
         pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
         pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
@@ -173,6 +173,7 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
         pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
         nothing
     # Link the node with its children.
+    cs = parse_pattern_forms.(pattern_form_arg_nodes)
     pattern_node = SyntaxPatternNode(nothing,
                                      cs,
                                      pattern_data)
@@ -275,10 +276,7 @@ is_sugared_var(ex) =
     @isexpr(ex, :(::), 2)         &&
     isa(ex.args[2], QuoteNode)    &&
     isa(ex.args[2].value, Symbol)
-is_sugared_rep(ex) =
-    @isexpr(ex, :..., 1) &&
-    (is_sugared_var(ex.args[1]) || is_var(ex.args[1]) ||
-    is_sugared_rep(ex.args[1])  || is_rep(ex.args[1]))
+is_sugared_rep(ex) = @isexpr(ex, :..., 1)
 
 function _get_var_id(ex::Expr)
     id_node = ex.args[2].args[2]
@@ -288,11 +286,6 @@ _get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
 _get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
 
 _get_sugared_rep_arg(ex) = ex.args[1]
-function _get_sugared_rep_ellipsis_depth(ex)
-    rep_arg = _get_sugared_rep_arg(ex)
-    (is_sugared_var(rep_arg) || is_var(rep_arg)) && return 1
-    return 1 + _get_sugared_rep_ellipsis_depth(rep_arg)
-end
 
 #### Pass 2 (pattern form parsing).
 
@@ -333,7 +326,7 @@ function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
     name === :var && return _var_arg_names(arg_nodes)
     name === :or && return []
     name === :and && return []
-    name === :rep && return [arg_nodes[2].data.val]
+    name === :rep && return arg_nodes
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -399,6 +392,9 @@ is_or(node::SyntaxPatternNode) = isa(node.data, OrSyntaxData)
 is_and(node::SyntaxPatternNode) = isa(node.data, AndSyntaxData)
 is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
 
+is_var(node::JuliaSyntax.SyntaxNode) =
+    is_pattern_form(node) && _pattern_form_name(node) === :var
+
 #### Getters.
 
 function _get_fail_condition(node::SyntaxPatternNode)::Union{Nothing, Function}
@@ -413,6 +409,10 @@ end
 function _get_var_id(node::SyntaxPatternNode)::Union{Nothing, Symbol}
     is_var(node) || return nothing
     return node.data.id
+end
+function _get_var_id(node::JuliaSyntax.SyntaxNode)::Union{Nothing, Symbol}
+    is_var(node) || return nothing
+    return node.children[2].children[2].children[1].val
 end
 function _get_var_syntax_class_name(node::SyntaxPatternNode)::Union{Nothing, Symbol}
     is_var(node) || return nothing
