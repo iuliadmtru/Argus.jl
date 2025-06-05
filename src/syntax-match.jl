@@ -166,7 +166,8 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     #    we save the other possible path in order to get back to it if the chosen path
     #    fails.
     #
-    #    In the recover state, the repetition is finished.
+    #    In the recover state, the repetition is finished and the repetition node did not
+    #    match the current source node.
     push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
     # 2. Continue on the preferred path. This path is eager, meaning that a repetition node
     #    consumes as many source nodes as possible.
@@ -308,10 +309,11 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode,
                           bindings::BindingSet)::MatchResult
     kind(src) === K"toplevel" && return syntax_match_rep(rep_node, children(src), bindings)
+
     match_result = _syntax_match(rep_node.children[1], src, BindingSet(); tmp=true)
     isa(match_result, MatchFail) && return match_result
 
-    bindings::BindingSet = copy(bindings)  # Don't mutate the binding set; create a new one.
+    bindings::BindingSet = deepcopy(bindings)
     for var in rep_vars(rep_node)
         var_name = var.name
         var_binding = match_result[var_name]
@@ -339,7 +341,7 @@ end
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           srcs::Vector{JuliaSyntax.SyntaxNode},
                           bindings::BindingSet)::MatchResult
-    bindings::BindingSet = copy(bindings)
+    bindings::BindingSet = deepcopy(bindings)
     if isempty(srcs)
         # If there are no source nodes, the repetition pattern variables bind to empty
         # vectors.
