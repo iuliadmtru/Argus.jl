@@ -125,9 +125,11 @@ function _parse_toplevel_expr_array(node::SyntaxPatternNode)::SyntaxPatternNode
             children(node)[2:end]...
         ]
         return SyntaxPatternNode(nothing, new_children, node.data)
-    elseif kind(node) === K"vect"
+    elseif kind(node) === K"vect"            &&
+        kind(children(node)[1]) === K"quote" &&
+        children(children(node)[1])[1].data.val === :pattern_toplevel
         toplevel_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
-        return SyntaxPatternNode(nothing, children(node), toplevel_data)
+        return SyntaxPatternNode(nothing, children(node)[2:end], toplevel_data)
     end
     return node
 end
