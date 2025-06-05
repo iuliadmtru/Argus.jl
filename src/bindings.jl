@@ -110,7 +110,8 @@ struct TemporaryBinding{S, B} <: AbstractBinding
     bindings::B
     ellipsis_depth::Int
 end
-Binding(b::TemporaryBinding) = Binding(b.bname, b.src, b.bindings, b.ellipsis_depth)
+Binding(b::TemporaryBinding{S, B}) where {S, B} =
+    Binding{S, B}(b.bname, b.src, b.bindings, b.ellipsis_depth)
 
 ## `Base` overwrites.
 

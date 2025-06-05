@@ -345,8 +345,13 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
         # vectors.
         for var in rep_vars(rep_node)
             var_name = var.name
+            var_depth = var.ellipsis_depth
             if !haskey(bindings, var_name)
-                bindings[var_name] = TemporaryBinding(var_name, [], [], var.ellipsis_depth)
+                bindings[var_name] =
+                    TemporaryBinding(var_name,
+                                     empty_vec(JuliaSyntax.SyntaxNode, var_depth),
+                                     empty_vec(BindingSet, var_depth),
+                                     var.ellipsis_depth)
             end
         end
         return bindings
@@ -422,3 +427,8 @@ function make_permanent(bss::Vector{BindingSet})
 
     return result
 end
+
+empty_vec(type, depth::Int) = depth == 0      ?
+    error("Can't create vector with 0 depth") :
+    vec_type(type, depth)()
+vec_type(type, depth::Int) = depth == 1 ? Vector{type} : Vector{vec_type(type, depth - 1)}
