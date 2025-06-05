@@ -114,6 +114,21 @@
             fail_result = syntax_match(pattern, parseall(SyntaxNode, src_fail))
             @test isa(fail_result, MatchFail)
         end
+        let
+            pattern = @pattern [2, (_x:::literal)..., 2, (_y...)...]
+            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2, 2, 2, 3, 4]"))
+            @test isa(match_result, BindingSet)
+            x = match_result[:_x]
+            @test length(x.src) == length(x.bindings) == 2
+            @test x.bindings[1][:__lit].src.val == 2
+            @test source_location(x.bindings[2][:__lit].src) == (1, 8)
+            y = match_result[:_y]
+            @test length(y.src) == length(y.bindings) == 2
+            @test length(y.src[1]) == length(y.bindings[1]) == 1
+            @test length(y.src[2]) == length(y.bindings[2]) == 1
+            @test y.src[1][1].val == 3
+            @test y.src[2][1].val == 4
+        end
     end
 
     @testset "General" begin

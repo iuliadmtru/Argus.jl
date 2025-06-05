@@ -82,6 +82,18 @@ function _register_syntax_classes()
                                end
                            end)
 
+    # `literal`: match a literal.
+    register_syntax_class!(:literal,
+                           @syntax_class "literal" begin
+                               @pattern begin
+                                   __lit
+                                   @fail begin
+                                       using JuliaSyntax: is_literal
+                                       !is_literal(__lit.src)
+                                   end "not a literal"
+                               end
+                           end)
+
     # `assign`: match an assignment.
     register_syntax_class!(:assign,
                            @syntax_class "assignment" begin
