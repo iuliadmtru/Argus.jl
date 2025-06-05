@@ -86,10 +86,11 @@ end
 Binding of a pattern variable to a syntax tree. Pattern variables are created with the
 `~var` pattern form.
 """
-struct Binding{T} <: AbstractBinding
+struct Binding{S, B} <: AbstractBinding
     bname::Symbol
-    src::T
-    bindings::BindingSet
+    src::S
+    bindings::B
+    ellipsis_depth::Int
 end
 
 """
@@ -100,17 +101,16 @@ struct InvalidBinding <: AbstractBinding
     msg::String
 end
 
-# TODO: Are these really necessary?
 """
 Internal binding type used for storing bindings for unfinished repetitions.
 """
-struct TemporaryBinding{T} <: AbstractBinding
+struct TemporaryBinding{S, B} <: AbstractBinding
     bname::Symbol
-    src::T
-    bindings::BindingSet
+    src::S
+    bindings::B
+    ellipsis_depth::Int
 end
-TemporaryBinding(b::Binding) = TemporaryBinding(b.bname, [b.src], b.bindings)
-Binding(b::TemporaryBinding) = Binding(b.bname, b.src, b.bindings)
+Binding(b::TemporaryBinding) = Binding(b.bname, b.src, b.bindings, b.ellipsis_depth)
 
 ## `Base` overwrites.
 
@@ -121,6 +121,7 @@ function Base.getproperty(b::Binding, name::Symbol)
     name === :src && return src
     bindings = getfield(b, :bindings)
     name === :bindings && return bindings
+    name === :ellipsis_depth && return getfield(b, :ellipsis_depth)
     # Gather available fields to show in error messages.
     available_fields = [:bname, :src, :bindings]
     [push!(available_fields, subb) for subb in keys(bindings)]

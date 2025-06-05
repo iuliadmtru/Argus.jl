@@ -394,6 +394,8 @@ is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
 
 is_var(node::JuliaSyntax.SyntaxNode) =
     is_pattern_form(node) && _pattern_form_name(node) === :var
+is_rep(node::JuliaSyntax.SyntaxNode) =
+    is_pattern_form(node) && _pattern_form_name(node) === :rep
 
 #### Getters.
 
@@ -436,6 +438,9 @@ function _get_rep_arg(node::SyntaxPatternNode)::Union{Nothing, SyntaxPatternNode
     is_rep(node) || return nothing
     return node.children[1]
 end
+# TODO: Rename all getters to something like this.
+# TODO: Remove return types.
+rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : nothing
 
 ## -------------------------------------------
 ## Display.

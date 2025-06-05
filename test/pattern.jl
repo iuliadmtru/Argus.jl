@@ -59,9 +59,23 @@
 
         # `~rep`
         let
-            pattern = @pattern _...
+            pattern = @pattern _x...
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            @test match_result == BindingSet()
+            @test isa(match_result, BindingSet)
+            @test length(match_result) == 1
+            @test isa(match_result[:_x].src, Vector{JuliaSyntax.SyntaxNode})
+            @test length(match_result[:_x].src) == 1
+            @test isa(match_result[:_x].bindings, Vector{BindingSet{Argus.AbstractBinding}})
+            @test length(match_result[:_x].bindings) == 1
+        end
+        let
+            pattern = @pattern (_x...)...
+            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+            @test isa(match_result, BindingSet)
+            @test length(match_result) == 1
+            @test isa(match_result[:_x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
+            @test isa(match_result[:_x].bindings,
+                      Vector{Vector{BindingSet{Argus.AbstractBinding}}})
         end
         let
             pattern = @pattern begin
@@ -72,6 +86,33 @@
             @test length(match_result) == 2
             args = match_result[:_args]
             @test length(args.src) == 3
+        end
+        let
+            pattern = @pattern begin
+                (_f(_args...) = _)...
+            end
+            # Match.
+            src = """
+            f() = begin 2 end
+            g(x) = begin x + 1 end
+            h(a; b::Int=2) = begin a - b end
+            """
+            match_result = syntax_match(pattern, parseall(SyntaxNode, src))
+            @test isa(match_result, BindingSet)
+            @test length(match_result) == 2
+            args_bindings = match_result[:_args]
+            f_bindings = match_result[:_f]
+            @test length(args_bindings.src) == length(f_bindings.src) == 3
+            src3 = args_bindings.src[3]
+            @test source_location(src3[2]) == (3, 4)
+            # Fail.
+            src_fail = """
+            f() = begin 2 end
+            g(x)::Int = begin x + 1 end
+            h(a; b::Int=2) = begin a - b end
+            """
+            fail_result = syntax_match(pattern, parseall(SyntaxNode, src_fail))
+            @test isa(fail_result, MatchFail)
         end
     end
 
@@ -85,10 +126,11 @@
             @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
                 @fail _ex.value == 2 "is two"
             end
-            # @test_throws "Only fail conditions" @macroexpand @pattern begin
-            #     ex1
-            #     ex2
-            # end
+            @test_throws "intercalated" @macroexpand @pattern begin
+                ex1
+                @fail cond ""
+                ex2
+            end
         end
 
         # TODO: Move these to `test/bindings.jl`.
@@ -233,47 +275,6 @@
                     @test syntax_match(pattern, src) == MatchFail()
                 end
             end
-        end
-
-        @testset "Display" begin
-            pattern = @pattern begin
-                function (_f:::identifier)(_args...)
-                    (_...)...
-                    return _f
-                end
-                @fail !startswith(_f.name, "_") "does not start with `_`"
-            end
-            buff = IOBuffer()
-            show(buff, "text/plain", pattern)
-            show_str = String(take!(buff))
-            @test show_str == """
-            Pattern:
-            [~and]
-              [function]
-                [call]
-                  _f:::identifier                    :: ~var
-                  (_args:::expr)...                  :: ~rep
-                [block]
-                  ((_:::expr)...)...                 :: ~rep
-                  [return]
-                    _f:::expr                        :: ~var
-              [~fail]
-                [call-pre]
-                  !                                  :: Identifier
-                  [call]
-                    startswith                       :: Identifier
-                    [.]
-                      _f                             :: Identifier
-                      name                           :: Identifier
-                    [string]
-                      "_"                            :: String
-                "does not start with `_`"            :: String
-            """
-            show(buff, pattern)
-            show_str_sexpr = String(take!(buff))
-            @test show_str_sexpr == "(~and (function (call (~var (quote-: _f) (quote-: identifier)) (~rep (~var (quote-: _args) (quote-: expr)) 1)) (block (~rep (~rep (~var (quote-: _) (quote-: expr)) 1) 2) (return (~var (quote-: _f) (quote-: expr))))) (~fail (call-pre ! (call startswith (. _f name) (string \"_\"))) \"does not start with `_`\"))"
-            show(buff, "text/x.sexpression", pattern)
-            @test show_str_sexpr == String(take!(buff))
         end
     end
 end

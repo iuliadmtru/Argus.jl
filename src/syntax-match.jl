@@ -28,13 +28,17 @@ function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JuliaSyntax.SyntaxNode)::MatchResult
     match_result = _syntax_match(pattern_node, src)
     isa(match_result, MatchFail) && return match_result
-    return remove_invalid_bindings(match_result)
+    # Remove invalid bindings and permanentise temporary bindings (there can be one
+    # temporary binding if the last matching pattern was a repetition).
+    match_result = remove_invalid_bindings(match_result)
+    return make_permanent(match_result)
 end
 function syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                       srcs::Vector{JuliaSyntax.SyntaxNode})::MatchResult
     match_result = _syntax_match(pattern_nodes, srcs)
     isa(match_result, MatchFail) && return match_result
-    return remove_invalid_bindings(match_result)
+    match_result = remove_invalid_bindings(match_result)
+    return make_permanent(match_result)
 end
 
 """
@@ -42,30 +46,47 @@ Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s.
 """
 function _syntax_match(pattern_node::SyntaxPatternNode,
                        src::JuliaSyntax.SyntaxNode,
-                       bindings::BindingSet=BindingSet())::MatchResult
+                       bindings::BindingSet=BindingSet();
+                       tmp=false)::MatchResult
     # Special syntax.
     is_pattern_form(pattern_node) &&
-        return syntax_match_pattern_form(pattern_node, src, bindings)
+        return syntax_match_pattern_form(pattern_node, src, bindings; tmp)
     # Regular syntax.
     head(pattern_node) != head(src) && return MatchFail()
     pattern_node.data.val != src.data.val && return MatchFail()
     xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
-    return _syntax_match(children(pattern_node), children(src), bindings)
+    return _syntax_match(children(pattern_node), children(src), bindings; tmp)
 end
 function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                        srcs::Vector{JuliaSyntax.SyntaxNode},
                        bindings::BindingSet=BindingSet();
-                       recover_stack=[])::MatchResult
+                       tmp=false)::MatchResult
+    match_result, srcs = _partial_syntax_match(pattern_nodes, srcs, bindings; tmp)
+    isa(match_result, MatchFail) && return match_result
+    isempty(srcs) || return MatchFail()
+    return match_result
+end
+"""
+Main matching function. Tries to match a sequence of pattern nodes to a sequence of source
+nodes exactly once. If any of the pattern nodes fails to match, returns a `MatchFail`. A
+successful partial match returns the generated bindings as a `BindingSet` (can contain
+`InvalidBinding`s) and the remaining unmatched source nodes.
+"""
+function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
+                               srcs::Vector{JuliaSyntax.SyntaxNode},
+                               bindings::BindingSet=BindingSet();
+                               recovery_stack=[],
+                               tmp=false)::Tuple{MatchResult, Vector{JuliaSyntax.SyntaxNode}}
     if isempty(srcs)
         # Reasons to be here:
         #
         # 1. This is the only match possibility left. (This is the case if we have no state
-        #    in `recover_stack` to return to.)
+        #    in `recovery_stack` to return to.)
         #
-        #    1.a. Only repetitions remain among the pattern nodes. These can all match
-        #         0 source nodes.
+        #    1.a. Only repetitions remain among the pattern nodes, or no patterns at all.
+        #         These can all match 0 source nodes.
         #    1.b. Non-repetition patterns remain unmatched. Since there was no other way to
         #         get here, there is no match.
         #
@@ -74,34 +95,50 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         #
         #    2.a. This path results in a match, so there's no need to try other states.
         #    2.b. There is no possible match on this path. We need to try another state
-        #         (the last one stored in the `recover_stack`.)
-        all(is_rep.(pattern_nodes)) && return permanentise_bindings(bindings)  # 1.a, 2.a
-        isempty(recover_stack) && return MatchFail()                           # 1.b
-        pattern_nodes, srcs, bindings = pop!(recover_stack)
-        return _syntax_match(pattern_nodes, srcs, bindings; recover_stack)     # 2.b
+        #         (the last one stored in the `recovery_stack`.)
+        isempty(pattern_nodes) && return (bindings, srcs)          # 1.a,2.a
+        # Try the first pattern. There can only be a match if it's a repetition.
+        p = pattern_nodes[1]
+        if is_rep(p)
+            match_result = syntax_match_rep(p, srcs, bindings)
+            # This could never fail, but it's good to be exhaustive.
+            isa(match_result, MatchFail) && return (match_result, srcs)
+            return _partial_syntax_match(rest(pattern_nodes),                       # 1.a,
+                                         srcs,                                      # 1.b,
+                                         match_result;                              # 2.a,
+                                         recovery_stack,                            # 2.b
+                                         tmp)
+        end
+        # The first pattern node is not a repetition, so there can be no match on this path.
+        isempty(recovery_stack) && return (MatchFail(), srcs)                       # 1.b
+        return _partial_syntax_match(pop!(recovery_stack)...; recovery_stack, tmp)  # 2.b
     end
     # If we're here, there still are unmatched source nodes.
     #
-    # If there are no more pattern nodes to match the source nodes, there can be no match.
-    isempty(pattern_nodes) && return MatchFail()
+    # No pattern nodes left marks the end of the partial match.
+    isempty(pattern_nodes) && return (bindings, srcs)
     # Here we know we have at least one pattern node and at least one source node.
     p = pattern_nodes[1]
     s = srcs[1]
-    match_result = _syntax_match(p, s, bindings)
+    match_result = _syntax_match(p, s, bindings; tmp)
     if !is_rep(p)
         # The first pattern node is not a repetition so it needs to match the first source
         # node exactly.
         if isa(match_result, MatchFail)
             # If the two don't match, we might be able to try a previous state. If there is
             # no other state to return to, the overall match fails.
-            isempty(recover_stack) && return match_result
+            isempty(recovery_stack) && return (match_result, srcs)
             # There are still states we can go back to.
-            pattern_nodes, srcs, bindings = pop!(recover_stack)
-            return _syntax_match(pattern_nodes, srcs, bindings; recover_stack)
+            pattern_nodes, srcs, bindings = pop!(recovery_stack)
+            return _partial_syntax_match(pattern_nodes, srcs, bindings; recovery_stack, tmp)
         end
         # If the pattern and source nodes match, we can continue matching the remainders of
         # the node lists.
-        return _syntax_match(rest(pattern_nodes), rest(srcs), match_result; recover_stack)
+        return _partial_syntax_match(rest(pattern_nodes),
+                                     rest(srcs),
+                                     match_result;
+                                     recovery_stack,
+                                     tmp)
     end
     # If we're here, the first pattern node in the list is a repetition.
     if isa(match_result, MatchFail)
@@ -113,8 +150,12 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         # repetition ends the entry is "permanentised". This means it is either given the
         # appropriate name (the name of the pattern variable in the repetition node) or it
         # is discarded if the repetition pattern variable is anonymous.
-        bindings = permanentise_bindings(bindings)
-        return _syntax_match(rest(pattern_nodes), srcs, bindings; recover_stack)
+        bindings = make_permanent(bindings)
+        return _partial_syntax_match(rest(pattern_nodes),
+                                     srcs,
+                                     bindings;
+                                     recovery_stack,
+                                     tmp)
     end
     # The last possibility is that the repetition is a match. We need to do two things:
     #
@@ -126,10 +167,14 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     #    fails.
     #
     #    In the recover state, the repetition is finished.
-    push!(recover_stack, (rest(pattern_nodes), srcs, permanentise_bindings(bindings)))
+    push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
     # 2. Continue on the preferred path. This path is eager, meaning that a repetition node
     #    consumes as many source nodes as possible.
-    return _syntax_match(pattern_nodes, rest(srcs), match_result; recover_stack)
+    return _partial_syntax_match(pattern_nodes,
+                                 rest(srcs),
+                                 match_result;
+                                 recovery_stack,
+                                 tmp)
 end
 
 # --------------------------------------------
@@ -141,14 +186,15 @@ match function.
 """
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JuliaSyntax.SyntaxNode,
-                                   bindings::BindingSet)::MatchResult
+                                   bindings::BindingSet;
+                                   tmp=false)::MatchResult
     args = (pattern_node, src, bindings)
     node_data = pattern_node.data
     # Dispatch on form type.
     isa(node_data, FailSyntaxData) && return syntax_match_fail(args...)
-    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...)
-    isa(node_data, OrSyntaxData)   && return syntax_match_or(pattern_node, src)
-    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...)
+    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; tmp)
+    isa(node_data, OrSyntaxData)   && return syntax_match_or(pattern_node, src; tmp)
+    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; tmp)
     isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...)
     return MatchFail("unknown pattern form")
 end
@@ -204,13 +250,10 @@ function syntax_match_var(var_node::SyntaxPatternNode,
         return bindings
     # If the binding already exists, check if the new binding is compatible with the
     # old one.
+    bindings::BindingSet = copy(bindings)
     if haskey(bindings, pattern_var_name)
         b = bindings[pattern_var_name]
         isa(b, InvalidBinding) && return MatchFail(b.msg)
-        if isa(b, TemporaryBinding)
-            push!(bindings[pattern_var_name].src, src)
-            return bindings
-        end
         # If the bindings are not compatible, mark the binding so that it won't bind
         # further.
         if !compatible(b.src, src)
@@ -220,9 +263,10 @@ function syntax_match_var(var_node::SyntaxPatternNode,
         end
     end
     if tmp
-        bindings[pattern_var_name] = TemporaryBinding(pattern_var_name, [src], match_result)
+        bindings[pattern_var_name] =
+            TemporaryBinding(pattern_var_name, src, match_result, 0)
     else
-        bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result)
+        bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result, 0)
     end
     return bindings
 end
@@ -232,10 +276,11 @@ Try to match an `or` pattern form. Return the match for the first pattern altern
 Fail if no alternative matches.
 """
 function syntax_match_or(or_node::SyntaxPatternNode,
-                         src::JuliaSyntax.SyntaxNode)::MatchResult
+                         src::JuliaSyntax.SyntaxNode;
+                         tmp=false)::MatchResult
     failure = MatchFail("no matching alternative")
     for p in children(or_node)
-        match_result = _syntax_match(p, src, BindingSet())
+        match_result = _syntax_match(p, src, BindingSet(); tmp)
         isa(match_result, BindingSet) && return match_result
         failure = match_result
     end
@@ -249,23 +294,74 @@ the `MatchFail` of the first failing branch.
 """
 function syntax_match_and(and_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode,
-                          bindings::BindingSet)::MatchResult
+                          bindings::BindingSet;
+                          tmp=false)::MatchResult
     for p in children(and_node)
-        match_result = _syntax_match(p, src, bindings)
+        match_result = _syntax_match(p, src, bindings; tmp)
         isa(match_result, MatchFail) && return match_result
         bindings = match_result
     end
     return bindings
 end
 
-"""
-Try to match a `rep` pattern form. If the `var` node contained within the `rep` matches,
-bind the pattern variable as a `TemporaryBinding`.
-"""
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode,
                           bindings::BindingSet)::MatchResult
-    return syntax_match_var(_get_rep_var(rep_node), src, bindings; tmp=true)
+    kind(src) === K"toplevel" && return syntax_match_rep(rep_node, children(src), bindings)
+    match_result = _syntax_match(rep_node.children[1], src, BindingSet(); tmp=true)
+    isa(match_result, MatchFail) && return match_result
+
+    bindings::BindingSet = copy(bindings)  # Don't mutate the binding set; create a new one.
+    for var in rep_vars(rep_node)
+        var_name = var.name
+        var_binding = match_result[var_name]
+        # Add the bindings generated by matching the repetition inner node, but increase the
+        # depth for the bound sources and sub-bindings.
+        if haskey(bindings, var_name)
+            # If the pattern variable is already bound, we need to add the new binding to
+            # its binding list.
+            b = bindings[var_name]
+            b_src = b.src
+            push!(b_src, var_binding.src)
+            b_bindings = b.bindings
+            push!(b_bindings, var_binding.bindings)
+            bindings[var_name] =
+                TemporaryBinding(var_name, b_src, b_bindings, var.ellipsis_depth)
+        else
+            bindings[var_name] = TemporaryBinding(var_name,
+                                                  [var_binding.src],
+                                                  [var_binding.bindings],
+                                                  var.ellipsis_depth)
+        end
+    end
+    return bindings
+end
+function syntax_match_rep(rep_node::SyntaxPatternNode,
+                          srcs::Vector{JuliaSyntax.SyntaxNode},
+                          bindings::BindingSet)::MatchResult
+    bindings::BindingSet = copy(bindings)
+    if isempty(srcs)
+        # If there are no source nodes, the repetition pattern variables bind to empty
+        # vectors.
+        for var in rep_vars(rep_node)
+            var_name = var.name
+            if !haskey(bindings, var_name)
+                bindings[var_name] = TemporaryBinding(var_name, [], [], var.ellipsis_depth)
+            end
+        end
+        return bindings
+    end
+    # If there are source nodes, the match is a success only if the repetition node can
+    # consume all the source nodes.
+    partial_results = BindingSet[]
+    while !isempty(srcs)
+        partial_result, srcs =
+            _partial_syntax_match(children(rep_node), srcs, BindingSet(); tmp=true)
+        isa(partial_result, MatchFail) && return partial_result
+        push!(partial_results, partial_result)
+    end
+    match_result = make_permanent(partial_results)
+    return merge(bindings, match_result)
 end
 
 ## Utils.
@@ -281,10 +377,10 @@ end
 (rest(v::Vector{JuliaSyntax.TreeNode{T}})::Vector{JuliaSyntax.TreeNode{T}}) where T =
     isempty(v) || length(v) == 1 ? [] : v[2:end]
 
-remove_invalid_bindings(bs::BindingSet)::BindingSet{Binding} =
-    filter(p -> isa(p.second, Binding), bs)
+remove_invalid_bindings(bs::BindingSet)::BindingSet =
+    filter(p -> !isa(p.second, InvalidBinding), bs)
 
-function permanentise_bindings(bs::BindingSet)
+function make_permanent(bs::BindingSet)
     without_temp = BindingSet()
     for (k, v) in bs
         if isa(v, TemporaryBinding)
@@ -297,4 +393,32 @@ function permanentise_bindings(bs::BindingSet)
         end
     end
     return without_temp
+end
+"""
+TODO: Explain better...
+
+Should be called only when making the result of a repetition match permanent. Merges all the
+binding sets corresponding to a pattern variable into a single binding, increasing ellipsis
+depth. Does this for all repetition pattern variables.
+"""
+function make_permanent(bss::Vector{BindingSet})
+    result = BindingSet()
+    for bs in bss
+        bs = make_permanent(bs)
+        for (k, v) in bs
+            if haskey(result, k)
+                result_src = result[k].src
+                result_bindings = result[k].bindings
+                result_depth = result[k].ellipsis_depth
+                result[k] = Binding(v.bname,
+                                    push!(result_src, v.src),
+                                    push!(result_bindings, v.bindings),
+                                    result_depth)
+            else
+                result[k] = Binding(v.bname, [v.src], [v.bindings], v.ellipsis_depth + 1)
+            end
+        end
+    end
+
+    return result
 end
