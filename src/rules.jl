@@ -63,7 +63,8 @@ end
 # Display.
 
 function Base.show(io::IO, rule::Rule)
-    println(io, rule.name, ": ", rstrip(rule.description))
+    println(io, rule.name, ":\n", rstrip(rule.description))
+    println()
     show(io, MIME("text/plain"), rule.pattern)
 end
 
