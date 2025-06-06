@@ -71,7 +71,24 @@ end
     end
 end
 
-# TODO: Fix `@fail` condition wrapping for this.
+# Syntax classes useful for the `useless-booleans` rule.
+chain_with_lit = @syntax_class "logical chain with explicit literal" begin
+    @pattern begin
+        ~or(
+            _b && _...,
+            _b || _...,
+            _... && _b,
+            _... || _b
+        )
+        @fail typeof(_b.value) != Bool "not `Bool`"
+    end
+end
+register_syntax_class!(:chain_with_lit, chain_with_lit)
+lit_or_chain = @syntax_class "`Bool` literal or logical chain with explicit literal" begin
+    @pattern ~or(_b:::literal, _b:::chain_with_lit)
+end
+register_syntax_class!(:lit_or_chain, lit_or_chain)
+
 @define_rule_in_group lang_rules "useless-booleans" begin
     description = """
     Boolean literals in conditions are unnecessary.
@@ -79,39 +96,16 @@ end
 
     pattern = @pattern begin
         ~or(
-            if _b _... end,
-            if _b _... else _... end,
-            if _b _... elseif _... _... end,
-            if _b _... elseif _... _... else _... end,
-            if _... elseif _b _... end,
-            if _... elseif _b _... else _... end,
-            while _... && _b
-                _...
-            end,
-            while _... || _b
-                _...
-            end,
-            while _b && _...
-                _...
-            end,
-            while _b || _...
+            if _if_cond:::lit_or_chain _... end,
+            if _if_cond:::lit_or_chain _... else _... end,
+            if _if_cond:::lit_or_chain _... elseif _... _... end,
+            if _if_cond:::lit_or_chain _... elseif _... _... else _... end,
+            if _... _... elseif _if_cond:::lit_or_chain _... end,
+            if _... _... elseif _if_cond:::lit_or_chain _... else _... end,
+            while _while_cond:::chain_with_lit
                 _...
             end
         )
-        @fail begin
-            _b  # TODO: Not sure why this is necessary.
-            logical_chain = @pattern begin
-                ~or(
-                    __b,
-                    __b && _...,
-                    __b || _...,
-                    _... && __b,
-                    _... || __b
-                )
-                @fail typeof(__b.value) != Bool "not `Bool`"
-            end
-            syntax_match(logical_chain, _b.src) isa MatchFail
-        end "not logical chain with `Bool`"
     end
 end
 

@@ -10,6 +10,8 @@ if cond1
         bla()
     elseif true || cond3  # Match.
         blu()
+    else
+        bli()
     end
 else
     println(2)
@@ -18,7 +20,7 @@ end
 x = false 
 
 # Match.
-if x && true
+if x && y || true
     println(1)
 else
     println(2)
@@ -32,7 +34,7 @@ else
 end
 
 # Match.
-if x || true
+if x || y && true
     println(1)
 else
     println(2)
