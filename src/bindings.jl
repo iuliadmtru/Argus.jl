@@ -131,6 +131,7 @@ function Base.getproperty(b::Binding, name::Symbol)
     # Check for node-specific field access.
     if name === :value
         JuliaSyntax.is_literal(src) && return src.val
+        kind(src) === K"string" && return src.children[1].val
         # Only literals have a `value` field.
         throw(BindingFieldError(b,
                                 :value,
