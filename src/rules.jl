@@ -157,7 +157,6 @@ struct RuleMatchResult
 end
 RuleMatchResult() = RuleMatchResult([], [])
 
-# TODO: Special treatment for repetitions. See TODO in `test/rules.jl`.
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
 
@@ -166,16 +165,18 @@ Match a rule against an AST. Return the set of all matches. If `only_matches` is
 """
 function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
-    # If the pattern has multiple pattern expressions, they must be matched against all
-    # the source "children windows". Otherwise, the pattern must match the source.
-    windows = toplevel_wrapped_windows(src, toplevel_exprs_count(rule.pattern))
-    for window in windows
-        pattern_match_result = syntax_match(rule.pattern, window)
-        if isa(pattern_match_result, MatchFail)
-            only_matches || push!(rule_result.failures, pattern_match_result)
-        else
-            push!(rule_result.matches, pattern_match_result)
+    if is_toplevel(rule.pattern) && (kind(src) == K"block" || kind(src) == K"toplevel")
+        # Both the pattern and the source are series of expressions. Match the pattern's
+        # expressions sequence with all the sub-sequences in the source.
+        srcs = children(src)
+        while !isempty(srcs)
+            partial_result, _ = _partial_syntax_match(children(rule.pattern), srcs)
+            push_match_result!(rule_result, partial_result; only_matches)
+            srcs = rest(srcs)
         end
+    else
+        match_result = syntax_match(rule.pattern, src)
+        push_match_result!(rule_result, match_result; only_matches)
     end
     # Recurse on children, if any.
     is_leaf(src) && return rule_result
@@ -200,23 +201,12 @@ end
 
 # Utils.
 
-function toplevel_wrapped_windows(src::JuliaSyntax.SyntaxNode, window_size::Int)
-    window_size == 0 && return [src]  # The pattern does not have multiple pattern
-                                      # expressions. Match the source node as-is.
-    # Window sizes less than `window_size` will result in `MatchFail()`s.
-    windows = JuliaSyntax.SyntaxNode[]
-    is_leaf(src) && return windows
-    # Get the window ranges.
-    nodes = children(src)
-    window_ranges = (:).(1:length(nodes)-(window_size-1), window_size:length(nodes))
-    windows = JuliaSyntax.SyntaxNode[]
-    # Wrap each window in a `[toplevel]` node.
-    for wr in window_ranges
-        window_nodes = nodes[wr]
-        dummy_toplevel_data =
-            update_data_head(window_nodes[1].data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
-        push!(windows, JuliaSyntax.SyntaxNode(nothing, window_nodes, dummy_toplevel_data))
+function push_match_result!(rule_result::RuleMatchResult,
+                           match_result::MatchResult;
+                           only_matches=true)
+    if isa(match_result, MatchFail)
+        only_matches || push!(rule_result.failures, match_result)
+    else
+        push!(rule_result.matches, match_result)
     end
-    # Return the array of `[toplevel]` nodes with windows as children.
-    return windows
 end

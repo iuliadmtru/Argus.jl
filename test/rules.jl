@@ -75,9 +75,11 @@
                     g()
                 end
                 for el in vec
-                    x = 2
-                    el = 2
-                    g()
+                    if c
+                        el = 2
+                        g(y) = 2
+                        h()
+                    end
                 end
                 """
                 match_result = rule_match(rule, parseall(SyntaxNode, src))
@@ -86,8 +88,8 @@
                 @test first_match[:_x].name == "a"
                 @test first_match[:_y].name == "f"
                 second_match = match_result.matches[2]
-                @test second_match[:_x].name == "el"
-                @test second_match[:_y].name == "g"
+                @test kind(second_match[:_x].src) === K"call"
+                @test second_match[:_y].name == "h"
             end
         end
         let
@@ -109,8 +111,7 @@
             a = :blo
             """
             match_result = rule_match(rule, parseall(SyntaxNode, src))
-            # TODO: There should be 3 matches.
-            @test length(match_result.matches) == 2
+            @test length(match_result.matches) == 3
         end
     end
 
