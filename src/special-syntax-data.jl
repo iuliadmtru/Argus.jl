@@ -45,7 +45,11 @@ function get_pattern_vars(ex::Expr)::Vector{Symbol}
     isempty(ex.args) && return Symbol[]
 
     pattern_vars = Symbol[]
-    if ex.head === :.
+    if @isexpr(ex, :call) && (ex.args[1] === :syntax_match || ex.args[1] === :Pattern) ||
+        @isexpr(ex, :macrocall) && ex.args[1] === Symbol("@pattern")
+        # Argus functions have their own, separate pattern variables.
+        return pattern_vars
+    elseif ex.head === :.
         append!(pattern_vars, get_pattern_vars(ex.args[1]))
     else
         for arg in ex.args
@@ -67,6 +71,7 @@ function get_pattern_vars(s::Symbol)::Vector{Symbol}
     Meta.isidentifier(s) || return Symbol[]
     name_str = string(s)
     startswith(name_str, "_") || return Symbol[]
+    name_str in ["__module__", "__source__", "__file__", "__context__"] && return Symbol[]
     return [s]
 end
 get_pattern_vars(::T) where T = Symbol[]
@@ -222,6 +227,7 @@ function fail_condition(condition)
             Core.eval(ConditionContext, :($var_name = $binding))
         end
         # Evaluate the condition within the evaluation context.
+        Core.eval(ConditionContext, :(using Argus))
         result = Core.eval(ConditionContext, condition)
         isa(result, Bool) ||
             throw(MatchError(result))
