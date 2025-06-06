@@ -1,10 +1,22 @@
+# Match result.
+
 # TODO: Add location information.
+"""
+The result of a pattern match failure. It contains a string explaining the reason for
+failure.
+"""
 struct MatchFail
     message::String
 end
 MatchFail() = MatchFail("no match")
 
+"""
+The result of a pattern match. It can either be a `MatchFail` with details of the failure
+reason, or a `BindingSet` with all the pattern variables bound during the match.
+"""
 const MatchResult = Union{MatchFail, BindingSet}
+
+# Syntax matching.
 
 function syntax_match(pattern::Pattern,
                       src::JuliaSyntax.SyntaxNode)::MatchResult
@@ -113,24 +125,24 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         #    2.a. This path results in a match, so there's no need to try other states.
         #    2.b. There is no possible match on this path. We need to try another state
         #         (the last one stored in the `recovery_stack`.)
-        isempty(pattern_nodes) && return (bindings, srcs)          # 1.a,2.a
+        isempty(pattern_nodes) && return (bindings, srcs)                          # 1.a,2.a
         # Try the first pattern. There can only be a match if it's a repetition.
         p = pattern_nodes[1]
         if is_rep(p)
             match_result = syntax_match_rep(p, srcs, bindings)
             # This could never fail, but it's good to be exhaustive.
             isa(match_result, MatchFail) && return (match_result, srcs)
-            return _partial_syntax_match(rest(pattern_nodes),                       # 1.a,
-                                         srcs,                                      # 1.b,
-                                         match_result;                              # 2.a,
-                                         recovery_stack,                            # 2.b
+            return _partial_syntax_match(rest(pattern_nodes),                         # 1.a,
+                                         srcs,                                        # 1.b,
+                                         match_result;                                # 2.a,
+                                         recovery_stack,                              # 2.b
                                          tmp)
         end
         # The first pattern node is not a repetition, so there can be no match on this path.
         return recover!(recovery_stack,                      # `recovery_stack` empty => 1.b
-                       _partial_syntax_match;               # else                   => 2.b
-                       fail_ret=(MatchFail(), srcs),
-                       tmp)
+                        _partial_syntax_match;               # else                   => 2.b
+                        fail_ret=(MatchFail(), srcs),
+                        tmp)
     end
     # If we're here, there still are unmatched source nodes.
     #
