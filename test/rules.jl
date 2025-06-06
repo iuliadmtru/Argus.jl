@@ -129,6 +129,7 @@ end
     test_rule_in_group("chained-const-assignment", lang_rules, dir, 4)
     test_rule_in_group("compare-nothing", lang_rules, dir, 6)
     test_rule_in_group("useless-equals", lang_rules, dir, 4)
+    test_rule_in_group("useless-booleans", lang_rules, dir, 7)
     test_rule_in_group("open-tmp-path", lang_rules, dir, 3)
     test_rule_in_group("rand-bool", lang_rules, dir, 3)
 end

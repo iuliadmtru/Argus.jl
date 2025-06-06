@@ -42,33 +42,50 @@ function syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
 end
 
 """
-Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s.
+Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s or
+`TemporaryBinding`s.
 """
 function _syntax_match(pattern_node::SyntaxPatternNode,
                        src::JuliaSyntax.SyntaxNode,
                        bindings::BindingSet=BindingSet();
+                       recovery_stack=[],
                        tmp=false)::MatchResult
     # Special syntax.
-    is_pattern_form(pattern_node) &&
-        return syntax_match_pattern_form(pattern_node, src, bindings; tmp)
+    if is_pattern_form(pattern_node)
+        match_result =
+            syntax_match_pattern_form(pattern_node, src, bindings; recovery_stack, tmp)
+        isa(match_result, MatchFail) &&
+            # Try another path if possible.
+            return recover(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
+        # If there is a match, return it.
+        return match_result
+    end
     # Regular syntax.
-    head(pattern_node) != head(src) && return MatchFail()
-    pattern_node.data.val != src.data.val && return MatchFail()
-    xor(is_leaf(pattern_node), is_leaf(src)) && return MatchFail()
+    head(pattern_node) != head(src) &&
+        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+    pattern_node.data.val != src.data.val &&
+        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+    xor(is_leaf(pattern_node), is_leaf(src)) &&
+        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
-    return _syntax_match(children(pattern_node), children(src), bindings; tmp)
+    return _syntax_match(children(pattern_node), children(src), bindings; recovery_stack, tmp)
 end
 function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                        srcs::Vector{JuliaSyntax.SyntaxNode},
                        bindings::BindingSet=BindingSet();
+                       recovery_stack=[],
                        tmp=false)::MatchResult
     match_result, srcs = _partial_syntax_match(pattern_nodes, srcs, bindings; tmp)
-    isa(match_result, MatchFail) && return match_result
-    isempty(srcs) || return MatchFail()
+    isa(match_result, MatchFail) &&
+        return recover(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
+    isempty(srcs) ||
+        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     return match_result
 end
 """
+TODO: Rewrite this.
+
 Main matching function. Tries to match a sequence of pattern nodes to a sequence of source
 nodes exactly once. If any of the pattern nodes fails to match, returns a `MatchFail`. A
 successful partial match returns the generated bindings as a `BindingSet` (can contain
@@ -110,8 +127,10 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                          tmp)
         end
         # The first pattern node is not a repetition, so there can be no match on this path.
-        isempty(recovery_stack) && return (MatchFail(), srcs)                       # 1.b
-        return _partial_syntax_match(pop!(recovery_stack)...; recovery_stack, tmp)  # 2.b
+        return recover(recovery_stack,                      # `recovery_stack` empty => 1.b
+                       _partial_syntax_match;               # else                   => 2.b
+                       fail_ret=(MatchFail(), srcs),
+                       tmp)
     end
     # If we're here, there still are unmatched source nodes.
     #
@@ -127,10 +146,10 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         if isa(match_result, MatchFail)
             # If the two don't match, we might be able to try a previous state. If there is
             # no other state to return to, the overall match fails.
-            isempty(recovery_stack) && return (match_result, srcs)
-            # There are still states we can go back to.
-            pattern_nodes, srcs, bindings = pop!(recovery_stack)
-            return _partial_syntax_match(pattern_nodes, srcs, bindings; recovery_stack, tmp)
+            return recover(recovery_stack,
+                           _partial_syntax_match;
+                           fail_ret=(match_result, srcs),
+                           tmp)
         end
         # If the pattern and source nodes match, we can continue matching the remainders of
         # the node lists.
@@ -188,13 +207,14 @@ match function.
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JuliaSyntax.SyntaxNode,
                                    bindings::BindingSet;
+                                   recovery_stack=[],
                                    tmp=false)::MatchResult
     args = (pattern_node, src, bindings)
     node_data = pattern_node.data
     # Dispatch on form type.
-    isa(node_data, FailSyntaxData) && return syntax_match_fail(args...)
+    isa(node_data, FailSyntaxData) && return syntax_match_fail(args...; recovery_stack, tmp)
     isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; tmp)
-    isa(node_data, OrSyntaxData)   && return syntax_match_or(pattern_node, src; tmp)
+    isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; recovery_stack, tmp)
     isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; tmp)
     isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...)
     return MatchFail("unknown pattern form")
@@ -206,7 +226,9 @@ Try to match a `fail` pattern form. If the fail condition is satisfied, return a
 """
 function syntax_match_fail(fail_node::SyntaxPatternNode,
                            src::JuliaSyntax.SyntaxNode,
-                           bindings::BindingSet)::MatchResult
+                           bindings::BindingSet;
+                           recovery_stack=[],
+                           tmp=false)::MatchResult
     condition = _get_fail_condition(fail_node)
     message = _get_fail_message(fail_node)
     # Evaluate the fail condition.
@@ -220,7 +242,9 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
             rethrow(err)
         end
     end
-    return fail ? MatchFail(message) : bindings
+    return fail                                                                  ?
+        recover(recovery_stack, _syntax_match; fail_ret=MatchFail(message), tmp) :
+        bindings
 end
 
 """
@@ -277,12 +301,25 @@ Try to match an `or` pattern form. Return the match for the first pattern altern
 Fail if no alternative matches.
 """
 function syntax_match_or(or_node::SyntaxPatternNode,
-                         src::JuliaSyntax.SyntaxNode;
+                         src::JuliaSyntax.SyntaxNode,
+                         bindings=BindingSet;
+                         recovery_stack=[],
                          tmp=false)::MatchResult
     failure = MatchFail("no matching alternative")
-    for p in children(or_node)
-        match_result = _syntax_match(p, src, BindingSet(); tmp)
-        isa(match_result, BindingSet) && return match_result
+    for (i, p) in enumerate(children(or_node))
+        match_result = _syntax_match(p, src, BindingSet(); recovery_stack, tmp)
+        if isa(match_result, BindingSet)
+            # If this is not the last branch, we might be able to recover from one of the
+            # next branches if the encompassing pattern fails.
+            if i < length(children(or_node))
+                next_try_children = children(or_node)[i+1:end]
+                next_try =
+                    SyntaxPatternNode(or_node.parent, next_try_children, OrSyntaxData())
+                [c.parent = next_try for c in next_try_children]
+                push!(recovery_stack, (next_try, src, bindings))
+            end
+            return match_result
+        end
         failure = match_result
     end
     # TODO: Return the most specific error.
@@ -296,9 +333,10 @@ the `MatchFail` of the first failing branch.
 function syntax_match_and(and_node::SyntaxPatternNode,
                           src::JuliaSyntax.SyntaxNode,
                           bindings::BindingSet;
+                          recovery_stack=[],
                           tmp=false)::MatchResult
     for p in children(and_node)
-        match_result = _syntax_match(p, src, bindings; tmp)
+        match_result = _syntax_match(p, src, bindings; recovery_stack, tmp)
         isa(match_result, MatchFail) && return match_result
         bindings = match_result
     end
@@ -372,6 +410,11 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
 end
 
 ## Utils.
+
+recover(recovery_stack::AbstractVector, from::Function; fail_ret, kwargs...) =
+    isempty(recovery_stack) ?
+    fail_ret                :
+    from(pop!(recovery_stack)...; recovery_stack, kwargs...)
 
 function compatible(ex1::JuliaSyntax.SyntaxNode, ex2::JuliaSyntax.SyntaxNode)
     head(ex1) == head(ex2) || return false
