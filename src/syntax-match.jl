@@ -56,17 +56,17 @@ function _syntax_match(pattern_node::SyntaxPatternNode,
             syntax_match_pattern_form(pattern_node, src, bindings; recovery_stack, tmp)
         isa(match_result, MatchFail) &&
             # Try another path if possible.
-            return recover(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
+            return recover!(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
         # If there is a match, return it.
         return match_result
     end
     # Regular syntax.
     head(pattern_node) != head(src) &&
-        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+        return recover!(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     pattern_node.data.val != src.data.val &&
-        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+        return recover!(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     xor(is_leaf(pattern_node), is_leaf(src)) &&
-        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+        return recover!(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
     return _syntax_match(children(pattern_node), children(src), bindings; recovery_stack, tmp)
@@ -78,9 +78,9 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                        tmp=false)::MatchResult
     match_result, srcs = _partial_syntax_match(pattern_nodes, srcs, bindings; tmp)
     isa(match_result, MatchFail) &&
-        return recover(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
+        return recover!(recovery_stack, _syntax_match; fail_ret=match_result, tmp)
     isempty(srcs) ||
-        return recover(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
+        return recover!(recovery_stack, _syntax_match; fail_ret=MatchFail(), tmp)
     return match_result
 end
 """
@@ -127,7 +127,7 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                          tmp)
         end
         # The first pattern node is not a repetition, so there can be no match on this path.
-        return recover(recovery_stack,                      # `recovery_stack` empty => 1.b
+        return recover!(recovery_stack,                      # `recovery_stack` empty => 1.b
                        _partial_syntax_match;               # else                   => 2.b
                        fail_ret=(MatchFail(), srcs),
                        tmp)
@@ -146,7 +146,7 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         if isa(match_result, MatchFail)
             # If the two don't match, we might be able to try a previous state. If there is
             # no other state to return to, the overall match fails.
-            return recover(recovery_stack,
+            return recover!(recovery_stack,
                            _partial_syntax_match;
                            fail_ret=(match_result, srcs),
                            tmp)
@@ -243,7 +243,7 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
         end
     end
     return fail                                                                  ?
-        recover(recovery_stack, _syntax_match; fail_ret=MatchFail(message), tmp) :
+        recover!(recovery_stack, _syntax_match; fail_ret=MatchFail(message), tmp) :
         bindings
 end
 
@@ -411,7 +411,7 @@ end
 
 ## Utils.
 
-recover(recovery_stack::AbstractVector, from::Function; fail_ret, kwargs...) =
+recover!(recovery_stack::AbstractVector, from::Function; fail_ret, kwargs...) =
     isempty(recovery_stack) ?
     fail_ret                :
     from(pop!(recovery_stack)...; recovery_stack, kwargs...)
