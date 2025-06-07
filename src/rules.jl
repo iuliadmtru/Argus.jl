@@ -155,6 +155,8 @@ struct RuleMatchResult
 end
 RuleMatchResult() = RuleMatchResult([], [])
 
+const RuleGroupMatchResult = Dict{String, RuleMatchResult}
+
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
 
@@ -195,6 +197,27 @@ function rule_match(rule::Rule, filename::String; only_matches=true)
     src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
 
     return rule_match(rule, src; only_matches)
+end
+
+"""
+Match all the rules in a given group against a source node.
+"""
+function rule_group_match(group::RuleGroup, src::JuliaSyntax.SyntaxNode; only_matches=true)
+    match_result = RuleGroupMatchResult()
+    for (name, rule) in group
+        match_result[name] = rule_match(rule, src; only_matches)
+    end
+
+    return match_result
+end
+"""
+Match all the rules in a given group against a source file.
+"""
+function rule_group_match(group::RuleGroup, filename::String; only_matches=true)
+    src_txt = read(filename, String)
+    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
+
+    return rule_group_match(group, src; only_matches)
 end
 
 # Utils.
