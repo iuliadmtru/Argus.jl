@@ -63,7 +63,9 @@ end
 # Display.
 
 function Base.show(io::IO, rule::Rule)
-    println(io, rule.name, ":\n", rstrip(rule.description))
+    name = isempty(rule.name) ? "<no name>" : rule.name
+    description = isempty(rule.description) ? "<no description>" : rule.description
+    println(io, name, ":\n", rstrip(description))
     println()
     show(io, MIME("text/plain"), rule.pattern)
 end
@@ -132,19 +134,15 @@ Base.show(io::IO, rg::RuleGroup) =
 # --------------------------------------------
 # Rule definition in groups.
 
-define_rule_in_group(group::RuleGroup, rule_name::String, rule::Rule) =
-    register_rule!(group, rule)
-
 macro define_rule_in_group(group, rule_name, rule_expr)
-    rule = :( @rule($(esc(rule_name)), $(rule_expr)) )
-    return :( define_rule_in_group($(esc(group)), $(esc(rule_name)), $rule) )
+    rule = :( @rule($(esc(rule_name)), $rule_expr) )
+    return :( register_rule!($(esc(group)), $rule) )
 end
 
 # --------------------------------------------
 # Utils.
 
 function register_rule!(group::RuleGroup, rule::Rule)
-    # TODO: Add interactive "overwrite?".
     group[rule.name] = rule
 end
 
