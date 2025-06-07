@@ -93,7 +93,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", sc::SyntaxClass)
     println(io, "SyntaxClass: ", sc.description)
     for (i, p) in enumerate(sc.pattern_alternatives)
-        println(io, "  Pattern alternative $i:")
+        println(io, "  Pattern alternative #$i:")
         _show_pattern_syntax_node(io, p.src, "    ")
         if i != length(sc.pattern_alternatives)
             println(io)
