@@ -72,7 +72,7 @@ end
 end
 
 # Syntax classes useful for the `useless-booleans` rule.
-chain_with_lit = @syntax_class "logical chain with explicit literal" begin
+@define_syntax_class :chain_with_lit "logical chain with explicit literal" begin
     @pattern begin
         ~or(
             _b && _...,
@@ -83,11 +83,9 @@ chain_with_lit = @syntax_class "logical chain with explicit literal" begin
         @fail typeof(_b.value) != Bool "not `Bool`"
     end
 end
-register_syntax_class!(:chain_with_lit, chain_with_lit)
-lit_or_chain = @syntax_class "`Bool` literal or logical chain with explicit literal" begin
+@define_syntax_class :lit_or_chain "literal or logical chain with explicit literal" begin
     @pattern ~or(_b:::literal, _b:::chain_with_lit)
 end
-register_syntax_class!(:lit_or_chain, lit_or_chain)
 
 @define_rule_in_group lang_rules "useless-booleans" begin
     description = """

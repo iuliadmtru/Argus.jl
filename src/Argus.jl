@@ -10,7 +10,8 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
 # Part 1: Syntax matching mechanism.
 
 export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class, SyntaxError
-export register_syntax_class!
+export SyntaxClassRegistry, @define_syntax_class, @define_syntax_class_in_registry,
+    register_syntax_class!
 export Binding, BindingSet, BindingFieldError, BindingSetKeyError, MatchFail, MatchError
 export syntax_match
 

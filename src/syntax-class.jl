@@ -47,18 +47,50 @@ macro syntax_class(description, body)
     return :( SyntaxClass($description, [$(esc.(pattern_exprs)...)]) )
 end
 
+const SyntaxClassRegistry = Dict{Symbol, Union{Nothing, SyntaxClass}}
+
 """
 Global registry containing all registered syntax classes. When registering a syntax class,
 it is not necessary for it to be defined. The registry can be checked for consistency
 before matching using [`syntax_class_registry_check`](@ref).
 """
-SYNTAX_CLASS_REGISTRY = Dict{Symbol, Union{Nothing, SyntaxClass}}()
+SYNTAX_CLASS_REGISTRY = SyntaxClassRegistry()
 
-# TODO: Allow registering to specific registry.
-function register_syntax_class!(name::Symbol, syntax_class::SyntaxClass)
-    # TODO: Interactive overwrite?
-    SYNTAX_CLASS_REGISTRY[name] = syntax_class
+"""
+Register a syntax class in the default syntax class registry.
+"""
+register_syntax_class!(name::Symbol, syntax_class::SyntaxClass) =
+    register_syntax_class!(SYNTAX_CLASS_REGISTRY, name, syntax_class)
+
+"""
+Register a syntax class in a given syntax class registry.
+"""
+function register_syntax_class!(registry::SyntaxClassRegistry,
+                                name::Symbol,
+                                syntax_class::SyntaxClass)
+    registry[name] = syntax_class
 end
+
+"""
+Define a syntax class and register it in the default registry.
+"""
+macro define_syntax_class(name, description, syntax_class_expr)
+    syntax_class = :( @syntax_class($(esc(description)), $syntax_class_expr) )
+    return :( register_syntax_class!($(esc(name)), $syntax_class) )
+end
+
+# TODO: This needs expr support. Maybe `:::registry.stx_cls_name`?
+"""
+Define a syntax class and register it in the given registry.
+"""
+macro define_syntax_class_in_registry(registry, name, description, syntax_class_expr)
+    syntax_class = :( @syntax_class($(esc(description)), $syntax_class_expr) )
+    return :( register_syntax_class!($(esc(registry)), $(esc(name)), $syntax_class) )
+end
+
+## Display.
+
+Base.show(io::IO, ::Type{SyntaxClassRegistry}) = print(io, "SyntaxClassRegistry")
 
 # ------------------------------------------------------------------------------------------
 # Pre-registered syntax classes.
