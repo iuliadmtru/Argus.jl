@@ -184,7 +184,7 @@ is_toplevel(p::Pattern) =
 
 # Display.
 
-function _show_var_node(node::SyntaxPatternNode)
+function _repr_var_node(node::SyntaxPatternNode)
     id = _get_var_id(node)
     syntax_class_name = _get_var_syntax_class_name(node)
 
@@ -194,16 +194,17 @@ end
 function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     nodestr =
         is_leaf(node) ? leaf_string(node)    :
-        is_var(node)  ? _show_var_node(node) :
+        is_var(node)  ? _repr_var_node(node) :
         "[$(untokenize(head(node)))]"
     treestr = string(indent, nodestr)
     if is_leaf(node) || is_var(node)
         treestr = rpad(treestr, 40) * " :: " * string(kind(node))
     end
-    println(io, treestr)
+    print(io, treestr)
     if !is_leaf(node) && !is_var(node)
         new_indent = indent * "  "
         for n in children(node)
+            println(io)
             _show_pattern_syntax_node(io, n, new_indent)
         end
     end

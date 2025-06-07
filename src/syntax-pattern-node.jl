@@ -454,10 +454,11 @@ function _show_syntax_node(io, node::SyntaxPatternNode, indent)
     if is_leaf(node)
         treestr = rpad(treestr, 40) * " :: " * string(kind(node))
     end
-    println(io, treestr)
+    print(io, treestr)
     if !is_leaf(node)
         new_indent = indent * "  "
         for n in children(node)
+            println(io)
             _show_syntax_node(io, n, new_indent)
         end
     end
