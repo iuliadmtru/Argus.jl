@@ -130,7 +130,13 @@ end
     test_rule_in_group("chained-const-assignment", lang_rules, dir, 4)
     test_rule_in_group("compare-nothing", lang_rules, dir, 6)
     test_rule_in_group("useless-equals", lang_rules, dir, 4)
-    test_rule_in_group("useless-booleans", lang_rules, dir, 7)
+    test_rule_in_group("useless-booleans", lang_rules, dir, 6)
     test_rule_in_group("open-tmp-path", lang_rules, dir, 3)
     test_rule_in_group("rand-bool", lang_rules, dir, 3)
+
+    rule_group_match_result = rule_group_match(lang_rules, joinpath(dir, "rand-bool.jl"))
+    @test length(rule_group_match_result["rand-bool"].matches) == 3
+    for (rule_name, result) in filter(p -> p.first != "rand-bool", rule_group_match_result)
+        @test length(result.matches) == 0
+    end
 end

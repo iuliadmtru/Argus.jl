@@ -87,6 +87,7 @@ end
     @pattern ~or(_b:::literal, _b:::chain_with_lit)
 end
 
+# TODO: Needs more work in order to catch something like `x || y && true`.
 @define_rule_in_group lang_rules "useless-booleans" begin
     description = """
     Boolean literals in conditions are unnecessary.
