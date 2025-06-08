@@ -52,6 +52,7 @@ Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
 ## Display.
 
+Base.show(io::IO, ::Type{BindingSet{AbstractBinding}}) = print(io, "BindingSet")
 Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
     _show_binding_set(io, bs, "")
 
@@ -185,11 +186,15 @@ end
 
 ## Display.
 
-Base.show(io::IO, ::Type{BindingSet{AbstractBinding}}) = print(io, "BindingSet")
-
-function Base.show(io::IO, ::MIME"text/plain", b::Binding)
+Base.show(io::IO, ::MIME"text/plain", b::AbstractBinding) =
     _show_binding(io, b, "")
-end
+Base.show(io::IO, b::AbstractBinding) =
+    print(io,
+          typeof(b), "(",
+          repr(b.bname), ", ",
+          _src_with_location_str(b.src), ", ",
+          repr(b.bindings),
+          ")")
 Base.show(io::IO, ::Type{Binding{S, B}}) where {S, B} = print(io, "Binding")
 
 function _show_bindings(io::IO, bs, outer_indent)
