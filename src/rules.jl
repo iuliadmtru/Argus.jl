@@ -66,7 +66,7 @@ function Base.show(io::IO, rule::Rule)
     name = isempty(rule.name) ? "<no name>" : rule.name
     description = isempty(rule.description) ? "<no description>" : rule.description
     println(io, name, ":\n", rstrip(description))
-    println()
+    println(io)
     show(io, MIME("text/plain"), rule.pattern)
 end
 
@@ -123,7 +123,7 @@ Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 function Base.summary(io::IO, rg::RuleGroup)
     Base.showarg(io, rg, true)
     n = length(rg)
-    print(io, "(\"", rg.name, "\") with ", n, (n==1 ? " entry" : " entries"))
+    print(io, "(\"", rg.name, "\") with ", n, (n == 1 ? " entry" : " entries"))
 end
 
 Base.show(io::IO, rg::RuleGroup) =
@@ -231,3 +231,47 @@ function push_match_result!(rule_result::RuleMatchResult,
         push!(rule_result.matches, match_result)
     end
 end
+
+
+# Display.
+
+Base.summary(io::IO, res::RuleMatchResult) =
+    print(io,
+          "RuleMatchResult with $(length(res.matches)) matches ",
+          "and $(length(res.failures)) failures")
+
+function Base.show(io::IO, ::MIME"text/plain", res::RuleMatchResult)
+    summary(io, res)
+    matches = res.matches
+    fails = res.failures
+    isempty(matches) && isempty(fails) && return nothing
+    print(io, ":")
+    if !isempty(matches)
+        println(io)
+        print(io, "Matches:")
+        for m in matches
+            println(io)
+            print(io, "  ")
+            show(io, m)
+        end
+    end
+    if !isempty(fails)
+        println(io)
+        print(io, "Failures:")
+        short_fails = fails[1:end-1]
+        if length(fails) > 10
+            short_fails = fails[1:3]
+        end
+        for f in short_fails
+            println(io)
+            print(io, "  ")
+            show(io, f)
+        end
+        # Show the last one.
+        println(io)
+        println(io, "  .\n  .\n  .")
+        print(io, "  ")
+        show(io, fails[end])
+    end
+end
+Base.show(io::IO, ::Type{RuleGroupMatchResult}) = "RuleGroupMatchResult"
