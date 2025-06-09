@@ -1,3 +1,8 @@
+"""
+    Pattern
+
+Syntax pattern used for matching syntax.
+"""
 struct Pattern
     src::SyntaxPatternNode
 end
@@ -5,10 +10,12 @@ end
 """
     @pattern(expr)
 
-Create a `Pattern` from the given expression.
+Create a [`Pattern`](@ref) from the given expression.
 
 # Examples
+# ========
 
+```
 julia> @pattern a + b  # Simple expression with no pattern variables.
 Pattern:
 [call-i]
@@ -18,8 +25,8 @@ Pattern:
 
 
 julia> assign_to_x = @pattern begin
-           _x:::assign                                   # Pattern variable matching an assignment.
-           @fail _x.__lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
+           _x:::assign                                  # Pattern variable matching an assignment.
+           @fail _x._lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
        end
 Pattern:
 [~and]
@@ -29,7 +36,7 @@ Pattern:
       [.]
         [.]
           _x                             :: Identifier
-          __lhs                          :: Identifier
+          _lhs                           :: Identifier
         name                             :: Identifier
       ==                                 :: Identifier
       [string]
@@ -55,13 +62,34 @@ Pattern:
 
 
 julia> syntax_match(pattern, parseall(SyntaxNode,
-                                      """
+                                      \"""
                                       x = 2
                                       x = 3
-                                      """))
+                                      \"""))
 
 BindingSet with 1 entry:
-  :_a => Binding(:_a, x, BindingSet(:__id=>Binding(:__id, x, BindingSet())))
+  :_a => Binding:
+           Name:              _a
+           Bound source: x @ 2:1
+           Ellipsis depth:     0
+           Sub-bindings:
+             BindingSet with 1 entry:
+               :_id => Binding:
+                         Name:             _id
+                         Bound source: x @ 2:1
+                         Ellipsis depth:     0
+                         Sub-bindings:
+                           BindingSet with 0 entries
+```
+
+Note: `@fail` macros only exist inside `@pattern` bodies.
+
+```
+julia> @fail :false ""
+ERROR: LoadError: UndefVarError: `@fail` not defined in `Main`
+Suggestion: check for spelling errors or missing imports.
+in expression starting at REPL[8]:1
+```
 """
 macro pattern(expr)
     # Error messages.
@@ -90,7 +118,7 @@ macro pattern(expr)
     # Here, `expr` is one of the following:
     #   - `<atom>`                   -- e.g. `2`
     #   - `:($(QuoteNode(<atom>)))`  -- e.g. `:( _x )`
-    #   - `quote <expr>* end`        -- syntax for patterns with fail conditions
+    #   - `quote <expr>* end`        -- syntax for patterns with multiple expressions
     #   - `<expr>`                   -- other expressions such as
     #                                   `~var(<var_name>, <syntax_class_name>)`
     pattern_expr =  # The first pattern expression.
@@ -162,15 +190,25 @@ macro pattern(expr)
     return :( Pattern($pattern_node) )
 end
 
-# `JuliaSyntax` overwrites.
+# JuliaSyntax overwrites
+# ----------------------
 
 JuliaSyntax.head(p::Pattern) = head(p.src)
 JuliaSyntax.children(p::Pattern) = children(p.src)
 
-# Utils.
+# Utils
+# -----
 
 is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
 
+"""
+    cannot_eval_to_Pattern(ex)
+
+Return `true` only if the given expression can evaluate to a [`Pattern`](@ref).
+
+An expression can evaluate to a `Pattern` if it is a `@pattern` call, a `Pattern` call or
+a variable name.
+"""
 function cannot_eval_to_Pattern(ex)
     isa(ex, Symbol) && return false
     @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@pattern") && return false
@@ -182,11 +220,12 @@ is_toplevel(p::Pattern) =
     kind(p) === K"toplevel" ||
     kind(p) === K"~and" && kind(children(p)[1]) === K"toplevel"
 
-# Display.
+# Display
+# -------
 
 function _repr_var_node(node::SyntaxPatternNode)
-    id = _get_var_id(node)
-    syntax_class_name = _get_var_syntax_class_name(node)
+    id = get_var_name(node)
+    syntax_class_name = get_var_syntax_class_name(node)
 
     return string(id, ":::", syntax_class_name)
 end
@@ -214,8 +253,8 @@ function Base.show(io::IO, ::MIME"text/plain", pattern::Pattern)
     println(io, "Pattern:")
     _show_pattern_syntax_node(io, pattern.src, "")
 end
-function Base.show(io::IO, ::MIME"text/x.sexpression", pattern::Pattern; show_kind=false)
-    _show_syntax_node_sexpr(io, pattern.src, show_kind)
+function Base.show(io::IO, ::MIME"text/x.sexpression", pattern::Pattern)
+    _show_syntax_node_sexpr(io, pattern.src, false)
 end
 function Base.show(io::IO, pattern::Pattern)
     _show_syntax_node_sexpr(io, pattern.src, false)

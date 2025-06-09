@@ -1,23 +1,25 @@
-# ------------------------------------------------------------------------------------------
-# Syntax pattern tree interface.
+# Syntax pattern tree interface
+# =============================
 
 ## What to add when creating a new pattern form:
 ##
-## -------------------------------------------
+##
 ## special-syntax-data.jl
+## ----------------------
 ##
 ## At/near syntax data structs:
 ## - struct <FormName>SyntaxData <: AbstractSpecialSyntaxData ... end
 ## - const PATTERN_FORMS = [..., :<form_name>]
 ##
-## At/near `JuliaSyntax` overwrites for syntax data:
-## - register_kinds() = JuliaSyntax.register_kinds!(Argus, 3, [..., "~<form_name>"])
-## - JuliaSyntax.head(data::<FormName>SyntaxData) = JuliaSyntax.SyntaxHead(K"~<form_name>", 0)
+## At/near JuliaSyntax overwrites for syntax data:
+## - register_kinds() = JS.register_kinds!(Argus, 3, [..., "~<form_name>"])
+## - JS.head(data::<FormName>SyntaxData) = JS.SyntaxHead(K"~<form_name>", 0)
 ## - Base.getproperty(data::<FormName>SyntaxData, name::Symbol) = ...
 ##    - Note: `data.val` should not error.
 ##
-## -------------------------------------------
+##
 ## syntax-pattern-node.jl (this file)
+## ----------------------------------
 ##
 ## At/near AST pass utils:
 ## - `is_<form_name>(node::SyntaxPatternNode) = isa(node.data, <FormName>SyntaxData)`
@@ -28,8 +30,9 @@
 ## In `_pattern_form_args` and `_pattern_form_arg_names`:
 ## - `name === :<form_name> && return ...
 ##
-## -------------------------------------------
+##
 ## syntax-match.jl
+## ---------------
 ##
 ## In `syntax_match_pattern_form`:
 ## - `isa(pattern_node.data, <FormName>SyntaxData) && return syntax_match_<form_name>(...)`
@@ -42,50 +45,170 @@ include("special-syntax-data.jl")
     SyntaxPatternNode
 
 Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
-[`AbstractSpecialSyntaxData`](@ref).
+[`AbstractPatternFormSyntaxData`](@ref).
 """
-const SyntaxPatternNode =
-    JuliaSyntax.TreeNode{Union{JuliaSyntax.SyntaxData, AbstractSpecialSyntaxData}}
+const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData, AbstractPatternFormSyntaxData}}
 
 """
-    SyntaxPatternNode(ex::Expr)
+    SyntaxPatternNode(ex)
 
 Construct a `SyntaxPatternNode` from an `Expr`.
 
 Passes:
-1. Desugar special syntax nodes: `::Expr -> ::JuliaSyntax.SyntaxNode`.
-2. Parse pattern form nodes: `::JuliaSyntax.SyntaxNode -> ::SyntaxPatternNode`.
-3. Add alternatives for ambiguous nodes (e.g. `=` could be either an assignment or a short
-   form function definition) and fix misparsed nodes (e.g. `function (_f) end` is parsed with
-   a tuple as function name): `::SyntaxPatternNode -> ::SyntaxPatternNode`
+1.   Desugar expressions with special syntax: `::Expr -> ::JuliaSyntax.SyntaxNode`.
+2.   Parse pattern form nodes: `::JuliaSyntax.SyntaxNode -> ::SyntaxPatternNode`.
+3.0. If the pattern contains multiple expressions, wrap them in a `[toplevel]` node.
+3.1. Add alternatives for ambiguous nodes (e.g. `=` could be either an assignment or a short
+     form function definition) and fix misparsed nodes (e.g. `_x:::identifier = 2` is parsed
+     as a short form function definition): `::SyntaxPatternNode -> ::SyntaxPatternNode`
 """
 function SyntaxPatternNode(ex)
     syntax_node = desugar_expr(ex)
     syntax_pattern_node = parse_pattern_forms(syntax_node)
-    # If the pattern has consecutive pattern expressions parse them as toplevel expressions.
-    syntax_pattern_node = _parse_toplevel_expr_array(syntax_pattern_node)
+    # Parse multiple pattern expressions as toplevel expressions. If the pattern only
+    # contains one pattern expression, leave it as it is.
+    syntax_pattern_node = parse_multiple_exprs_as_toplevel(syntax_pattern_node)
     # TODO: Check that all repetitions contain pattern variables that don't appear anywhere
     #       else in the pattern.
     return fix_misparsed!(syntax_pattern_node)
 end
 
-## Passes.
+# Passes
+# ------
 
 """
     desugar_expr(ex)::JuliaSyntax.SyntaxNode
 
 The first pass in the construction of a `SyntaxPatternNode`.
+
+Desugar all special syntax expressions and transform the resulting `Expr` into a
+`JuliaSyntax.SyntaxNode`.
+
+There are some special regular Julia syntax cases such as `function f end` and
+`function (f) end`:
+
+```
+julia> Meta.parse("function f end")
+:(function f end)
+
+julia> Meta.parse("function (f) end")
+:(function (f,)
+      #= none:1 =#
+      #= none:1 =#
+  end)
+```
+
+The user should be able to write patterns to match both these cases. For the first one, it
+makes sense for `function _f end` to work. For the second one, `function (_f) end` should
+work. What about `function (_f:::expr) end`? Since `function _f end` is much more widely
+used than `function (_f) end`, it makes more sense to parse `function (_f:::expr) end` the
+same as `function _f end`. Therefore, the `:tuple` head is eliminated in this case.
+
+# Examples
+# ========
+
+```
+julia> Argus.desugar_expr(:( _x ))
+SyntaxNode:
+[call-pre]
+  ~                                      :: Identifier
+  [call]
+    var                                  :: Identifier
+    [quote-:]
+      _x                                 :: Identifier
+    [quote-:]
+      expr                               :: Identifier
+
+
+julia> Argus.desugar_expr(:( _... ))
+SyntaxNode:
+[call-pre]
+  ~                                      :: Identifier
+  [call]
+    rep                                  :: Identifier
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+
+
+julia> Argus.desugar_expr(:( function (_f:::expr) end ))
+SyntaxNode:
+[function]
+  [call]
+    ~                                    :: Identifier
+    [call]
+      var                                :: Identifier
+      [quote-:]
+        _f                               :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+  [block]
+
+
+julia> Argus.desugar_expr(:( function (_f) end ))
+SyntaxNode:
+[function]
+  [tuple-p-,]
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _f                             :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+  [block]
+```
 """
-function desugar_expr(ex)::JuliaSyntax.SyntaxNode
+function desugar_expr(ex)::JS.SyntaxNode
     desugared_ex = _desugar_expr(ex)
-    # TODO: Remove this horrible hack.
+    # TODO: Remove this horrible hack!
+    #       I did this because I don't understand expression interpolation well enough.
+    #       Example problem:
+    #
+    #       ```
+    #       julia> assign_ex = :( b = e );
+    #
+    #       julia> call_ex = :( f(a, $assign_ex) )
+    #       :(f(a, $(Expr(:(=), :b, :e))))
+    #
+    #       julia> call_ex.args
+    #       3-element Vector{Any}:
+    #        :f
+    #        :a
+    #        :(b = e)
+    #
+    #       julia> JuliaSyntax.parsestmt(SyntaxNode, string(call_ex))
+    #       SyntaxNode:
+    #       [call]
+    #         f                                      :: Identifier
+    #         a                                      :: Identifier
+    #         [$]
+    #           [call]
+    #             Expr                               :: Identifier
+    #             [quote-:]
+    #               =                                :: =
+    #             [quote-:]
+    #               b                                :: Identifier
+    #             [quote-:]
+    #               e                                :: Identifier
+    #       ```
+    #
+    #       This is not a very useful example but it shows the problem -- extra nodes!
+    #       This could surely be avoided by finding a nicer way to go from `Expr` to
+    #       `SyntaxNode`...
     regex = r"\$\((?<ex>Expr(?<parens>\(([^()]|(?&parens))*\)))\)"
     desugared_ex_str = string(desugared_ex)
     for m in eachmatch(regex, desugared_ex_str)
         desugared_ex_str =
             replace(desugared_ex_str, regex => string(eval(Meta.parse(m[:ex]))); count=1)
     end
-    return JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, desugared_ex_str)
+    return JS.parsestmt(JS.SyntaxNode, desugared_ex_str)
 end
 function _desugar_expr(ex; inside_fail=false)
     if is_sugared_rep(ex)
@@ -96,14 +219,14 @@ function _desugar_expr(ex; inside_fail=false)
         #
         # `<pattern_var>`                  -> `~var(<pattern_var>, :expr)`
         #                                  -> Remains the same inside `~fail` conditions.
-        id = _get_sugared_var_id(ex)
-        syntax_class_name = _get_sugared_var_syntax_class_name(ex)
+        id = get_sugared_var_var_name(ex)
+        syntax_class_name = get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
     elseif @isexpr(ex, :function) && Meta.isexpr(ex.args[1], :tuple, 1)
-        # Remove the extra `:tuple` node in the function signature for expressions like:
-        # `function (_f:::funcall) _body end`
+        # Remove the extra `:tuple` node in the function signature for expressions like
+        # `function (_f:::funcall) _body end`, but not for `function (_f) _body end`.
         fun_ex = ex.args[1].args[1]
-        if is_sugared_var(fun_ex) || is_var(fun_ex)
+        if !is_pattern_variable(fun_ex) && (is_sugared_var(fun_ex) || is_var(fun_ex))
             args = [fun_ex, ex.args[2:end]...]
             return Expr(ex.head, _desugar_expr.(args; inside_fail)...)
         end
@@ -116,30 +239,43 @@ function _desugar_expr(ex; inside_fail=false)
 end
 
 """
-Inner pass for parsing patterns with multiple same-level pattern expressions.
-"""
-function _parse_toplevel_expr_array(node::SyntaxPatternNode)::SyntaxPatternNode
-    if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
-        new_children = [
-            _parse_toplevel_expr_array(children(node)[1]),
-            children(node)[2:end]...
-        ]
-        return SyntaxPatternNode(nothing, new_children, node.data)
-    elseif kind(node) === K"vect"            &&
-        kind(children(node)[1]) === K"quote" &&
-        children(children(node)[1])[1].data.val === :pattern_toplevel
-        toplevel_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"toplevel", 0))
-        return SyntaxPatternNode(nothing, children(node)[2:end], toplevel_data)
-    end
-    return node
-end
-
-"""
     parse_pattern_forms(node::JuliaSyntax.SyntaxNode)::SyntaxPatternNode
 
 The second pass in the construction of a `SyntaxPatternNode`.
+
+Parse pattern form `SyntaxNode`s into `SyntaxPatternNode`s with the corresponding pattern
+form syntax data. Parse regular `SyntaxNode`s into `SyntaxPatternNode`s with regular
+`SyntaxData`.
+
+# Examples
+# ========
+
+```
+julia> using JuliaSyntax: parsestmt, SyntaxNode
+
+julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~var(:_x, :stx_cls)"))
+SyntaxPatternNode:
+[~var]
+  [quote-:]
+    _x                                   :: Identifier
+  [quote-:]
+    stx_cls                              :: Identifier
+
+julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~and(_x, ~fail(_x.value != 2, \"not two\"))"))
+SyntaxPatternNode:
+[~and]
+  _x                                     :: Identifier
+  [~fail]
+    [call-i]
+      [.]
+        _x                               :: Identifier
+        value                            :: Identifier
+      !=                                 :: Identifier
+      2                                  :: Integer
+    "not two"                            :: String
+```
 """
-function parse_pattern_forms(node::JuliaSyntax.SyntaxNode)::SyntaxPatternNode
+function parse_pattern_forms(node::JS.SyntaxNode)::SyntaxPatternNode
     is_pattern_form(node) && return _parse_pattern_form(node)
     # Regular syntax node.
     pattern_data = node.data
@@ -152,6 +288,8 @@ function parse_pattern_forms(node::JuliaSyntax.SyntaxNode)::SyntaxPatternNode
     return pattern_node
 end
 """
+    _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
+
 Construct a `SyntaxPatternNode` from a `SyntaxNode` corresponding to a pattern form node,
 which has the following structure:
 
@@ -161,11 +299,11 @@ which has the following structure:
     <pattern_form_name>
     <pattern_form_arg>*
 """
-function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
+function _parse_pattern_form(node::JS.SyntaxNode)::SyntaxPatternNode
     # Extract the name and arguments.
-    pattern_form_name = _pattern_form_name(node)
-    pattern_form_arg_nodes = _pattern_form_arg_nodes(node)
-    pattern_form_args = _pattern_form_args(node)
+    pattern_form_name = get_pattern_form_name(node)
+    pattern_form_arg_nodes = _get_pattern_form_arg_nodes(node)
+    pattern_form_args = _get_pattern_form_args(node)
     # Construct a node with the specific special data.
     pattern_data =
         pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
@@ -185,9 +323,149 @@ function _parse_pattern_form(node::JuliaSyntax.SyntaxNode)
 end
 
 """
+    parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatternNode
+
+The first pass for processing a `SyntaxPatternNode` and second-to-last pass in the
+`SyntaxPatternNode` construction.
+
+Wrap multiple pattern expressions in a `[toplevel]` node. A block with multiple pattern
+expressions is written as a vector of expressions which starts with the symbol
+`:pattern_toplevel`. This is how the [`@pattern`](@ref) macro processes its input
+expression.
+
+# Examples
+# ========
+
+```
+julia> Argus.parse_multiple_exprs_as_toplevel(SyntaxPatternNode(:(
+           [
+               :pattern_toplevel,
+               _x:::identifier = _val1,
+               _...,
+               _x:::identifier = _val2
+           ]
+       )))
+SyntaxPatternNode:
+[toplevel]
+  [=]
+    [~var]
+      [quote-:]
+        _x                               :: Identifier
+      [quote-:]
+        identifier                       :: Identifier
+    [~var]
+      [quote-:]
+        _val1                            :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+  [~rep]
+    [~var]
+      [quote-:]
+        _                                :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+  [=]
+    [~var]
+      [quote-:]
+        _x                               :: Identifier
+      [quote-:]
+        identifier                       :: Identifier
+    [~var]
+      [quote-:]
+        _val2                            :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+```
+"""
+function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatternNode
+    if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
+        new_children = [
+            parse_multiple_exprs_as_toplevel(children(node)[1]),
+            children(node)[2:end]...
+        ]
+        return SyntaxPatternNode(nothing, new_children, node.data)
+    elseif kind(node) === K"vect"            &&
+        kind(children(node)[1]) === K"quote" &&
+        children(children(node)[1])[1].data.val === :pattern_toplevel
+        toplevel_data = update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0))
+        return SyntaxPatternNode(nothing, children(node)[2:end], toplevel_data)
+    end
+    return node
+end
+
+"""
     fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
 
-The third and final pass in the construction of a `SyntaxPatternNode`.
+The final pass in the construction of a `SyntaxPatternNode`.
+
+Re-parse ambigous nodes or nodes that are misinterpreted in the transformation from
+`SyntaxNode`s to `SyntaxPatternNode`s.
+
+Ambiguous cases:
+  - `=`: Pass 2 parses assignments to pattern variables as short form function definitions.
+         This happens because `:( <pattern_var> = <ex> )` is desugared into a `~var` call.
+         However, `<pattern_var>` could either be a short form function definition or a
+         variable assignment. This pass replaces ambigous `=` nodes with `~or` pattern forms
+         containing both alternatives.
+
+Misparsed cases:
+  - `=`: Assignments to pattern variables constrained with `:::identifier` are parsed as
+         short form function definitions, but they should be parsed as assignments. This
+         pass removes the short form function definition flag from the assignment head node.
+
+# Examples
+# ========
+
+```
+julia> ambiguous = Argus.parse_pattern_forms(Argus.desugar_expr(:( _x = 2 )))
+SyntaxPatternNode:
+[function-=]
+  [~var]
+    [quote-:]
+      _x                                 :: Identifier
+    [quote-:]
+      expr                               :: Identifier
+  2                                      :: Integer
+
+julia> Argus.fix_misparsed!(ambiguous)
+SyntaxPatternNode:
+[~or]
+  [=]
+    [~var]
+      [quote-:]
+        _x                               :: Identifier
+      [quote-:]
+        identifier                       :: Identifier
+    2                                    :: Integer
+  [function-=]
+    [~var]
+      [quote-:]
+        _x                               :: Identifier
+      [quote-:]
+        funcall                          :: Identifier
+    2                                    :: Integer
+
+julia> misparsed = Argus.parse_pattern_forms(Argus.desugar_expr(:( _x:::identifier = 2 )))
+SyntaxPatternNode:
+[function-=]
+  [~var]
+    [quote-:]
+      _x                                 :: Identifier
+    [quote-:]
+      identifier                         :: Identifier
+  2                                      :: Integer
+
+
+julia> Argus.fix_misparsed!(misparsed)
+SyntaxPatternNode:
+[=]
+  [~var]
+    [quote-:]
+      _x                                 :: Identifier
+    [quote-:]
+      identifier                         :: Identifier
+  2                                      :: Integer
+```
 """
 function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
     if !is_misparsed(node)
@@ -199,26 +477,25 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
 
     k = kind(node)
     if k === K"function"
-        # TODO: Examples.
         lhs = fix_misparsed!(node.children[1])
         rhs = fix_misparsed!(node.children[2])
-        # If the lhs is constrained to `:identifier`, the node should be an assignment,
+        # If the lhs is constrained to `:identifier` the node should be an assignment,
         # not a function definition.
-        _get_var_syntax_class_name(lhs) === :identifier &&
+        get_var_syntax_class_name(lhs) === :identifier &&
             return fundef_to_assign(lhs, rhs, node)
         new_node_data = OrSyntaxData()
         # Use the original pattern form variable name.
-        id = _get_var_id(lhs)
+        id = get_var_name(lhs)
         # Create alternative for `id:::identifier`.
         id_syntax_pattern_node =
-            parse_pattern_forms(JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode,
+            parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
                                                       "~var(:$id, :identifier)"))
-        assignment_data = update_data_head(node.data, JuliaSyntax.SyntaxHead(K"=", 0))
+        assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
         assignment_alternative =
             SyntaxPatternNode(nothing, [id_syntax_pattern_node, rhs], assignment_data)
         # Create alternative for `id:::funcall`.
         funcall_syntax_pattern_node =
-            parse_pattern_forms(JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode,
+            parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
                                                       "~var(:$id, :funcall)"))
         funcall_alternative =
             SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
@@ -233,28 +510,28 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         return new_node
     end
 
-    error("No misparse fix for [$(JuliaSyntax.untokenize(head(node)))] node.")
+    error("no misparse fix for [$(JS.untokenize(head(node)))] node")
 end
 
-## -------------------------------------------
-## `JuliaSyntax` overwrites.
+# JuliaSyntax overwrites
+# ----------------------
 
-JuliaSyntax.head(node::SyntaxPatternNode) =
+JS.head(node::SyntaxPatternNode) =
     is_pattern_form(node) ? head(node.data) : head(node.data.raw)
-JuliaSyntax.kind(node::SyntaxPatternNode) = head(node).kind
+JS.kind(node::SyntaxPatternNode) = head(node).kind
 
-## -------------------------------------------
-## Utils.
+# Utils
+# -----
 
-### AST utils.
+## AST utils
 
-is_symbol_node(node::JuliaSyntax.SyntaxNode) =
-    !is_leaf(node) &&
-    kind(node) === K"quote" &&
-    length(children(node)) == 1 &&
+is_symbol_node(node::JS.SyntaxNode) =
+    !is_leaf(node)                   &&
+    kind(node) === K"quote"          &&
+    length(children(node)) == 1      &&
     is_identifier(children(node)[1])
 
-#### Pass 1 (`Expr` desugaring).
+### Pass 1 (`Expr` desugaring)
 
 is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
 is_anonymous_pattern_variable(ex) = is_pattern_variable(ex) && ex === :_
@@ -267,11 +544,11 @@ is_pattern_form(ex) =
     Meta.isexpr(ex.args[2], :call)      &&
     ex.args[2].args[1] in PATTERN_FORMS
 
-is_var(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :var
+is_var(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
-is_and(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :and
-is_or(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :or
-is_rep(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :rep
+is_or(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :or
+is_and(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :and
+is_rep(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :rep
 
 is_sugared_var(ex) =
     is_pattern_variable(ex)       ||
@@ -280,64 +557,64 @@ is_sugared_var(ex) =
     isa(ex.args[2].value, Symbol)
 is_sugared_rep(ex) = @isexpr(ex, :..., 1)
 
-function _get_var_id(ex::Expr)
-    id_node = ex.args[2].args[2]
-    return isa(id_node, Symbol) ? id_node : id_node.value
+function get_var_name(ex::Expr)
+    var_name_node = ex.args[2].args[2]
+    return isa(var_name_node, Symbol) ? var_name_node : var_name_node.value
 end
-_get_sugared_var_id(ex) = isa(ex, Expr) ? ex.args[1] : ex
-_get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
+get_sugared_var_var_name(ex) = isa(ex, Expr) ? ex.args[1] : ex
+get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
 
 _get_sugared_rep_arg(ex) = ex.args[1]
 
-#### Pass 2 (pattern form parsing).
+### Pass 2 (pattern form parsing)
 
-is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractSpecialSyntaxData)
-function is_pattern_form(node::JuliaSyntax.SyntaxNode)
+is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractPatternFormSyntaxData)
+function is_pattern_form(node::JS.SyntaxNode)
     # General checks.
-    is_leaf(node) && return false
-    kind(node) !== K"call" && return false
+    is_leaf(node)                                   && return false
+    kind(node) !== K"call"                          && return false
     # Tilda syntax checks.
     tilda_node = node.children[1]
-    kind(tilda_node) !== K"Identifier" && return false
-    tilda_node.val !== :~ && return false
+    kind(tilda_node) !== K"Identifier"              && return false
+    tilda_node.val !== :~                           && return false
     # The node is a `~` call. It can only be a pattern form node if `~` is followed
     # directly by a pattern form name. Otherwise, `~` is used with its regular meaning.
-    length(node.children) != 2 && return false
-    kind(node.children[2]) !== K"call" && return false
-    pattern_form_name = _pattern_form_name(node)
-    isnothing(pattern_form_name) && return false
+    length(node.children) != 2                      && return false
+    kind(node.children[2]) !== K"call"              && return false
+    pattern_form_name = get_pattern_form_name(node)
+    isnothing(pattern_form_name)                    && return false
     return pattern_form_name in PATTERN_FORMS
 end
 
-_pattern_form_name(node::JuliaSyntax.SyntaxNode)::Symbol = node.children[2].children[1].val
-function _pattern_form_arg_nodes(node::JuliaSyntax.SyntaxNode)
-    name = _pattern_form_name(node)
+get_pattern_form_name(node::JS.SyntaxNode)::Symbol = node.children[2].children[1].val
+function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
+    name = get_pattern_form_name(node)
     args = node.children[2].children[2:end]
+    name === :var  && return args
     name === :fail && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
-    name === :var && return args
-    name === :or && return _strip_quote_node.(args)
-    name === :and && return _strip_quote_node.(args)
-    name === :rep && return args
+    name === :or   && return _strip_quote_node.(args)
+    name === :and  && return _strip_quote_node.(args)
+    name === :rep  && return args
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
-function _pattern_form_args(node::JuliaSyntax.SyntaxNode)
-    name = _pattern_form_name(node)
+function _get_pattern_form_args(node::JS.SyntaxNode)
+    name = get_pattern_form_name(node)
     arg_nodes = node.children[2].children[2:end]
-    name === :fail && return [JuliaSyntax.to_expr(arg_nodes[1]),
+    name === :var  && return _get_var_arg_names(arg_nodes)
+    name === :fail && return [JS.to_expr(arg_nodes[1]),
                               _strip_string_node(arg_nodes[2]).data.val]
-    name === :var && return _var_arg_names(arg_nodes)
-    name === :or && return []
-    name === :and && return []
-    name === :rep && return arg_nodes
+    name === :or   && return []
+    name === :and  && return []
+    name === :rep  && return arg_nodes
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
-_strip_quote_node(node::JuliaSyntax.SyntaxNode) =
+_strip_quote_node(node::JS.SyntaxNode) =
     kind(node) === K"quote" ? node.children[1] : node
-_strip_string_node(node::JuliaSyntax.SyntaxNode) =
+_strip_string_node(node::JS.SyntaxNode) =
     kind(node) === K"string" ? node.children[1] : node
 
-#### Pass 3 (misparse fix).
+### Pass 3 (misparse fix)
 
 function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
@@ -346,8 +623,8 @@ function is_misparsed(node::SyntaxPatternNode)
         # An `=` node with unconstrained lhs could either be an assignment or a short form
         # function definition.
         # An `=` node constrained to `:identifier` should be interpreted as an assignment,
-        # not a function definition
-        syntax_class_name = _get_var_syntax_class_name(lhs)
+        # not a function definition.
+        syntax_class_name = get_var_syntax_class_name(lhs)
         return syntax_class_name === :expr || syntax_class_name === :identifier
     end
     # Add other ambiguous cases here.
@@ -356,27 +633,45 @@ function is_misparsed(node::SyntaxPatternNode)
 end
 
 is_short_form_function_def(node) =
-    JuliaSyntax.flags(node) === JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+    JS.flags(node) === JS.SHORT_FORM_FUNCTION_FLAG
 
+"""
+    fundef_to_assign(lhs::SyntaxPatternNode,
+                     rhs::SyntaxPatternNode,
+                     old_node::SyntaxPatternNode)
+
+Create a new `SyntaxPatternNode` using `old_node`s parent, `lhs` and `rhs`. Use the
+`old_node`'s data but replace the head with an `=` head.
+"""
 function fundef_to_assign(lhs::SyntaxPatternNode,
-                           rhs::SyntaxPatternNode,
-                           old_node::SyntaxPatternNode)
+                          rhs::SyntaxPatternNode,
+                          old_node::SyntaxPatternNode)
     old_data = old_node.data
-    new_node_data = update_data_head(old_data, JuliaSyntax.SyntaxHead(K"=", 0))
+    new_node_data = update_data_head(old_data, JS.SyntaxHead(K"=", 0))
 
     return SyntaxPatternNode(old_node.parent, [lhs, rhs], new_node_data)
 end
 
-function update_data_head(old_data::JuliaSyntax.SyntaxData,
-                          new_head::JuliaSyntax.SyntaxHead)
+"""
+    update_data_head(old_data::JuliaSyntax.SyntaxData, new_head::JuliaSyntax.SyntaxHead)
+
+Create a new `SyntaxData` using the `old_data`'s green node with the head replaced by
+`new_head`.
+
+This operation is not entirely correct because changing the head should most likely change
+the green node as well (e.g. span). However, the green node is not really relevant so this
+does not impact match correctness. Ideally, patterns would have location information, which
+would make the green nodes relevant.
+"""
+function update_data_head(old_data::JS.SyntaxData, new_head::JS.SyntaxHead)
     old_raw = old_data.raw
-    new_raw = JuliaSyntax.GreenNode(
+    new_raw = JS.GreenNode(
         new_head,
         old_raw.span,
         old_raw.children
     )
 
-    return JuliaSyntax.SyntaxData(
+    return JS.SyntaxData(
         old_data.source,
         new_raw,
         old_data.position,
@@ -384,45 +679,29 @@ function update_data_head(old_data::JuliaSyntax.SyntaxData,
     )
 end
 
-### Pattern form utils.
+## Pattern form utils
 
-#### Predicates.
+### Predicates
 
-is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
+is_var(node::JS.SyntaxNode) =
+    is_pattern_form(node) && get_pattern_form_name(node) === :var
+is_rep(node::JS.SyntaxNode) =
+    is_pattern_form(node) && get_pattern_form_name(node) === :rep
+
 is_var(node::SyntaxPatternNode) = isa(node.data, VarSyntaxData)
+is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
 is_or(node::SyntaxPatternNode) = isa(node.data, OrSyntaxData)
 is_and(node::SyntaxPatternNode) = isa(node.data, AndSyntaxData)
 is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
 
-is_var(node::JuliaSyntax.SyntaxNode) =
-    is_pattern_form(node) && _pattern_form_name(node) === :var
-is_rep(node::JuliaSyntax.SyntaxNode) =
-    is_pattern_form(node) && _pattern_form_name(node) === :rep
+### Getters
 
-#### Getters.
-
-function _get_fail_condition(node::SyntaxPatternNode)::Union{Nothing, Function}
-    is_fail(node) || return nothing
-    return node.data.condition
-end
-function _get_fail_message(node::SyntaxPatternNode)::Union{Nothing, String}
-    is_fail(node) || return nothing
-    return node.data.message
-end
-
-function _get_var_id(node::SyntaxPatternNode)::Union{Nothing, Symbol}
-    is_var(node) || return nothing
-    return node.data.id
-end
-function _get_var_id(node::JuliaSyntax.SyntaxNode)::Union{Nothing, Symbol}
-    is_var(node) || return nothing
-    return node.children[2].children[2].children[1].val
-end
-function _get_var_syntax_class_name(node::SyntaxPatternNode)::Union{Nothing, Symbol}
-    is_var(node) || return nothing
-    return node.data.syntax_class_name
-end
-function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
+get_var_name(node::SyntaxPatternNode) = is_var(node) ? node.data.var_name : nothing
+get_var_name(node::JS.SyntaxNode) =
+    is_var(node) ? node.children[2].children[2].children[1].val : nothing
+get_var_syntax_class_name(node::SyntaxPatternNode) =
+    is_var(node) ? node.data.syntax_class_name : nothing
+function _get_var_arg_names(args::Vector{JS.SyntaxNode})
     arg_names = Symbol[]
     for c in args
         cs = children(c)
@@ -436,16 +715,14 @@ function _var_arg_names(args::Vector{JuliaSyntax.SyntaxNode})
     return arg_names
 end
 
-function _get_rep_arg(node::SyntaxPatternNode)::Union{Nothing, SyntaxPatternNode}
-    is_rep(node) || return nothing
-    return node.children[1]
-end
-# TODO: Rename all getters to something like this.
-# TODO: Remove return types.
-rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : nothing
+get_fail_condition(node::SyntaxPatternNode) = is_fail(node) ? node.data.condition : nothing
+get_fail_message(node::SyntaxPatternNode) = is_fail(node) ? node.data.message : nothing
 
-## -------------------------------------------
-## Display.
+_get_rep_arg(node::SyntaxPatternNode) = is_rep(node) ? node.children[1] : nothing
+get_rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : nothing
+
+# Display
+# -------
 
 using JuliaSyntax: untokenize, leaf_string, is_error
 function _show_syntax_node(io, node::SyntaxPatternNode, indent)
@@ -490,10 +767,7 @@ function Base.show(io::IO, ::MIME"text/plain", node::SyntaxPatternNode)
     println(io, "SyntaxPatternNode:")
     _show_syntax_node(io, node, "")
 end
-function Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxPatternNode; show_kind=false)
+Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxPatternNode; show_kind=false) =
     _show_syntax_node_sexpr(io, node, show_kind)
-end
-function Base.show(io::IO, node::SyntaxPatternNode)
-    _show_syntax_node_sexpr(io, node, false)
-end
+Base.show(io::IO, node::SyntaxPatternNode) = _show_syntax_node_sexpr(io, node, false)
 Base.show(io::IO, ::Type{SyntaxPatternNode}) = print(io, "SyntaxPatternNode")

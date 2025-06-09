@@ -120,8 +120,8 @@
             @test isa(match_result, BindingSet)
             x = match_result[:_x]
             @test length(x.src) == length(x.bindings) == 2
-            @test x.bindings[1][:__lit].src.val == 2
-            @test source_location(x.bindings[2][:__lit].src) == (1, 8)
+            @test x.bindings[1][:_lit].src.val == 2
+            @test source_location(x.bindings[2][:_lit].src) == (1, 8)
             y = match_result[:_y]
             @test length(y.src) == length(y.bindings) == 2
             @test length(y.src[1]) == length(y.bindings[1]) == 1
@@ -172,7 +172,7 @@
         let
             pattern = @pattern begin
                 _x:::assign
-                @fail _x.__rhs.value == 2 "rhs is two"
+                @fail _x._rhs.value == 2 "rhs is two"
             end
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
             @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) == MatchFail("no match")
@@ -182,7 +182,7 @@
             @test isa(field_err, MatchFail)
             @test field_err.message ==
                 """
-                BindingFieldError: binding `__rhs` has no field `value` because the bound expression is not a literal.
+                BindingFieldError: binding `_rhs` has no field `value` because the bound expression is not a literal.
                 Available fields: `bname`, `src`, `bindings`, `name`
                 """
         end
@@ -196,7 +196,7 @@
             @test field_err.message ==
                 """
                 BindingFieldError: binding `_x` has no field `_abc` because `_abc` is not a sub-binding of `_x`.
-                Available fields: `bname`, `src`, `bindings`, `__id`, `name`
+                Available fields: `bname`, `src`, `bindings`, `_id`, `name`
                 """
         end
 
@@ -240,7 +240,7 @@
             let
                 is_x = @pattern begin
                     ~and((_f:::identifier)(),
-                         ~fail(_f.__id.name != "x", "not x"))
+                         ~fail(_f._id.name != "x", "not x"))
                 end
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
                 @test isa(match, BindingSet)

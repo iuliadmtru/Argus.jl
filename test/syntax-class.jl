@@ -22,7 +22,7 @@
         match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f(x) = begin 2 end"))
         @test isa(match_first, BindingSet)
         @test collect(keys(match_first)) == [:_f]
-        f_args = match_first[:_f].__args
+        f_args = match_first[:_f]._args
         @test length(f_args.src) == 1
         match_second = syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
         @test isa(match_second, BindingSet)

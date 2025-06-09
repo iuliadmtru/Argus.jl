@@ -1,6 +1,11 @@
-# --------------------------------------------
-# Errors.
+# Errors
+# ======
 
+"""
+    SyntaxError <:  Exception
+
+A syntax object could not be constructed due to invalid syntax.
+"""
 struct SyntaxError <: Exception
     msg::String
     file::Union{Nothing, Symbol, String}
@@ -8,11 +13,17 @@ struct SyntaxError <: Exception
 end
 SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing)
 
+"""
+    MatchError <: Exception
+
+A pattern's fail condition was evaluated to a non-Boolean value.
+"""
 struct MatchError <: Exception
     eval_result
 end
 
-## Display.
+# Display
+# -------
 
 function Base.showerror(io::IO, err::SyntaxError)
     print(io, "SyntaxError: ")
@@ -31,16 +42,212 @@ function Base.showerror(io::IO, err::MatchError)
             "`)")
 end
 
-# --------------------------------------------
-# Syntax data.
+# Syntax data
+# ===========
 
 """
-    AbstractSpecialSyntaxData
+    AbstractPatternFormSyntaxData
 
-Supertype for all special syntax data such as pattern forms.
+Supertype for all pattern form syntax data types.
 """
-abstract type AbstractSpecialSyntaxData end
+abstract type AbstractPatternFormSyntaxData end
 
+"""
+    VarSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for a `~var` pattern form containing an id name and a [`SyntaxClass`](@ref) name. The
+latter is a name expected to be found in the [`SYNTAX_CLASS_REGISTRY`](@ref).
+"""
+struct VarSyntaxData <: AbstractPatternFormSyntaxData
+    var_name::Symbol
+    syntax_class_name::Symbol
+
+    function VarSyntaxData(var_name::Symbol, syntax_class_name::Symbol)
+        is_pattern_variable(var_name) ||
+            throw(SyntaxError("""
+                              invalid pattern variable name $var_name
+                              Pattern variable names should start with _."""))
+        return new(var_name, syntax_class_name)
+    end
+end
+
+"""
+    FailSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for a `~fail` pattern form containing a fail condition and a message. The fail
+condition is a function that, given a binding context (`::BindingSet`), creates an
+evaluation context where the pattern variables found in the fail condition are defined as
+their corresponding bindings. When the function is called, the fail condition is evaluated
+in this evaluation context.
+
+Pattern match time exceptions:
+  - [`MatchError`](@ref)
+  - [`BindingSetKeyError`](@ref)
+  - Any exception caused by the evaluation of the fail condition
+
+Exceptions caught and returned as a [`MatchFail`] message:
+  - [`BindingFieldError`](@ref)
+"""
+struct FailSyntaxData <: AbstractPatternFormSyntaxData
+    condition::Function
+    message::String
+
+    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
+    FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
+end
+
+"""
+    OrSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for an `~or` pattern form.
+"""
+struct OrSyntaxData <: AbstractPatternFormSyntaxData end
+
+"""
+    AndSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for an `~and` pattern form.
+"""
+struct AndSyntaxData <: AbstractPatternFormSyntaxData end
+
+"""
+    RepVar
+
+Pattern variable that appears in a `~rep` node, at any ellipsis depth.
+"""
+struct RepVar
+    name::Symbol
+    ellipsis_depth::Int
+end
+
+"""
+    RepSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for a `~rep` pattern form. Contains a list of repetition variables contained within
+the `~rep` node at any ellipsis depth. Pattern variables that appear inside a `~rep` node
+cannot appear outside of it.
+"""
+struct RepSyntaxData <: AbstractPatternFormSyntaxData
+    rep_vars::Vector{RepVar}
+end
+function RepSyntaxData(node::JS.SyntaxNode)
+    rep_vars = [RepVar(p[1], p[2] + 1) for p in get_pattern_vars_with_depth(node)]
+    return RepSyntaxData(rep_vars)
+end
+
+const PATTERN_FORMS = [:var, :fail, :or, :and, :rep]
+
+# JuliaSyntax overwrites and utils
+# --------------------------------
+
+"""
+    _register_kinds()
+
+Register new syntax kinds for pattern forms. Called when initialising `Argus`.
+"""
+_register_kinds() = JS.register_kinds!(Argus,
+                                       3,  # TODO: Should this be chosen in some other way?
+                                       [
+                                           "~var",
+                                           "~fail",
+                                           "~or",
+                                           "~and",
+                                           "~rep",
+                                       ])
+_register_kinds()
+
+JS.head(data::VarSyntaxData)  = JS.SyntaxHead(K"~var",  0)
+JS.head(data::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
+JS.head(data::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
+JS.head(data::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
+JS.head(data::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
+
+# Base overwrites
+# ---------------
+
+# These are necessary because accessing the `val` field of a `SyntaxData` should not throw
+# an error.
+
+Base.getproperty(data::VarSyntaxData, name::Symbol) =
+    name === :id                ? getfield(data, :id)                :
+    name === :syntax_class_name ? getfield(data, :syntax_class_name) :
+    name === :val               ? nothing                            :
+    getfield(data, name)
+
+Base.getproperty(data::FailSyntaxData, name::Symbol) =
+    name === :message ? getfield(data, :message) :
+    name === :val     ? nothing                  :
+    getfield(data, name)
+
+Base.getproperty(data::OrSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
+
+Base.getproperty(data::AndSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
+
+Base.getproperty(data::RepSyntaxData, name::Symbol) =
+    name === :rep_vars ? getfield(data, :rep_vars) :
+    name === :val      ? nothing                   :
+    getfield(data, name)
+
+# Utils
+# -----
+
+"""
+    fail_condition(condition)
+
+Parse and evaluate a fail condition `Expr` as a `Function`. The resulting function takes a
+`BindingSet` as argument and returns a `Bool` (`true` if the pattern match should fail,
+`false` otherwise).
+
+Pattern match time exceptions:
+  - [`MatchError`](@ref)
+  - [`BindingSetKeyError`](@ref)
+  - Any exception caused by the evaluation of the fail condition
+
+Exceptions caught and returned as a [`MatchFail`] message:
+  - [`BindingFieldError`](@ref)
+"""
+function fail_condition(condition)
+    pattern_variables = get_pattern_vars(condition)
+    cond_fun = function (binding_context)
+        # Create a smaller binding context containg only the bindings from `condition`.
+        condition_binding_context = Dict{Symbol, Any}()
+        for pattern_var_name in pattern_variables
+            condition_binding_context[pattern_var_name] =
+                try
+                    binding_context[pattern_var_name]
+                catch err
+                    if isa(err, KeyError)
+                        throw(BindingSetKeyError(pattern_var_name))
+                    else
+                        rethrow(err)
+                    end
+                end
+        end
+        # Create an evaluation context with the condition binding context.
+        ConditionContext = Module()
+        for (var_name, binding) in condition_binding_context
+            Core.eval(ConditionContext, :($var_name = $binding))
+        end
+        # Evaluate the condition within the evaluation context.
+        Core.eval(ConditionContext, :(using Argus))
+        result = Core.eval(ConditionContext, condition)
+        isa(result, Bool) ||
+            throw(MatchError(result))
+        return result
+    end
+
+    return cond_fun
+end
+
+"""
+    get_pattern_vars(ex)::Vector{Symbol}
+
+Return all the pattern variables that appear in `ex`. Used for injecting the pattern
+variables in the evaluation context of the pattern's fail condition when parsing a fail
+condition `Expr` as a `Function` (pattern parse time).
+"""
 function get_pattern_vars(ex::Expr)::Vector{Symbol}
     isempty(ex.args) && return Symbol[]
 
@@ -74,179 +281,20 @@ function get_pattern_vars(s::Symbol)::Vector{Symbol}
     name_str in ["__module__", "__source__", "__file__", "__context__"] && return Symbol[]
     return [s]
 end
-get_pattern_vars(::T) where T = Symbol[]
+(get_pattern_vars(::T)::Vector{Symbol}) where T = Symbol[]
 
 """
-    FailSyntaxData
+    get_pattern_vars_with_depth(node::JS.SyntaxNode)
 
-Data for `~fail` pattern form containing a fail condition and a message. The fail condition
-is a function that, given a binding context (`::BindingSet`), creates an evaluation context
-containing where the pattern variables found in the fail condition are defined as their
-corresponding bindings. When the function is called, the fail condition is evaluated in this
-evaluation context.
-
-If the fail condition contains pattern variables that are not present in the provided binding
-context, the function will throw an error.
-"""
-struct FailSyntaxData <: AbstractSpecialSyntaxData
-    condition::Function
-    message::String
-
-    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
-    FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
-end
-
-"""
-    VarSyntaxData
-
-Data for a `~var` pattern form holding an id name and a [`SyntaxClass`](@ref) name. The
-latter is a name expected to be found in the syntax class registry.
-"""
-struct VarSyntaxData <: AbstractSpecialSyntaxData
-    id::Symbol
-    syntax_class_name::Symbol
-
-    function VarSyntaxData(id::Symbol, syntax_class_name::Symbol)
-        is_pattern_variable(id) ||
-            throw(SyntaxError("""
-                              invalid pattern variable name $id
-                              Pattern variable names should start with _."""))
-        return new(id, syntax_class_name)
-    end
-end
-
-"""
-    OrSyntaxData
-
-Data for `~or` pattern form.
-"""
-struct OrSyntaxData <: AbstractSpecialSyntaxData end
-
-"""
-    AndSyntaxData
-
-Data for `~and` pattern form.
-"""
-struct AndSyntaxData <: AbstractSpecialSyntaxData end
-
-"""
-    RepVar
-
-Pattern variable that appears in a `~rep` node at any ellipsis depth.
-"""
-struct RepVar
-    name::Symbol
-    ellipsis_depth::Int
-end
-"""
-    RepSyntaxData
-
-Data for repetition nodes.
-"""
-struct RepSyntaxData <: AbstractSpecialSyntaxData
-    rep_vars::Vector{RepVar}
-end
-function RepSyntaxData(node::JuliaSyntax.SyntaxNode)
-    rep_vars = [RepVar(p[1], p[2] + 1) for p in vars(node)]
-    return RepSyntaxData(rep_vars)
-end
-
-# TODO: Pattern forms registry? Or remove.
-const PATTERN_FORMS = [:fail, :var, :or, :and, :rep]
-
-## `JuliaSyntax` overwrites and utils.
-
-"""
-Register new syntax kinds for pattern forms.
-"""
-_register_kinds() = JuliaSyntax.register_kinds!(Argus,
-                                                3,
-                                                [
-                                                    "~fail",
-                                                    "~var",
-                                                    "~or",
-                                                    "~and",
-                                                    "~rep",
-                                                ])
-_register_kinds()
-
-JuliaSyntax.head(data::FailSyntaxData) = JuliaSyntax.SyntaxHead(K"~fail", 0)
-JuliaSyntax.head(data::VarSyntaxData) = JuliaSyntax.SyntaxHead(K"~var", 0)
-JuliaSyntax.head(data::OrSyntaxData) = JuliaSyntax.SyntaxHead(K"~or", 0)
-JuliaSyntax.head(data::AndSyntaxData) = JuliaSyntax.SyntaxHead(K"~and", 0)
-JuliaSyntax.head(data::RepSyntaxData) = JuliaSyntax.SyntaxHead(K"~rep", 0)
-
-## `Base` overwrites.
-
-Base.getproperty(data::FailSyntaxData, name::Symbol) =
-    name === :message ? getfield(data, :message) :
-    name === :val     ? nothing                  :
-    getfield(data, name)
-
-Base.getproperty(data::VarSyntaxData, name::Symbol) =
-    name === :id                ? getfield(data, :id)                :
-    name === :syntax_class_name ? getfield(data, :syntax_class_name) :
-    name === :val               ? nothing                            :
-    getfield(data, name)
-
-Base.getproperty(data::OrSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
-
-Base.getproperty(data::AndSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
-
-Base.getproperty(data::RepSyntaxData, name::Symbol) =
-    name === :rep_vars ? getfield(data, :rep_vars) :
-    name === :val      ? nothing                   :
-    getfield(data, name)
-
-## Utils.
-
-function fail_condition(condition)
-    pattern_variables = get_pattern_vars(condition)
-    cond_fun = function (binding_context)
-        # TODO: Import and use `BindingSet`?
-
-        # Create a smaller binding context containg only the bindings from `condition`.
-        condition_binding_context = Dict{Symbol, Any}()
-        for pattern_var_name in pattern_variables
-            condition_binding_context[pattern_var_name] =
-                try
-                    binding_context[pattern_var_name]
-                catch err
-                    if isa(err, KeyError)
-                        throw(BindingSetKeyError(pattern_var_name))
-                    else
-                        rethrow(err)
-                    end
-                end
-        end
-        # Create an evaluation context with the condition binding context.
-        ConditionContext = Module()
-        for (var_name, binding) in condition_binding_context
-            Core.eval(ConditionContext, :($var_name = $binding))
-        end
-        # Evaluate the condition within the evaluation context.
-        Core.eval(ConditionContext, :(using Argus))
-        result = Core.eval(ConditionContext, condition)
-        isa(result, Bool) ||
-            throw(MatchError(result))
-        return result
-    end
-
-    return cond_fun
-end
-
-"""
 Get all the pattern variables in the given source node, from all ellipsis depths. Return
 and array of tuples containing the pattern variable names and their ellipsis depths.
 """
-function vars(node::JuliaSyntax.SyntaxNode)
+function get_pattern_vars_with_depth(node::JS.SyntaxNode)
     is_leaf(node) && return []
-    is_var(node) && return [(_get_var_id(node), 0)]
+    is_var(node) && return [(get_var_name(node), 0)]
     vs = []
     for c in children(node)
-        append!(vs, vars(c))
+        append!(vs, get_pattern_vars_with_depth(c))
     end
     return is_rep(node) ? map(p -> (p[1], p[2] + 1), vs) : vs
 end
