@@ -55,20 +55,12 @@ abstract type AbstractPatternFormSyntaxData end
 """
     VarSyntaxData <: AbstractPatternFormSyntaxData
 
-Data for a `~var` pattern form containing an id name and a [`SyntaxClass`](@ref) name. The
-latter is a name expected to be found in the [`SYNTAX_CLASS_REGISTRY`](@ref).
+Data for a `~var` pattern form containing a variable name and a [`SyntaxClass`](@ref) name.
+The latter is a name expected to be found in the [`SYNTAX_CLASS_REGISTRY`](@ref).
 """
 struct VarSyntaxData <: AbstractPatternFormSyntaxData
     var_name::Symbol
     syntax_class_name::Symbol
-
-    function VarSyntaxData(var_name::Symbol, syntax_class_name::Symbol)
-        is_pattern_variable(var_name) ||
-            throw(SyntaxError("""
-                              invalid pattern variable name $var_name
-                              Pattern variable names should start with _."""))
-        return new(var_name, syntax_class_name)
-    end
 end
 
 """
@@ -209,30 +201,24 @@ Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
 """
 function fail_condition(condition)
-    pattern_variables = get_pattern_vars(condition)
+    # pattern_variables = get_pattern_vars(condition)
     cond_fun = function (binding_context)
-        # Create a smaller binding context containg only the bindings from `condition`.
-        condition_binding_context = Dict{Symbol, Any}()
-        for pattern_var_name in pattern_variables
-            condition_binding_context[pattern_var_name] =
-                try
-                    binding_context[pattern_var_name]
-                catch err
-                    if isa(err, KeyError)
-                        throw(BindingSetKeyError(pattern_var_name))
-                    else
-                        rethrow(err)
-                    end
-                end
-        end
         # Create an evaluation context with the condition binding context.
         ConditionContext = Module()
-        for (var_name, binding) in condition_binding_context
+        for (var_name, binding) in binding_context
             Core.eval(ConditionContext, :($var_name = $binding))
         end
         # Evaluate the condition within the evaluation context.
         Core.eval(ConditionContext, :(using Argus))
-        result = Core.eval(ConditionContext, condition)
+        result = try
+            Core.eval(ConditionContext, condition)
+        catch err
+            if isa(err, UndefVarError)
+                throw(BindingSetKeyError(err.var))
+            else
+                rethrow(err)
+            end
+        end
         isa(result, Bool) ||
             throw(MatchError(result))
         return result
@@ -240,48 +226,6 @@ function fail_condition(condition)
 
     return cond_fun
 end
-
-"""
-    get_pattern_vars(ex)::Vector{Symbol}
-
-Return all the pattern variables that appear in `ex`. Used for injecting the pattern
-variables in the evaluation context of the pattern's fail condition when parsing a fail
-condition `Expr` as a `Function` (pattern parse time).
-"""
-function get_pattern_vars(ex::Expr)::Vector{Symbol}
-    isempty(ex.args) && return Symbol[]
-
-    pattern_vars = Symbol[]
-    if @isexpr(ex, :call) && (ex.args[1] === :syntax_match || ex.args[1] === :Pattern) ||
-        @isexpr(ex, :macrocall) && ex.args[1] === Symbol("@pattern")
-        # Argus functions have their own, separate pattern variables.
-        return pattern_vars
-    elseif ex.head === :.
-        append!(pattern_vars, get_pattern_vars(ex.args[1]))
-    else
-        for arg in ex.args
-            append!(pattern_vars, get_pattern_vars(arg))
-        end
-    end
-
-    return pattern_vars
-end
-function get_pattern_vars(ex::QuoteNode)::Vector{Symbol}
-    name_symbol = ex.value
-    isa(name_symbol, Symbol) || return Symbol[]
-    Meta.isidentifier(name_symbol) || return Symbol[]
-    name_str = string(name_symbol)
-    startswith(name_str, "_") || return Symbol[]
-    return [name_symbol]
-end
-function get_pattern_vars(s::Symbol)::Vector{Symbol}
-    Meta.isidentifier(s) || return Symbol[]
-    name_str = string(s)
-    startswith(name_str, "_") || return Symbol[]
-    name_str in ["__module__", "__source__", "__file__", "__context__"] && return Symbol[]
-    return [s]
-end
-(get_pattern_vars(::T)::Vector{Symbol}) where T = Symbol[]
 
 """
     get_pattern_vars_with_depth(node::JS.SyntaxNode)

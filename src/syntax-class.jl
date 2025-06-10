@@ -15,7 +15,7 @@ Unconstrained pattern variables are constrained by default to `:::expr`.
 
 ```
 julia> binary_funcall = @syntax_class "binary function call" begin
-           @pattern _(_, _)
+           @pattern {_}({_}, {_})
        end
 SyntaxClass: binary function call
   Pattern alternative #1:
@@ -25,18 +25,18 @@ SyntaxClass: binary function call
       _:::expr                           :: ~var
 
 julia> fundef = @syntax_class "function definition" begin
-           @pattern _f:::funcall = _...
-           @pattern function _f:::funcall _... end
+           @pattern {f:::funcall} = {_}...
+           @pattern function ({f:::funcall}) {_}... end
        end
 SyntaxClass: function definition
   Pattern alternative #1:
     [function-=]
-      _f:::funcall                       :: ~var
+      f:::funcall                        :: ~var
       [~rep]
         _:::expr                         :: ~var
   Pattern alternative #2:
     [function]
-      _f:::funcall                       :: ~var
+      f:::funcall                        :: ~var
       [block]
         [~rep]
           _:::expr                       :: ~var
@@ -75,25 +75,25 @@ MatchFail("no match")
 
 julia> bool_literal2 = @syntax_class "`true` or `false`" begin
            @pattern begin
-               _b:::literal
-               @fail _b.value != true && _b.value != false "not `true` nor `false`"
+               {b:::literal}
+               @fail b.value != true && b.value != false "not `true` nor `false`"
            end
        end
 SyntaxClass: `true` or `false`
   Pattern alternative #1:
     [~and]
-      _b:::literal                       :: ~var
+      b:::literal                        :: ~var
       [~fail]
         [&&]
           [call-i]
             [.]
-              _b                         :: Identifier
+              b                          :: Identifier
               value                      :: Identifier
             !=                           :: Identifier
             true                         :: Bool
           [call-i]
             [.]
-              _b                         :: Identifier
+              b                          :: Identifier
               value                      :: Identifier
             !=                           :: Identifier
             false                        :: Bool
@@ -101,24 +101,25 @@ SyntaxClass: `true` or `false`
 
 julia> syntax_match(bool_literal2, parsestmt(SyntaxNode, "true"))
 BindingSet with 1 entry:
-  :_b => Binding:
-           Name: :_b
-           Bound source: true @ 1:1
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 1 entry:
-               :_lit => Binding:
-                          Name: :_lit
-                          Bound source: true @ 1:1
-                          Ellipsis depth: 0
-                          Sub-bindings:
-                            BindingSet with 0 entries
+  :b => Binding:
+          Name: :b
+          Bound source: true @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 1 entry:
+              :_lit => Binding:
+                         Name: :_lit
+                         Bound source: true @ 1:1
+                         Ellipsis depth: 0
+                         Sub-bindings:
+                           BindingSet with 0 entries
 
 julia> syntax_match(bool_literal2, parsestmt(SyntaxNode, "a"))
 MatchFail("not a literal")
 ```
 
-Note: A pattern can be written in multiple ways
+Note: A pattern can be written in multiple ways. Some ways can be easier to write, others
+      can provide more detailed failure messages.
 """
 macro syntax_class(description, body)
     # Error messages.
@@ -240,7 +241,7 @@ function _register_syntax_classes()
     # `identifier`: match an identifier.
     @define_syntax_class :identifier "identifier" begin
         @pattern begin
-            _id
+            {_id}
             @fail begin
                 using JuliaSyntax: is_identifier
                 !is_identifier(_id.src)
@@ -251,7 +252,7 @@ function _register_syntax_classes()
     # `literal`: match a literal.
     @define_syntax_class :literal "literal" begin
         @pattern begin
-            _lit
+            {_lit}
             @fail begin
                 using JuliaSyntax: is_literal
                 !is_literal(_lit.src)
@@ -262,18 +263,18 @@ function _register_syntax_classes()
     # `bool_literal`: match `true` or `false`.
     @define_syntax_class :bool_literal "`true` or `false`" begin
         @pattern begin
-            _b:::literal
+            {_b:::literal}
             @fail _b.value != true && _b.value != false "not a `Bool` literal"
         end
     end
 
     # `assign`: match an assignment.
     @define_syntax_class :assign "assignment" begin
-        @pattern _lhs:::identifier = _rhs:::expr
+        @pattern {lhs:::identifier} = {rhs:::expr}
     end
 
     # `funcall`: match a function call.
     @define_syntax_class :funcall "function call" begin
-        @pattern (_fun_name:::identifier)(_args...)
+        @pattern ({fun_name:::identifier})({args}...)
     end
 end

@@ -49,21 +49,6 @@ Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 """
 const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData, AbstractPatternFormSyntaxData}}
 
-# TODO: Check weird parsing of `const`:
-#       julia> @pattern begin
-#                  const _x:::identifier = _...
-#                  _...
-#              end
-#       Pattern:
-#       [toplevel]
-#         [const]
-#           [=]
-#             _x:::identifier                    :: ~var
-#             [tuple]
-#               [~rep]
-#                 _:::expr                       :: ~var
-#               [~rep]
-#                 _:::expr                       :: ~var
 """
     SyntaxPatternNode(ex)
 
@@ -123,19 +108,19 @@ same as `function _f end`. Therefore, the `:tuple` head is eliminated in this ca
 # ========
 
 ```
-julia> Argus.desugar_expr(:( _x ))
+julia> Argus.desugar_expr(:( {x} ))
 SyntaxNode:
 [call-pre]
   ~                                      :: Identifier
   [call]
     var                                  :: Identifier
     [quote-:]
-      _x                                 :: Identifier
+      x                                  :: Identifier
     [quote-:]
       expr                               :: Identifier
 
 
-julia> Argus.desugar_expr(:( _... ))
+julia> Argus.desugar_expr(:( {_}... ))
 SyntaxNode:
 [call-pre]
   ~                                      :: Identifier
@@ -151,7 +136,7 @@ SyntaxNode:
           expr                           :: Identifier
 
 
-julia> Argus.desugar_expr(:( function (_f:::expr) end ))
+julia> Argus.desugar_expr(:( function ({f:::expr}) end ))
 SyntaxNode:
 [function]
   [call]
@@ -159,13 +144,13 @@ SyntaxNode:
     [call]
       var                                :: Identifier
       [quote-:]
-        _f                               :: Identifier
+        f                                :: Identifier
       [quote-:]
         expr                             :: Identifier
   [block]
 
 
-julia> Argus.desugar_expr(:( function (_f) end ))
+julia> Argus.desugar_expr(:( function ({f}) end ))
 SyntaxNode:
 [function]
   [tuple-p-,]
@@ -174,7 +159,7 @@ SyntaxNode:
       [call]
         var                              :: Identifier
         [quote-:]
-          _f                             :: Identifier
+          f                              :: Identifier
         [quote-:]
           expr                           :: Identifier
   [block]
@@ -217,8 +202,8 @@ function desugar_expr(ex)::JS.SyntaxNode
     #       This is not a very useful example but it shows the problem -- extra nodes!
     #       This could surely be avoided by finding a nicer way to go from `Expr` to
     #       `SyntaxNode`...
-    regex = r"\$\((?<ex>Expr(?<parens>\(([^()]|(?&parens))*\)))\)"
     desugared_ex_str = string(desugared_ex)
+    regex = r"\$\((?<ex>Expr(?<parens>\(([^()]|(?&parens))*\)))\)"
     for m in eachmatch(regex, desugared_ex_str)
         desugared_ex_str =
             replace(desugared_ex_str, regex => string(eval(Meta.parse(m[:ex]))); count=1)
@@ -234,7 +219,7 @@ function _desugar_expr(ex; inside_fail=false)
         #
         # `<pattern_var>`                  -> `~var(<pattern_var>, :expr)`
         #                                  -> Remains the same inside `~fail` conditions.
-        id = get_sugared_var_var_name(ex)
+        id = get_sugared_var_name(ex)
         syntax_class_name = get_sugared_var_syntax_class_name(ex)
         return :( ~var($(QuoteNode(id)), $(QuoteNode(syntax_class_name))) )
     elseif @isexpr(ex, :function) && Meta.isexpr(ex.args[1], :tuple, 1)
@@ -268,22 +253,26 @@ form syntax data. Parse regular `SyntaxNode`s into `SyntaxPatternNode`s with reg
 ```
 julia> using JuliaSyntax: parsestmt, SyntaxNode
 
-julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~var(:_x, :stx_cls)"))
+julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~var(:x, :stx_cls)"))
 SyntaxPatternNode:
 [~var]
   [quote-:]
-    _x                                   :: Identifier
+    x                                    :: Identifier
   [quote-:]
     stx_cls                              :: Identifier
 
-julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~and(_x, ~fail(_x.value != 2, \"not two\"))"))
+julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~and(~var(:x, :stx_cls), ~fail(x.value != 2, \"not two\"))"))
 SyntaxPatternNode:
 [~and]
-  _x                                     :: Identifier
+  [~var]
+    [quote-:]
+      x                                  :: Identifier
+    [quote-:]
+      stx_cls                            :: Identifier
   [~fail]
     [call-i]
       [.]
-        _x                               :: Identifier
+        x                                :: Identifier
         value                            :: Identifier
       !=                                 :: Identifier
       2                                  :: Integer
@@ -355,9 +344,9 @@ expression.
 julia> Argus.parse_multiple_exprs_as_toplevel(SyntaxPatternNode(:(
            [
                :pattern_toplevel,
-               :( _x:::identifier = _val1 ),
-               :( _... ),
-               :( _x:::identifier = _val2 )
+               :( {x:::identifier} = {val1} ),
+               :( {_}... ),
+               :( {x:::identifier} = {val2} )
            ]
        )))
 SyntaxPatternNode:
@@ -365,12 +354,12 @@ SyntaxPatternNode:
   [=]
     [~var]
       [quote-:]
-        _x                               :: Identifier
+        x                                :: Identifier
       [quote-:]
         identifier                       :: Identifier
     [~var]
       [quote-:]
-        _val1                            :: Identifier
+        val1                             :: Identifier
       [quote-:]
         expr                             :: Identifier
   [~rep]
@@ -382,12 +371,12 @@ SyntaxPatternNode:
   [=]
     [~var]
       [quote-:]
-        _x                               :: Identifier
+        x                                :: Identifier
       [quote-:]
         identifier                       :: Identifier
     [~var]
       [quote-:]
-        _val2                            :: Identifier
+        val2                             :: Identifier
       [quote-:]
         expr                             :: Identifier
 ```
@@ -453,12 +442,12 @@ Misparsed cases:
 # ========
 
 ```
-julia> ambiguous = Argus.parse_pattern_forms(Argus.desugar_expr(:( _x = 2 )))
+julia> ambiguous = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x} = 2 )))
 SyntaxPatternNode:
 [function-=]
   [~var]
     [quote-:]
-      _x                                 :: Identifier
+      x                                  :: Identifier
     [quote-:]
       expr                               :: Identifier
   2                                      :: Integer
@@ -469,35 +458,34 @@ SyntaxPatternNode:
   [=]
     [~var]
       [quote-:]
-        _x                               :: Identifier
+        x                                :: Identifier
       [quote-:]
         identifier                       :: Identifier
     2                                    :: Integer
   [function-=]
     [~var]
       [quote-:]
-        _x                               :: Identifier
+        x                                :: Identifier
       [quote-:]
         funcall                          :: Identifier
     2                                    :: Integer
 
-julia> misparsed = Argus.parse_pattern_forms(Argus.desugar_expr(:( _x:::identifier = 2 )))
+julia> misparsed = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x:::identifier} = 2 )))
 SyntaxPatternNode:
 [function-=]
   [~var]
     [quote-:]
-      _x                                 :: Identifier
+      x                                  :: Identifier
     [quote-:]
       identifier                         :: Identifier
   2                                      :: Integer
-
 
 julia> Argus.fix_misparsed!(misparsed)
 SyntaxPatternNode:
 [=]
   [~var]
     [quote-:]
-      _x                                 :: Identifier
+      x                                  :: Identifier
     [quote-:]
       identifier                         :: Identifier
   2                                      :: Integer
@@ -562,23 +550,22 @@ JS.kind(node::SyntaxPatternNode) = head(node).kind
 ## AST utils
 
 is_symbol_node(node::JS.SyntaxNode) =
-    !is_leaf(node)                   &&
-    kind(node) === K"quote"          &&
-    length(children(node)) == 1      &&
+    !is_leaf(node)              &&
+    kind(node) === K"quote"     &&
+    length(children(node)) == 1 &&
     is_identifier(children(node)[1])
 
 ### Pass 1 (`Expr` desugaring)
 
-is_pattern_variable(ex) = isa(ex, Symbol) && startswith(string(ex), "_")
-is_anonymous_pattern_variable(ex) = is_pattern_variable(ex) && ex === :_
+is_pattern_variable(ex) = @isexpr(ex, :braces, 1) && isa(ex.args[1], Symbol)
 
 is_pattern_form(ex) =
     # A pattern form expression has the following structure:
     #   `~<form_name>(<args>*)`
-    @isexpr(ex, :call, 2)               &&
-    ex.args[1] === :~                   &&
-    Meta.isexpr(ex.args[2], :call)      &&
-    ex.args[2].args[1] in PATTERN_FORMS
+    @isexpr(ex, :call, 2)          &&
+    ex.args[1] === :~              &&
+    Meta.isexpr(ex.args[2], :call) &&
+    get_pattern_form_name(ex) in PATTERN_FORMS
 
 is_var(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
@@ -587,18 +574,27 @@ is_and(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_rep(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :rep
 
 is_sugared_var(ex) =
-    is_pattern_variable(ex)       ||
-    @isexpr(ex, :(::), 2)         &&
-    isa(ex.args[2], QuoteNode)    &&
-    isa(ex.args[2].value, Symbol)
+    is_pattern_variable(ex)               ||
+    @isexpr(ex, :braces, 1)               &&
+    Meta.isexpr(ex.args[1], :(::), 2)     &&
+    isa(ex.args[1].args[2], QuoteNode)    &&
+    isa(ex.args[1].args[2].value, Symbol) &&
+    isa(ex.args[1].args[1], Symbol)
 is_sugared_rep(ex) = @isexpr(ex, :..., 1)
+
+get_pattern_variable_name(ex) = ex.args[1]
+
+get_pattern_form_name(ex) = ex.args[2].args[1]
 
 function get_var_name(ex::Expr)
     var_name_node = ex.args[2].args[2]
     return isa(var_name_node, Symbol) ? var_name_node : var_name_node.value
 end
-get_sugared_var_var_name(ex) = isa(ex, Expr) ? ex.args[1] : ex
-get_sugared_var_syntax_class_name(ex) = isa(ex, Expr) ? ex.args[2].value : :expr
+get_sugared_var_name(ex) =  is_pattern_variable(ex) ?
+    get_pattern_variable_name(ex)                   :
+    ex.args[1].args[1]
+get_sugared_var_syntax_class_name(ex) =
+    is_pattern_variable(ex) ? :expr : ex.args[1].args[2].value
 
 _get_sugared_rep_arg(ex) = ex.args[1]
 
