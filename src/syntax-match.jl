@@ -196,11 +196,17 @@ function _syntax_match(pattern::SyntaxPatternNode,
                        bindings::BindingSet=BindingSet();
                        recovery_stack=[],
                        recover=true,
+                       greedy=true,
                        tmp=false)::MatchResult
     # Special syntax.
     if is_pattern_form(pattern)
-        match_result =
-            syntax_match_pattern_form(pattern, src, bindings; recovery_stack, recover, tmp)
+        match_result = syntax_match_pattern_form(pattern,
+                                                 src,
+                                                 bindings;
+                                                 recovery_stack,
+                                                 recover,
+                                                 greedy,
+                                                 tmp)
         isa(match_result, MatchFail) &&
             # Try another path if possible.
             return recover!(recovery_stack,
@@ -215,7 +221,12 @@ function _syntax_match(pattern::SyntaxPatternNode,
     if head(pattern) != head(src)           ||
         pattern.data.val != src.data.val    ||
         xor(is_leaf(pattern), is_leaf(src))
-        return recover!(recovery_stack, _syntax_match, recover; fail_ret=MatchFail(), tmp)
+        return recover!(recovery_stack,
+                        _syntax_match,
+                        recover;
+                        fail_ret=MatchFail(),
+                        greedy,
+                        tmp)
     end
     # Recurse on children if there are any.
     is_leaf(src) && return bindings
@@ -231,21 +242,35 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                        bindings::BindingSet=BindingSet();
                        recovery_stack=[],
                        recover=true,
+                       greedy=true,
                        tmp=false)::MatchResult
-    match_result, srcs = _partial_syntax_match(pattern_nodes, srcs, bindings; tmp)
-    isa(match_result, MatchFail) &&
-        return recover!(recovery_stack, _syntax_match, recover; fail_ret=match_result, tmp)
-    isempty(srcs) ||
-        return recover!(recovery_stack, _syntax_match, recover; fail_ret=MatchFail(), tmp)
+    match_result, srcs = partial_syntax_match(pattern_nodes,
+                                              srcs,
+                                              bindings;
+                                              greedy,
+                                              tmp)
+    isa(match_result, MatchFail) && return recover!(recovery_stack,
+                                                    _syntax_match,
+                                                    recover;
+                                                    fail_ret=match_result,
+                                                    greedy,
+                                                    tmp)
+    isempty(srcs) || return recover!(recovery_stack,
+                                     _syntax_match,
+                                     recover;
+                                     fail_ret=MatchFail(),
+                                     tmp)
     return match_result
 end
+
 """
-    _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                          srcs::Vector{JS.SyntaxNode},
-                          bindings::BindingSet=BindingSet();
-                          recovery_stack=[],
-                          recover=true,
-                          tmp=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+    partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
+                         srcs::Vector{JS.SyntaxNode},
+                         bindings::BindingSet=BindingSet();
+                         recovery_stack=[],
+                         recover=true,
+                         greedy=true,
+                         tmp=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
 
 Try to match a sequence of pattern nodes with a sequence of source nodes exactly once. If
 the sequences can't match, return a tuple containing [`MatchFail`](@ref) with the
@@ -263,30 +288,31 @@ julia> using JuliaSyntax: children
 
 julia> srcs = [parsestmt(SyntaxNode, "a + 1"), parsestmt(SyntaxNode, "b + 1"), parsestmt(SyntaxNode, "c")];
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern (_x + 1)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
 (BindingSet(:_x => Binding(:_x, a @ 1:1, BindingSet())), SyntaxNode[(call-i b + 1), c])
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern (_x + 1)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
 (BindingSet(:_x => Binding(:_x, b @ 1:1, BindingSet())), SyntaxNode[c])
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern (_x + 1)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
 (MatchFail("no match"), SyntaxNode[c])
 
 julia> srcs = [parsestmt(SyntaxNode, "a + 1"), parsestmt(SyntaxNode, "b + 1"), parsestmt(SyntaxNode, "c")];
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
 (BindingSet(:_x => Binding(:_x, [a @ 1:1, b @ 1:1], BindingSet[BindingSet(), BindingSet()])), SyntaxNode[c])
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
 (BindingSet(), SyntaxNode[c])
 ```
 """
-function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                               srcs::Vector{JS.SyntaxNode},
-                               bindings::BindingSet=BindingSet();
-                               recovery_stack=[],
-                               recover=true,
-                               tmp=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
+                              srcs::Vector{JS.SyntaxNode},
+                              bindings::BindingSet=BindingSet();
+                              recovery_stack=[],
+                              recover=true,
+                              greedy=true,
+                              tmp=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
     if isempty(srcs)
         # Reasons to be here:
         #
@@ -311,18 +337,20 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
             match_result = syntax_match_rep(p, srcs, bindings)
             # This could never fail, but it's good to be exhaustive.
             isa(match_result, MatchFail) && return (match_result, srcs)
-            return _partial_syntax_match(rest(pattern_nodes),                         # 1.a,
-                                         srcs,                                        # 1.b,
-                                         match_result;                                # 2.a,
-                                         recovery_stack,                              # 2.b
-                                         recover,
-                                         tmp)
+            return partial_syntax_match(rest(pattern_nodes),                       # 1.a,
+                                        srcs,                                      # 1.b,
+                                        match_result;                              # 2.a,
+                                        recovery_stack,                            # 2.b
+                                        recover,
+                                        greedy,
+                                        tmp)
         end
         # The first pattern node is not a repetition, so there can be no match on this path.
         return recover!(recovery_stack,                      # `recovery_stack` empty => 1.b
-                        _partial_syntax_match,               # else                   => 2.b
+                        partial_syntax_match,                # else                   => 2.b
                         recover;
                         fail_ret=(MatchFail(), srcs),
+                        greedy,
                         tmp)
     end
     # If we're here, there still are unmatched source nodes.
@@ -332,7 +360,7 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     # Here we know we have at least one pattern node and at least one source node.
     p = pattern_nodes[1]
     s = srcs[1]
-    match_result = _syntax_match(p, s, bindings; tmp)  # TODO: Explicit kwargs.
+    match_result = _syntax_match(p, s, bindings; recover, greedy, tmp)
     if !is_rep(p)
         # The first pattern node is not a repetition so it needs to match the first source
         # node exactly.
@@ -340,19 +368,21 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
             # If the two don't match, we might be able to try a previous state. If there is
             # no other state to return to, the overall match fails.
             return recover!(recovery_stack,
-                            _partial_syntax_match,
+                            partial_syntax_match,
                             recover;
                             fail_ret=(match_result, srcs),
+                            greedy,
                             tmp)
         end
         # If the pattern and source nodes match, we can continue matching the remainders of
         # the node lists.
-        return _partial_syntax_match(rest(pattern_nodes),
-                                     rest(srcs),
-                                     match_result;
-                                     recovery_stack,
-                                     recover,
-                                     tmp)
+        return partial_syntax_match(rest(pattern_nodes),
+                                    rest(srcs),
+                                    match_result;
+                                    recovery_stack,
+                                    recover,
+                                    greedy,
+                                    tmp)
     end
     # If we're here, the first pattern node in the list is a repetition.
     if isa(match_result, MatchFail)
@@ -365,12 +395,13 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         # appropriate name (the name of the pattern variable in the repetition node) or it
         # is discarded if the repetition pattern variable is anonymous.
         bindings = make_permanent(bindings)
-        return _partial_syntax_match(rest(pattern_nodes),
-                                     srcs,
-                                     bindings;
-                                     recovery_stack,
-                                     recover,
-                                     tmp)
+        return partial_syntax_match(rest(pattern_nodes),
+                                    srcs,
+                                    bindings;
+                                    recovery_stack,
+                                    recover,
+                                    greedy,
+                                    tmp)
     end
     # The last possibility is that the repetition is a match. We need to do two things:
     #
@@ -380,18 +411,37 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     #    We can't tell in advance which decision is right, so we continue on one path and
     #    we save the other possible path in order to get back to it if the chosen path
     #    fails.
-    #
-    #    In the recovery state, the repetition is finished and the repetition node did not
-    #    match the current source node.
-    push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
-    # 2. Continue on the preferred path. This path is greedy, meaning that a repetition node
-    #    consumes as many source nodes as possible.
-    return _partial_syntax_match(pattern_nodes,
-                                 rest(srcs),
-                                 match_result;
-                                 recovery_stack,
-                                 recover,
-                                 tmp)
+    if greedy
+        # Greedy, like me trying to do two months' worth of work in two weeks:
+        #
+        # In the recovery state, the repetition is finished and the repetition node did not
+        # match the current source node.
+        push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
+        # 2. Continue on the preferred path. This path is greedy, meaning that a repetition
+        #    node consumes as many source nodes as possible.
+        return partial_syntax_match(pattern_nodes,
+                                    rest(srcs),
+                                    match_result;
+                                    recovery_stack,
+                                    recover,
+                                    greedy,
+                                    tmp)
+    else
+        # Not greedy:
+        #
+        # The opposite of the greedy algorithm. The recovery state continues the current
+        # repetition.
+        push!(recovery_stack, (pattern_nodes, rest(srcs), match_result))
+        # 2. Continue on the preferred path. This path is not greedy, meaning that a
+        #    repetition stops after the first consume source node.
+        return partial_syntax_match(rest(pattern_nodes),
+                                    srcs,
+                                    make_permanent(bindings);
+                                    recovery_stack,
+                                    recover,
+                                    greedy,
+                                    tmp)
+    end
 end
 
 # Pattern form matching
@@ -413,6 +463,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    bindings::BindingSet;
                                    recovery_stack=[],
                                    recover=true,
+                                   greedy=true,
                                    tmp=false)::MatchResult
     args = (pattern_node, src, bindings)
     kwargs = (recovery_stack=recovery_stack, recover=recover, tmp=tmp)
@@ -711,7 +762,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     partial_results = BindingSet[]
     while !isempty(srcs)
         partial_result, srcs =
-            _partial_syntax_match(children(rep_node), srcs, BindingSet(); tmp=true)
+            partial_syntax_match(children(rep_node), srcs, BindingSet(); tmp=true)
         isa(partial_result, MatchFail) && return partial_result
         push!(partial_results, partial_result)
     end
@@ -784,9 +835,9 @@ Turn all `TemporaryBinding`s into `Binding`s.
 ```
 julia> srcs = [parsestmt(SyntaxNode, "1 + a"), parsestmt(SyntaxNode, "1 + 2"), parsestmt(SyntaxNode, "c + 1")];
 
-julia> partial_result, srcs = Argus._partial_syntax_match(children(@pattern begin (1 + _x)... end),
-                                                          srcs;
-                                                          tmp=true)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern begin (1 + _x)... end),
+                                                   srcs;
+                                                   tmp=true)
 (BindingSet(:_x => Argus.TemporaryBinding{SyntaxNode, BindingSet}(:_x, a @ 1:5, BindingSet())), SyntaxNode[(call-i 1 + 2), (call-i c + 1)])
 
 julia> Argus.make_permanent(partial_result)
@@ -836,7 +887,7 @@ julia> src =
        h(a; b::Int=2) = begin a - b end
        \""";
 
-julia> partial_result1, srcs1 = Argus._partial_syntax_match(children(pattern), children(parseall(SyntaxNode, src)); tmp=true);
+julia> partial_result1, srcs1 = partial_syntax_match(children(pattern), children(parseall(SyntaxNode, src)); tmp=true);
 
 julia> partial_result1.bindings
 Dict{Symbol, Argus.AbstractBinding} with 3 entries:
@@ -849,7 +900,7 @@ julia> srcs1
  (function-= (call g x) (block (call-i x + 1)))
  (function-= (call h a (parameters (= (::-i b Int) 2))) (block (call-i a - b)))
 
-julia> partial_result2, srcs2 = Argus._partial_syntax_match(children(pattern), srcs1; tmp=true);
+julia> partial_result2, srcs2 = partial_syntax_match(children(pattern), srcs1; tmp=true);
 
 julia> partial_result2.bindings
 Dict{Symbol, Argus.AbstractBinding} with 3 entries:
@@ -861,7 +912,7 @@ julia> srcs2
 1-element Vector{SyntaxNode}:
  (function-= (call h a (parameters (= (::-i b Int) 2))) (block (call-i a - b)))
 
-julia> partial_result3, srcs3 = Argus._partial_syntax_match(children(pattern), srcs2; tmp=true);
+julia> partial_result3, srcs3 = partial_syntax_match(children(pattern), srcs2; tmp=true);
 
 julia> partial_result3.bindings
 Dict{Symbol, Argus.AbstractBinding} with 3 entries:

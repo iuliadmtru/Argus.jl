@@ -249,16 +249,18 @@ The result of a rule group match. Alias for `Dict{String, RuleMatchResult}`.
 """
 const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
-# TODO: Add non-greedy alternative.
-#       Explain in docs afterwards.
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
     rule_match(rule::Rule, filename::String; only_matches=true)
 
 Match a rule against a source code. Return the set of all matches. If `only_matches` is
-`false` return failures as well.
+`false` return failures as well. The rule pattern is matched against all children nodes in
+the source node, up to the leafs.
 
-The rule pattern is matched against all children nodes in the source node, up to the leafs.
+If the rule pattern contains only one pattern expression, it is matched against the source
+node exactly. If it contains multiple expressions, the sequence of expressions is partially
+matched against the source node's children (see [`partial_syntax_match`](@ref)). The
+algorithm tries all the potentially matching paths of all partial match results.
 """
 function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
@@ -267,7 +269,21 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
         # expressions sequence with all the sub-sequences in the source.
         srcs = children(src)
         while !isempty(srcs)
-            partial_result, _ = _partial_syntax_match(children(rule.pattern), srcs)
+            recovery_stack = []
+            partial_result, _ = partial_syntax_match(children(rule.pattern),
+                                                     srcs;
+                                                     recovery_stack,
+                                                     greedy=false)
+            # If there are recovery paths, try them all and store the results.
+            while !isempty(recovery_stack)
+                partial_recovered_result, _ = recover!(recovery_stack,
+                                                       partial_syntax_match,
+                                                       true;
+                                                       fail_ret=nothing,
+                                                       greedy=false)
+                !isnothing(partial_recovered_result) &&
+                    push_match_result!(rule_result, partial_recovered_result; only_matches)
+            end
             push_match_result!(rule_result, partial_result; only_matches)
             srcs = rest(srcs)
         end
