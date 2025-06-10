@@ -2,6 +2,8 @@
 
 # Argus.jl
 
+!!! Many changes have been made. The README will be updated soon.
+
 Syntax matching and static analysis rule writing for Julia. Heavily
 inspired by
 [`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse.html), a
