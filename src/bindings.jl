@@ -17,10 +17,10 @@ values if resulted from a successful and complete syntax match. May contain
 but incomplete syntax match.
 """
 struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-    bindings::Dict{Symbol, T}
+    bindings::OrderedDict{Symbol, T}
 end
-BindingSet() = BindingSet(Dict{Symbol, AbstractBinding}())
-BindingSet(kvs...) = BindingSet(Dict{Symbol, AbstractBinding}(kvs...))
+BindingSet() = BindingSet(OrderedDict{Symbol, AbstractBinding}())
+BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...))
 
 # Dict interface
 # --------------
