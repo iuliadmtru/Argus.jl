@@ -302,7 +302,6 @@ function syntax_match_var(var_node::SyntaxPatternNode,
         return bindings
     # If the binding already exists, check if the new binding is compatible with the
     # old one.
-    bindings::BindingSet = copy(bindings)
     if haskey(bindings, pattern_var_name)
         b = bindings[pattern_var_name]
         isa(b, InvalidBinding) && return MatchFail(b.msg)
@@ -333,9 +332,10 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          recovery_stack=[],
                          recover=true,
                          tmp=false)::MatchResult
+    alt_bindings::BindingSet = deepcopy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
-        match_result = _syntax_match(p, src, BindingSet(); recovery_stack, recover, tmp)
+        match_result = _syntax_match(p, src, alt_bindings; recovery_stack, recover, tmp)
         if isa(match_result, BindingSet)
             # If this is not the last branch, we might be able to recover from one of the
             # next branches if the encompassing pattern fails.
@@ -348,6 +348,10 @@ function syntax_match_or(or_node::SyntaxPatternNode,
             end
             return match_result
         end
+        # Reset the bindings for each alernative. The alternatives should not communicate
+        # with each other.
+        alt_bindings = deepcopy(bindings)
+        # Track the failures.
         failure = match_result
     end
     # TODO: Return the most specific error.
@@ -363,6 +367,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           bindings::BindingSet;
                           tmp=false)
     and_node = deepcopy(and_node)
+    bindings::BindingSet = deepcopy(bindings)
     recovery_stack = []
     for (i, p) in enumerate(children(and_node))
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
