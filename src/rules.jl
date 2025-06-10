@@ -157,6 +157,7 @@ RuleMatchResult() = RuleMatchResult([], [])
 
 const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
+# TODO: Add non-greedy alternative.
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
 

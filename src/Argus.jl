@@ -14,7 +14,7 @@ const JS = JuliaSyntax
 
 export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class, SyntaxError
 export SyntaxClassRegistry, @define_syntax_class, @define_syntax_class_in_registry,
-    register_syntax_class!
+    register_syntax_class!, SyntaxClassRegistryKeyError
 export Binding, BindingSet, BindingFieldError, BindingSetKeyError, MatchFail, MatchError
 export syntax_match
 

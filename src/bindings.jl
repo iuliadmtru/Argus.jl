@@ -1,15 +1,20 @@
 """
     AbstractBinding
 
-Sypertype for [`Binding`](@ref).
+Sypertype for bindings.
 """
 abstract type AbstractBinding end
 
-# --------------------------------------------
-# Binding set.
+# Binding set
+# ===========
 
 """
-Set of bindings. Implemented as a dict for ease of access.
+    BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
+
+Set of bindings resulted from a successful syntax match. Contains only [`Binding`](@ref)
+values if resulted from a successful and complete syntax match. May contain
+[`TemporaryBinding`](@ref) and/or [`InvalidBinding`](@ref) if resulted from a successful
+but incomplete syntax match.
 """
 struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
     bindings::Dict{Symbol, T}
@@ -17,7 +22,8 @@ end
 BindingSet() = BindingSet(Dict{Symbol, AbstractBinding}())
 BindingSet(kvs...) = BindingSet(Dict{Symbol, AbstractBinding}(kvs...))
 
-## Dict interface.
+# Dict interface
+# --------------
 
 Base.isempty(bs::BindingSet) = isempty(bs.bindings)
 Base.empty!(bs::BindingSet) = empty!(bs.bindings)
@@ -50,7 +56,8 @@ Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
 Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
-## Display.
+# Display
+# -------
 
 Base.show(io::IO, ::Type{BindingSet{AbstractBinding}}) = print(io, "BindingSet")
 Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
@@ -58,12 +65,21 @@ Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
 
 function _show_binding_set(io::IO, bs, indent)
     if isa(bs, AbstractVector)
-        println(io, indent * "[")
-        for el in bs
-            _show_binding_set(io, el, indent * " ")
+        print(io, indent * "[")
+        if length(bs) == 1
+            _show_binding_set(io, bs[1], "")
+            print(io, "]")
+        else
+            for (i, el) in enumerate(bs)
+                println(io)
+                _show_binding_set(io, el, indent * " ")
+                if i < length(bs)
+                    print(io, ",")
+                end
+            end
+            println(io)
+            print(io, indent * "]")
         end
-        println(io)
-        print(io, indent * "]")
     else
         print(io, indent)
         summary(io, bs)
@@ -80,28 +96,54 @@ function _show_binding_set(io::IO, bs, indent)
     end
 end
 
-# --------------------------------------------
-# Errors.
+# Errors
+# ======
 
+"""
+    BindingFieldError <: Exception
+
+A fail condition tried to access an invalid field of a binding.
+
+A binding field is valid if any one of the following is true:
+  - It is one of the corresponding struct fields (e.g. `src` for a [`Binding`](@ref) or
+    `msg` for an [`InvalidBinding`](@ref));
+  - It is the name of one of the binding's sub-bindings;
+  - The binding's `src` is an identifier and the field is `name`;
+  - The binding's `src` is a literal and the field is `value`.
+"""
 struct BindingFieldError <: Exception
     binding::AbstractBinding
     field::Symbol
     available_fields::Vector{Symbol}
+    internal_fields::Vector{Symbol}
     reason::String
 end
 
+"""
+    BindingSetKeyError <: Exception
+
+A fail condition tried to access a non-existent binding.
+"""
 struct BindingSetKeyError <: Exception
     key
 end
 
-## Display.
+# Display
+# -------
 
 function Base.showerror(io::IO, err::BindingFieldError)
     print(io, "BindingFieldError: ")
     println(io,
             "binding `", err.binding.bname, "` has no field `", err.field, "` ",
             "because ", err.reason, ".")
-    println(io, "Available fields: ", join(map(s -> "`$s`", err.available_fields), ", "))
+    available = isempty(err.available_fields) ?
+        "none"                                :
+        join(map(s -> "`$s`", err.available_fields), ", ")
+    println(io, "Available fields: ", available)
+    println(io)
+    println(io,
+            "The following fields are internal, avoid using them in patterns: ",
+            join(map(s -> "`$s`", err.internal_fields), ", "))
 end
 
 function Base.showerror(io::IO, err::BindingSetKeyError)
@@ -109,12 +151,55 @@ function Base.showerror(io::IO, err::BindingSetKeyError)
     println(io, "binding ", err.key, " not found")
 end
 
-# --------------------------------------------
-# Binding.
+# Bindings
+# ========
 
 """
-Binding of a pattern variable to a syntax tree. Pattern variables are created with the
-`~var` pattern form.
+    Binding <: AbstractBinding
+
+A bound pattern variable. Variables with ellipsis depth 0 (i.e. variables not contained
+within any ellipsis nodes) bind to single nodes. Variables with ellipsis depth `n` bind to
+a `Vector` of source nodes of depth `n`.
+
+# Examples
+# ========
+
+```
+julia> match_result = syntax_match((@pattern _x), parsestmt(SyntaxNode, "[a, b, c]"))
+BindingSet with 1 entry:
+  :_x => Binding:
+           Name:                         _x
+           Bound source: (vect a b c) @ 1:1
+           Ellipsis depth:                0
+           Sub-bindings:
+             BindingSet with 0 entries
+
+julia> match_result = syntax_match((@pattern [_x...]), parsestmt(SyntaxNode, "[a, b, c]"))
+BindingSet with 1 entry:
+  :_x => Binding:
+           Name:                                   _x
+           Bound sources: [a @ 1:2, b @ 1:5, c @ 1:8]
+           Ellipsis depth:                          1
+           Sub-bindings:
+             [
+              BindingSet with 0 entries,
+              BindingSet with 0 entries,
+              BindingSet with 0 entries
+             ]
+
+julia> match_result = syntax_match((@pattern [(_x...)...]), parsestmt(SyntaxNode, "[a, b, c]"))
+BindingSet with 1 entry:
+  :_x => Binding:
+           Name:                                         _x
+           Bound sources: [[a @ 1:2], [b @ 1:5], [c @ 1:8]]
+           Ellipsis depth:                                2
+           Sub-bindings:
+             [
+              [BindingSet with 0 entries],
+              [BindingSet with 0 entries],
+              [BindingSet with 0 entries]
+             ]
+```
 """
 struct Binding{S, B} <: AbstractBinding
     bname::Symbol
@@ -124,15 +209,92 @@ struct Binding{S, B} <: AbstractBinding
 end
 
 """
-Internal binding type used for validating bindings corresponding to multiple appearances
-of the same pattern variable.
+    InvalidBinding <: AbstractBinding
+
+Internal binding type used for invalidating bindings. Multiple appearances of the same
+pattern variable that are not consistent with each other are marked as invalid in order to
+stop matching them further.
+
+Compatibility is decided through the [`compatible`](@ref) predicate.
+
+# Examples
+# ========
+
+```
+julia> pattern = @pattern begin
+           _x:::identifier = 2
+           _x:::identifier = 3
+       end;
+
+julia> syntax_match(pattern, parseall(SyntaxNode,
+                                      \"""
+                                      a = 2
+                                      x = 3
+                                      \"""))
+MatchFail("conflicting bindings for pattern variable _x")
+```
+
+The `syntax_match` steps are:
+
+1. Does `_x:::identifier = 2` match `a = 2`?
+   > Yes.
+2. Do we have a binding for `_x` already?
+   > No.
+3. => Bind `_x` to `a`.
+
+4. Does `_x:::identifier = 3` match `x = 3`?
+   > Yes.
+5. Do we have a binding for `_x` already?
+   > Yes, `a`.
+6. Is `a` compatible with `x` (same head, same children, same value)?
+   > No.
+7. => Replace the binding for `_x` with an `InvalidBinding`. Attach the message
+   "conflicting bindings for pattern variable _x" to it.
+8. => Return a `MatchFail` with the same message.
 """
 struct InvalidBinding <: AbstractBinding
     msg::String
 end
 
 """
+    TemporaryBinding <: AbstractBinding
+
 Internal binding type used for storing bindings for unfinished repetitions.
+
+# Examples
+# ========
+
+```
+julia> pattern = @pattern _...
+Pattern:
+[~rep]
+  _:::expr                               :: ~var
+
+julia> syntax_match(pattern, parseall(SyntaxNode, \"""
+                                                  ex1
+                                                  ex2
+                                                  \"""))
+```
+
+The `syntax_match` steps are:
+
+1. Does `_:::expr` match `ex1`?
+   > Yes.
+2. Do we have a binding for `_` already?
+   > No.
+3. => Bind `_` to `[ex1]` as a `TemporaryBinding`.
+
+4. Does `_:::expr` match `ex2`?
+   > Yes.
+5. Do we have a binding for `_` already?
+   > Yes, `[ex1]`.
+6. => Add the new matching source node to `_`'s source list.
+
+7. No more source nodes to match, time to finish. Remove all `InvalidBinding`s (none in
+   this example) and transform all temporary bindings for non-anonymous pattern variables
+   into regular `Binding`s.
+8. Only anonymous pattern variables here.
+   => Return an empty binding set.
 """
 struct TemporaryBinding{S, B} <: AbstractBinding
     bname::Symbol
@@ -143,7 +305,8 @@ end
 Binding(b::TemporaryBinding{S, B}) where {S, B} =
     Binding{S, B}(b.bname, b.src, b.bindings, b.ellipsis_depth)
 
-## `Base` overwrites.
+# Base overwrites
+# ---------------
 
 # Allow accessing sub-bindings as fields.
 function Base.getproperty(b::Binding, name::Symbol)
@@ -154,7 +317,8 @@ function Base.getproperty(b::Binding, name::Symbol)
     name === :bindings && return bindings
     name === :ellipsis_depth && return getfield(b, :ellipsis_depth)
     # Gather available fields to show in error messages.
-    available_fields = [:bname, :src, :bindings]
+    internal_fields = [:bname, :src, :bindings]
+    available_fields = []
     [push!(available_fields, subb) for subb in keys(bindings)]
     JuliaSyntax.is_identifier(src) && push!(available_fields, :name)
     JuliaSyntax.is_literal(src) && push!(available_fields, :value)
@@ -166,6 +330,7 @@ function Base.getproperty(b::Binding, name::Symbol)
         throw(BindingFieldError(b,
                                 :value,
                                 available_fields,
+                                internal_fields,
                                 "the bound expression is not a literal"))
     end
     if name === :name
@@ -174,17 +339,20 @@ function Base.getproperty(b::Binding, name::Symbol)
         throw(BindingFieldError(b,
                                 :name,
                                 available_fields,
+                                internal_fields,
                                 "the bound expression is not an identifier"))
     end
     return get(bindings, name) do
         throw(BindingFieldError(b,
                                 name,
                                 available_fields,
+                                internal_fields,
                                 "`$name` is not a sub-binding of `$(b.bname)`"))
     end
 end
 
-## Display.
+# Display
+# -------
 
 Base.show(io::IO, ::MIME"text/plain", b::AbstractBinding) =
     _show_binding(io, b, "")

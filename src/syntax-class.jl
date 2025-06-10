@@ -257,6 +257,6 @@ function _register_syntax_classes()
 
     # `funcall`: match a function call.
     @define_syntax_class :funcall "function call" begin
-        @pattern (_id:::identifier)(_args...)
+        @pattern (_fun_name:::identifier)(_args...)
     end
 end

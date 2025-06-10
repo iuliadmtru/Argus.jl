@@ -162,12 +162,17 @@
             @test field_err_literal.message ==
                 """
                 BindingFieldError: binding `_x` has no field `name` because the bound expression is not an identifier.
-                Available fields: `bname`, `src`, `bindings`, `value`
+                Available fields: `value`
+
+                The following fields are internal, avoid using them in patterns: `bname`, `src`, `bindings`
                 """
             field_err_expr = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
             @test isa(field_err_literal, MatchFail)
-            @test endswith(field_err_expr.message,
-                           "Available fields: `bname`, `src`, `bindings`\n")
+            @test startswith(field_err_expr.message,
+                             """
+                             BindingFieldError: binding `_x` has no field `name` because the bound expression is not an identifier.
+                             Available fields: none
+                             """)
         end
         let
             pattern = @pattern begin
@@ -180,11 +185,11 @@
                 MatchFail("rhs is two")
             field_err = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
             @test isa(field_err, MatchFail)
-            @test field_err.message ==
-                """
-                BindingFieldError: binding `_rhs` has no field `value` because the bound expression is not a literal.
-                Available fields: `bname`, `src`, `bindings`, `name`
-                """
+            @test startswith(field_err.message,
+                             """
+                             BindingFieldError: binding `_rhs` has no field `value` because the bound expression is not a literal.
+                             Available fields: `name`
+                             """)
         end
         let
             pattern = @pattern begin
@@ -193,11 +198,11 @@
             end
             field_err = syntax_match(pattern, parsestmt(SyntaxNode, "a"))
             @test isa(field_err, MatchFail)
-            @test field_err.message ==
-                """
-                BindingFieldError: binding `_x` has no field `_abc` because `_abc` is not a sub-binding of `_x`.
-                Available fields: `bname`, `src`, `bindings`, `_id`, `name`
-                """
+            @test startswith(field_err.message,
+                             """
+                             BindingFieldError: binding `_x` has no field `_abc` because `_abc` is not a sub-binding of `_x`.
+                             Available fields: `_id`, `name`
+                             """)
         end
 
         @testset "Pattern matching" begin
