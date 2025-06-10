@@ -8,7 +8,7 @@ lang_rules = RuleGroup("lang")
     """
 
     pattern = @pattern begin
-        const _:::identifier = _:::identifier = _
+        const {_:::identifier} = {_:::identifier} = {_}
     end
 end
 
@@ -19,10 +19,10 @@ end
 
     pattern = @pattern begin
         ~or(
-            nothing == _,
-            _ == nothing,
-            nothing != _,
-            _ != nothing
+            nothing == {_},
+            {_} == nothing,
+            nothing != {_},
+            {_} != nothing
         )
     end
 end
@@ -35,10 +35,10 @@ end
 
     pattern = @pattern begin
         ~or(
-            _x == _x,
-            _x != _x,
-            _x === _x,
-            _x !== _x
+            {x} ==  {x},
+            {x} !=  {x},
+            {x} === {x},
+            {x} !== {x}
         )
     end
 end
@@ -51,12 +51,12 @@ end
 
     pattern = @pattern begin
         ~or(
-            open(_x, _...) do
-                _...
+            open({x}, {_}...) do
+                {_}...
             end,
-            open(_x, _...)
+            open({x}, {_}...)
         )
-        @fail match(r"^/tmp/.*", _x.value) === nothing "path not /tmp/.*"
+        @fail match(r"^/tmp/.*", x.value) === nothing "path not /tmp/.*"
     end
 end
 
@@ -66,8 +66,8 @@ end
     """
 
     pattern = @pattern begin
-        _rand() < 0.5
-        @fail match(r"^(Base.)?rand$", _rand.name) === nothing "not `rand` call"
+        {randf}() < 0.5
+        @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
     end
 end
 
@@ -75,16 +75,16 @@ end
 @define_syntax_class :chain_with_lit "logical chain with explicit literal" begin
     @pattern begin
         ~or(
-            _b && _...,
-            _b || _...,
-            _... && _b,
-            _... || _b
+            {b} && {_}...,
+            {b} || {_}...,
+            {_}... && {b},
+            {_}... || {b}
         )
-        @fail typeof(_b.value) != Bool "not `Bool`"
+        @fail typeof(b.value) != Bool "not `Bool`"
     end
 end
 @define_syntax_class :lit_or_chain "literal or logical chain with explicit literal" begin
-    @pattern ~or(_b:::literal, _b:::chain_with_lit)
+    @pattern ~or({b:::literal}, {b:::chain_with_lit})
 end
 
 # TODO: Needs more work in order to catch something like `x || y && true`.
@@ -95,14 +95,40 @@ end
 
     pattern = @pattern begin
         ~or(
-            if _if_cond:::lit_or_chain _... end,
-            if _if_cond:::lit_or_chain _... else _... end,
-            if _if_cond:::lit_or_chain _... elseif _... _... end,
-            if _if_cond:::lit_or_chain _... elseif _... _... else _... end,
-            if _... _... elseif _if_cond:::lit_or_chain _... end,
-            if _... _... elseif _if_cond:::lit_or_chain _... else _... end,
-            while _while_cond:::chain_with_lit
-                _...
+            if {if_cond:::lit_or_chain}
+                {_}...
+            end,
+            if {if_cond:::lit_or_chain}
+                {_}...
+            else
+                {_}...
+            end,
+            if {if_cond:::lit_or_chain}
+                {_}...
+            elseif {_}...
+                {_}...
+            end,
+            if {if_cond:::lit_or_chain}
+                {_}...
+            elseif {_}...
+                {_}...
+            else
+                {_}...
+            end,
+            if {_}...
+                {_}...
+            elseif {if_cond:::lit_or_chain}
+                {_}...
+            end,
+            if {_}...
+                {_}...
+            elseif {if_cond:::lit_or_chain}
+                {_}...
+            else
+                {_}...
+            end,
+            while {while_cond:::chain_with_lit}
+                {_}...
             end
         )
     end
@@ -118,9 +144,9 @@ end
 
 #     pattern = @pattern begin
 #         ~or(
-#             (!=(_, _) = _),
-#             function !=(_, _)
-#                 _...
+#             (!=({_}, {_}) = {_}),
+#             function !=({_}, {_})
+#                 {_}...
 #             end
 #         )
 #     end

@@ -28,60 +28,64 @@ Pattern:
 
 
 julia> assign_to_x = @pattern begin
-           _x:::assign                                  # Pattern variable matching an assignment.
-           @fail _x._lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
+           {x:::assign}                               # Pattern variable matching an assignment.
+           @fail x.lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
        end
 Pattern:
 [~and]
-  _x:::assign                            :: ~var
+  x:::assign                             :: ~var
   [~fail]
     [call-i]
       [.]
         [.]
-          _x                             :: Identifier
-          _lhs                           :: Identifier
+          x                              :: Identifier
+          lhs                            :: Identifier
         name                             :: Identifier
       ==                                 :: Identifier
       [string]
         "x"                              :: String
     "assignment to x"                    :: String
 
-
 julia> syntax_match(assign_to_x, JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x = 2"))
 MatchFail("assignment to x")
 
 julia> pattern = @pattern begin
-           _a:::identifier = _
-           _a:::identifier = _  # Two consecutive assignments to the same variable.
+           const {a:::identifier} = {_}
+           {_}...
+           const {a:::identifier} = {_}  # Reassignment of `const`.
        end
 Pattern:
 [toplevel]
-  [=]
-    _a:::identifier                      :: ~var
+  [const]
+    [=]
+      a:::identifier                     :: ~var
+      _:::expr                           :: ~var
+  [~rep]
     _:::expr                             :: ~var
-  [=]
-    _a:::identifier                      :: ~var
-    _:::expr                             :: ~var
-
+  [const]
+    [=]
+      a:::identifier                     :: ~var
+      _:::expr                           :: ~var
 
 julia> syntax_match(pattern, parseall(SyntaxNode,
                                       \"""
-                                      x = 2
-                                      x = 3
+                                      const x = 2
+                                      other_ex
+                                      const x = 3
                                       \"""))
 BindingSet with 1 entry:
-  :_a => Binding:
-           Name: :_a
-           Bound source: x @ 2:1
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 1 entry:
-               :_id => Binding:
-                         Name: :_id
-                         Bound source: x @ 2:1
-                         Ellipsis depth: 0
-                         Sub-bindings:
-                           BindingSet with 0 entries
+  :a => Binding:
+          Name: :a
+          Bound source: x @ 3:7
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 1 entry:
+              :_id => Binding:
+                        Name: :_id
+                        Bound source: x @ 3:7
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet with 0 entries
 ```
 
 Note: `@fail` macros only exist inside `@pattern` bodies.

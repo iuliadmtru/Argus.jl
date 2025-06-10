@@ -1,8 +1,8 @@
 @testset "Syntax classes" begin
     fundef = @syntax_class "fundef" begin
         @pattern begin
-            function (_f:::funcall)
-                _body
+            function ({f:::funcall})
+                {body}
             end
         end
     end
@@ -16,17 +16,17 @@
 
     let
         fundef = @syntax_class "function definition" begin
-            @pattern _f:::funcall = _
-            @pattern function (_g:::funcall) _ end
+            @pattern {f:::funcall} = {_}
+            @pattern function ({g:::funcall}) {_} end
         end
         match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f(x) = begin 2 end"))
         @test isa(match_first, BindingSet)
-        @test collect(keys(match_first)) == [:_f]
-        f_args = match_first[:_f]._args
+        @test collect(keys(match_first)) == [:f]
+        f_args = match_first[:f].args
         @test length(f_args.src) == 1
         match_second = syntax_match(fundef, parsestmt(SyntaxNode, "function f() 2 end"))
         @test isa(match_second, BindingSet)
-        @test collect(keys(match_second)) == [:_g]
+        @test collect(keys(match_second)) == [:g]
     end
 
     # Invalid syntax.

@@ -164,46 +164,46 @@ a `Vector` of source nodes of depth `n`.
 # ========
 
 ```
-julia> match_result = syntax_match((@pattern _x), parsestmt(SyntaxNode, "[a, b, c]"))
+julia> match_result = syntax_match((@pattern {x}), parsestmt(SyntaxNode, "[a, b, c]"))
 BindingSet with 1 entry:
-  :_x => Binding:
-           Name: :_x
-           Bound source: (vect a b c) @ 1:1
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 0 entries
+  :x => Binding:
+          Name: :x
+          Bound source: (vect a b c) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 0 entries
 
-julia> match_result = syntax_match((@pattern [_x...]), parsestmt(SyntaxNode, "[a, b, c]"))
+julia> match_result = syntax_match((@pattern [{x}...]), parsestmt(SyntaxNode, "[a, b, c]"))
 BindingSet with 1 entry:
-  :_x => Binding:
-           Name: :_x
-           Bound sources: [a @ 1:2, b @ 1:5, c @ 1:8]
-           Ellipsis depth: 1
-           Sub-bindings:
+  :x => Binding:
+          Name: :x
+          Bound sources: [a @ 1:2, b @ 1:5, c @ 1:8]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet with 0 entries,
+             BindingSet with 0 entries,
+             BindingSet with 0 entries
+            ]
+
+julia> match_result = syntax_match((@pattern [({x}...)...]), parsestmt(SyntaxNode, "[a, b, c]"))
+BindingSet with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound sources: [[a @ 1:2], [b @ 1:5], [c @ 1:8]]
+          Ellipsis depth: 2
+          Sub-bindings:
+            [
              [
-              BindingSet with 0 entries,
-              BindingSet with 0 entries,
+              BindingSet with 0 entries
+             ],
+             [
+              BindingSet with 0 entries
+             ],
+             [
               BindingSet with 0 entries
              ]
-
-julia> match_result = syntax_match((@pattern [(_x...)...]), parsestmt(SyntaxNode, "[a, b, c]"))
-BindingSet with 1 entry:
-  :_x => Binding:
-           Name: :_x
-           Bound sources: [[a @ 1:2], [b @ 1:5], [c @ 1:8]]
-           Ellipsis depth: 2
-           Sub-bindings:
-             [
-              [
-               BindingSet with 0 entries
-              ],
-              [
-               BindingSet with 0 entries
-              ],
-              [
-               BindingSet with 0 entries
-              ]
-             ]
+            ]
 ```
 """
 struct Binding{S, B} <: AbstractBinding
@@ -227,34 +227,34 @@ Compatibility is decided through the [`compatible`](@ref) predicate.
 
 ```
 julia> pattern = @pattern begin
-           _x:::identifier = 2
-           _x:::identifier = 3
+           {x:::identifier} = 2
+           {x:::identifier} = 3
        end;
 
 julia> syntax_match(pattern, parseall(SyntaxNode,
                                       \"""
                                       a = 2
-                                      x = 3
+                                      b = 3
                                       \"""))
-MatchFail("conflicting bindings for pattern variable _x")
+MatchFail("conflicting bindings for pattern variable x")
 ```
 
 The `syntax_match` steps are:
 
-1. Does `_x:::identifier = 2` match `a = 2`?
+1. Does `{x:::identifier} = 2` match `a = 2`?
    > Yes.
-2. Do we have a binding for `_x` already?
+2. Do we have a binding for `x` already?
    > No.
-3. => Bind `_x` to `a`.
+3. => Bind `x` to `a`.
 
-4. Does `_x:::identifier = 3` match `x = 3`?
+4. Does `{x:::identifier} = 3` match `b = 3`?
    > Yes.
-5. Do we have a binding for `_x` already?
+5. Do we have a binding for `x` already?
    > Yes, `a`.
-6. Is `a` compatible with `x` (same head, same children, same value)?
+6. Is `a` compatible with `b` (same head, same children, same value)?
    > No.
-7. => Replace the binding for `_x` with an `InvalidBinding`. Attach the message
-   "conflicting bindings for pattern variable _x" to it.
+7. => Replace the binding for `x` with an `InvalidBinding`. Attach the message
+   "conflicting bindings for pattern variable x" to it.
 8. => Return a `MatchFail` with the same message.
 """
 struct InvalidBinding <: AbstractBinding
@@ -270,7 +270,7 @@ Internal binding type used for storing bindings for unfinished repetitions.
 # ========
 
 ```
-julia> pattern = @pattern _...
+julia> pattern = @pattern {_}...
 Pattern:
 [~rep]
   _:::expr                               :: ~var
@@ -279,17 +279,18 @@ julia> syntax_match(pattern, parseall(SyntaxNode, \"""
                                                   ex1
                                                   ex2
                                                   \"""))
+BindingSet with 0 entries
 ```
 
 The `syntax_match` steps are:
 
-1. Does `_:::expr` match `ex1`?
+1. Does `{_:::expr}` match `ex1`?
    > Yes.
 2. Do we have a binding for `_` already?
    > No.
 3. => Bind `_` to `[ex1]` as a `TemporaryBinding`.
 
-4. Does `_:::expr` match `ex2`?
+4. Does `{_:::expr}` match `ex2`?
    > Yes.
 5. Do we have a binding for `_` already?
    > Yes, `[ex1]`.

@@ -107,51 +107,51 @@ Allowing recoveries inside `~and` branches:
 
 ```
 julia> pattern = @pattern ~and(
-           ~or(_a + _b, _b + _a),
-           ~fail(_b.value != 2, "not two")
+           ~or({a} + {b}, {b} + {a}),
+           ~fail(b.value != 2, "not two")
        );
 
 julia> syntax_match(pattern, parsestmt(SyntaxNode, "1 + 3"))
 BindingSet with 2 entries:
-  :_a => Binding:
-           Name: :_a
-           Bound source: 3 @ 1:5
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 0 entries
-  :_b => Binding:
-           Name: :_b
-           Bound source: 1 @ 1:1
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 0 entries
+  :a => Binding:
+          Name: :a
+          Bound source: 3 @ 1:5
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 0 entries
+  :b => Binding:
+          Name: :b
+          Bound source: 1 @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 0 entries
 ```
 
 Whats happens here is:
 
 1.  Try the first `~and` branch. No bindings so far.
-    > `~or(_a + _b, _b + _a)`
+    > `~or({a} + {b}, {b} + {a})`
 2.  Try the first `~or` alternative.
-    > `_a + _b`
+    > `{a} + {b}`
 3.  Does it match `1 + 3`?
     > Yes.
-4.  => Mark the state `(~or(_b + _a), 1 + 3, BindingSet())` as a possible recovery state.
-5.  => Return a success for the `~or`; bind `_a` to `1` and `_b` to `3`.
+4.  => Mark the state `(~or({b} + {a}), 1 + 3, BindingSet())` as a possible recovery state.
+5.  => Return a success for the `~or`; bind `a` to `1` and `b` to `3`.
 
-6.  Try the second `~and` branch with `_a` and `_b` bound.
-    > `~fail(_b.value != 2, "not two")`
-7.  Does it match for `_a` <-> `1` and `_b` <-> `3`?
+6.  Try the second `~and` branch with `a` and `b` bound.
+    > `~fail(b.value != 2, "not two")`
+7.  Does it match for `a` <-> `1` and `b` <-> `3`?
     > No.
 8.  Do we have a state we can recover to?
-    > Yes, `(~or(_b + _a), 1 + 3, BindingSet())`.
+    > Yes, `(~or({b} + {a}), 1 + 3, BindingSet())`.
 9.  => Go to that state.
 
 10. Try the first `~or` alternative.
-    > `_b + _a`
+    > `{b} + {a}`
 11. Does it match `1 + 3`?
     > Yes.
 12. It's the last possible `~or` branch, so we have no possible recovery states to mark.
-13. => Return a success for the `~or`; bind `_a` to `3` and `_b` to `1`.
+13. => Return a success for the `~or`; bind `a` to `3` and `b` to `1`.
 
 14. Done.
 
@@ -172,18 +172,18 @@ states. We directly go back to the parent `~and`.
     Did the branch fail?
     > Yes.
 10. Can we try another path for the same branch?
-    > Yes, `(~or(_b + _a), 1 + 3, BindingSet())`.
+    > Yes, `(~or({b} + {a}), 1 + 3, BindingSet())`.
 11. => Replace the current branch with this other path and try again.
 
 12. Try the `~or` alternative.
-    > `_b + _a`
+    > `{b} + {a}`
 13. Does it match `1 + 3`?
     > Yes.
 14-15. Steps 12-13 from the above scenario.
 
 16. Try the second `~and` branch.
-    > `~fail(_b.value != 2, "not two")`
-17. Does it match for `_a` <-> `3` and `_b` <-> `1`?
+    > `~fail(b.value != 2, "not two")`
+17. Does it match for `a` <-> `3` and `b` <-> `1`?
     > No.
 18. Do we have a state we can recover to?
     > No!
@@ -280,6 +280,8 @@ and the remaining unmatched source nodes.
 In case of `~rep` nodes, greedily "consume" all matching source nodes. If the remaining
 patterns can't match the remaining source nodes, backtrack to find a matching state.
 
+The algorithm can be made non-greedy by setting `greedy` to `false`.
+
 # Examples
 # ========
 
@@ -288,21 +290,21 @@ julia> using JuliaSyntax: children
 
 julia> srcs = [parsestmt(SyntaxNode, "a + 1"), parsestmt(SyntaxNode, "b + 1"), parsestmt(SyntaxNode, "c")];
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
-(BindingSet(:_x => Binding(:_x, a @ 1:1, BindingSet())), SyntaxNode[(call-i b + 1), c])
+julia> partial_result, srcs = partial_syntax_match(children(@pattern ({x} + 1)...), srcs)
+(BindingSet(:x => Binding(:x, a @ 1:1, BindingSet())), SyntaxNode[(call-i b + 1), c])
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
-(BindingSet(:_x => Binding(:_x, b @ 1:1, BindingSet())), SyntaxNode[c])
+julia> partial_result, srcs = partial_syntax_match(children(@pattern ({x} + 1)...), srcs)
+(BindingSet(:x => Binding(:x, b @ 1:1, BindingSet())), SyntaxNode[c])
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern (_x + 1)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern ({x} + 1)...), srcs)
 (MatchFail("no match"), SyntaxNode[c])
 
 julia> srcs = [parsestmt(SyntaxNode, "a + 1"), parsestmt(SyntaxNode, "b + 1"), parsestmt(SyntaxNode, "c")];
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
-(BindingSet(:_x => Binding(:_x, [a @ 1:1, b @ 1:1], BindingSet[BindingSet(), BindingSet()])), SyntaxNode[c])
+julia> partial_result, srcs = partial_syntax_match(children(@pattern (({x} + 1)...)...), srcs)
+(BindingSet(:x => Binding(:x, [a @ 1:1, b @ 1:1], BindingSet[BindingSet(), BindingSet()])), SyntaxNode[c])
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern ((_x + 1)...)...), srcs)
+julia> partial_result, srcs = partial_syntax_match(children(@pattern (({x} + 1)...)...), srcs)
 (BindingSet(), SyntaxNode[c])
 ```
 """
@@ -505,7 +507,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     # Try to match the pattern syntax class to the AST.
     match_result = syntax_match(syntax_class, src)
     isa(match_result, MatchFail) && return match_result
-    # If there's a match and the pattern variable is not anonymous or is `keep_anonymous`
+    # If there's a match and the pattern variable is not anonymous or if `tmp`
     # is `true`, bind the pattern variable and add it to the `BindingSet`.
     is_anonymous_pattern_variable(pattern_var_name) && !tmp &&
         return bindings
@@ -656,35 +658,35 @@ any depth.
 # ========
 
 ```
-julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( _x... )),
+julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( {x}... )),
                                              parsestmt(SyntaxNode, "[a, b, c]"),
                                              BindingSet())
 BindingSet with 1 entry:
-  :_x => Argus.TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}:
-           Name: :_x
-           Bound sources: [(vect a b c) @ 1:1]
-           Ellipsis depth: 1
-           Sub-bindings:
+  :x => Argus.TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}:
+          Name: :x
+          Bound sources: [(vect a b c) @ 1:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet with 0 entries
+            ]
+
+julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( ({x}...)... )),
+                                             parsestmt(SyntaxNode, "[a, b, c]"),
+                                             BindingSet())
+BindingSet with 1 entry:
+  :x => Argus.TemporaryBinding{Vector{Vector{SyntaxNode}}, Vector{Vector{BindingSet}}}:
+          Name: :x
+          Bound sources: [[(vect a b c) @ 1:1]]
+          Ellipsis depth: 2
+          Sub-bindings:
+            [
              [
               BindingSet with 0 entries
              ]
+            ]
 
-julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( (_x...)... )),
-                                             parsestmt(SyntaxNode, "[a, b, c]"),
-                                             BindingSet())
-BindingSet with 1 entry:
-  :_x => Argus.TemporaryBinding{Vector{Vector{SyntaxNode}}, Vector{Vector{BindingSet}}}:
-           Name: :_x
-           Bound sources: [[(vect a b c) @ 1:1]]
-           Ellipsis depth: 2
-           Sub-bindings:
-             [
-              [
-               BindingSet with 0 entries
-              ]
-             ]
-
-julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( _x... )),
+julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( {x}... )),
                                              parseall(SyntaxNode, \"""
                                                                   a
                                                                   b
@@ -692,16 +694,16 @@ julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( _x... )),
                                                                   \"""),
                                              BindingSet())
 BindingSet with 1 entry:
-  :_x => Binding:
-           Name: :_x
-           Bound sources: [a @ 1:1, b @ 2:1, c @ 3:1]
-           Ellipsis depth: 1
-           Sub-bindings:
-             [
-              BindingSet with 0 entries,
-              BindingSet with 0 entries,
-              BindingSet with 0 entries
-             ]
+  :x => Binding:
+          Name: :x
+          Bound sources: [a @ 1:1, b @ 2:1, c @ 3:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet with 0 entries,
+             BindingSet with 0 entries,
+             BindingSet with 0 entries
+            ]
 ```
 """
 function syntax_match_rep(rep_node::SyntaxPatternNode,
@@ -773,6 +775,9 @@ end
 # Utils
 # -----
 
+is_anonymous_pattern_variable(ex) = ex === :_
+is_exported_pattern_variable(ex) = !startswith(string(ex), "_")
+
 """
     recover!(recovery_stack::AbstractVector,
              from::Function,
@@ -835,19 +840,19 @@ Turn all `TemporaryBinding`s into `Binding`s.
 ```
 julia> srcs = [parsestmt(SyntaxNode, "1 + a"), parsestmt(SyntaxNode, "1 + 2"), parsestmt(SyntaxNode, "c + 1")];
 
-julia> partial_result, srcs = partial_syntax_match(children(@pattern begin (1 + _x)... end),
+julia> partial_result, srcs = partial_syntax_match(children(@pattern begin (1 + {x})... end),
                                                    srcs;
                                                    tmp=true)
-(BindingSet(:_x => Argus.TemporaryBinding{SyntaxNode, BindingSet}(:_x, a @ 1:5, BindingSet())), SyntaxNode[(call-i 1 + 2), (call-i c + 1)])
+(BindingSet(:x => Argus.TemporaryBinding{SyntaxNode, BindingSet}(:x, a @ 1:5, BindingSet())), SyntaxNode[(call-i 1 + 2), (call-i c + 1)])
 
 julia> Argus.make_permanent(partial_result)
 BindingSet with 1 entry:
-  :_x => Binding:
-           Name: :_x
-           Bound source: a @ 1:5
-           Ellipsis depth: 0
-           Sub-bindings:
-             BindingSet with 0 entries
+  :x => Binding:
+          Name: :x
+          Bound source: a @ 1:5
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 0 entries
 ```
 """
 function make_permanent(bs::BindingSet)
@@ -877,7 +882,7 @@ Should only be called at the end of a repetition match.
 
 ```
 julia> pattern = @pattern begin
-           (_f(_args...) = _)...
+           ({f}({args}...) = {_})...
        end;
 
 julia> src =
@@ -891,9 +896,10 @@ julia> partial_result1, srcs1 = partial_syntax_match(children(pattern), children
 
 julia> partial_result1.bindings
 Dict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :_     => TemporaryBinding{SyntaxNode, BindingSet}(:_, 2 @ 1:13, BindingSet())
-  :_args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:_args, [], BindingSet[])
-  :_f    => TemporaryBinding{SyntaxNode, BindingSet}(:_f, f @ 1:1, BindingSet())
+OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
+  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, f @ 1:1, BindingSet())
+  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [], BindingSet[])
+  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, 2 @ 1:13, BindingSet())
 
 julia> srcs1
 2-element Vector{SyntaxNode}:
@@ -903,10 +909,10 @@ julia> srcs1
 julia> partial_result2, srcs2 = partial_syntax_match(children(pattern), srcs1; tmp=true);
 
 julia> partial_result2.bindings
-Dict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :_     => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i x + 1) @ 2:14, BindingSet())
-  :_args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:_args, [x @ 2:3], BindingSet[BindingSet()])
-  :_f    => TemporaryBinding{SyntaxNode, BindingSet}(:_f, g @ 2:1, BindingSet())
+OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
+  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, g @ 2:1, BindingSet())
+  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [x @ 2:3], BindingSet[BindingSet()])
+  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i x + 1) @ 2:14, BindingSet())
 
 julia> srcs2
 1-element Vector{SyntaxNode}:
@@ -915,41 +921,41 @@ julia> srcs2
 julia> partial_result3, srcs3 = partial_syntax_match(children(pattern), srcs2; tmp=true);
 
 julia> partial_result3.bindings
-Dict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :_     => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i a - b) @ 3:24, BindingSet())
-  :_args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:_args, [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4], BindingSet[BindingSet(), BindingSet()])
-  :_f    => TemporaryBinding{SyntaxNode, BindingSet}(:_f, h @ 3:1, BindingSet())
+OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
+  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, h @ 3:1, BindingSet())
+  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4], BindingSet[BindingSet(), BindingSet()])
+  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i a - b) @ 3:24, BindingSet())
 
 julia> srcs3
 SyntaxNode[]
 
 julia> Argus.make_permanent(BindingSet[partial_result1, partial_result2, partial_result3])
 BindingSet with 2 entries:
-  :_args => Binding:
-              Name: :_args
-              Bound sources: [[], [x @ 2:3], [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4]]
-              Ellipsis depth: 2
-              Sub-bindings:
+  :f => Binding:
+          Name: :f
+          Bound sources: [f @ 1:1, g @ 2:1, h @ 3:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet with 0 entries,
+             BindingSet with 0 entries,
+             BindingSet with 0 entries
+            ]
+  :args => Binding:
+             Name: :args
+             Bound sources: [[], [x @ 2:3], [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4]]
+             Ellipsis depth: 2
+             Sub-bindings:
+               [
+                [],
                 [
-                 [],
-                 [
-                  BindingSet with 0 entries
-                 ],
-                 [
-                  BindingSet with 0 entries,
-                  BindingSet with 0 entries
-                 ]
+                 BindingSet with 0 entries
+                ],
+                [
+                 BindingSet with 0 entries,
+                 BindingSet with 0 entries
                 ]
-  :_f => Binding:
-           Name: :_f
-           Bound sources: [f @ 1:1, g @ 2:1, h @ 3:1]
-           Ellipsis depth: 1
-           Sub-bindings:
-             [
-              BindingSet with 0 entries,
-              BindingSet with 0 entries,
-              BindingSet with 0 entries
-             ]
+               ]
 ```
 """
 function make_permanent(bss::Vector{BindingSet})

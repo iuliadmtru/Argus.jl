@@ -22,38 +22,57 @@ Create a [`Rule`](@ref) from a name string and a rule body expression.
 
 ```
 julia> consecutive_assign = @rule "consecutive-assign" begin
-           description = "Detected reassigned variable."
+           description = "Detected reassigned `const` variable."
 
            pattern = @pattern begin
-               _x:::identifier = _...
-               _...
-               _x:::identifier = _...
+               const {x:::identifier} = {_}...
+               {_}...
+               const {x:::identifier} = {_}...
            end
        end
 consecutive-assign:
-Detected reassigned variable.
+Detected reassigned `const` variable.
 
 Pattern:
 [toplevel]
-  [=]
-    _x:::identifier                      :: ~var
-    [~rep]
-      _:::expr                           :: ~var
+  [const]
+    [=]
+      x:::identifier                     :: ~var
+      [~rep]
+        _:::expr                         :: ~var
   [~rep]
     _:::expr                             :: ~var
-  [=]
-    _x:::identifier                      :: ~var
-    [~rep]
-      _:::expr                           :: ~var
+  [const]
+    [=]
+      x:::identifier                     :: ~var
+      [~rep]
+        _:::expr                         :: ~var
 
 julia> rule_match(consecutive_assign, parseall(SyntaxNode, \"""
-                                                           a = 2
+                                                           const a = 2
                                                            some_expr
-                                                           a = 4
+                                                           const a = 4
                                                            \"""))
 RuleMatchResult with 1 matches and 0 failures:
 Matches:
-  BindingSet(:_x => Binding(:_x, a @ 3:1, BindingSet(:_id => Binding(:_id, a @ 3:1, BindingSet()))))
+  BindingSet(:x => Binding(:x, a @ 3:7, BindingSet(:_id => Binding(:_id, a @ 3:7, BindingSet()))))
+
+julia> rule_match(consecutive_assign, parseall(SyntaxNode, \"""
+                                                           const a = 2
+                                                           some_expr
+                                                           const a = 4
+                                                           \"""); only_matches=false)
+RuleMatchResult with 1 matches and 12 failures:
+Matches:
+  BindingSet(:x => Binding(:x, a @ 3:7, BindingSet(:_id => Binding(:_id, a @ 3:7, BindingSet()))))
+Failures:
+  MatchFail("no match")
+  MatchFail("no match")
+  MatchFail("no match")
+  .
+  .
+  .
+  MatchFail("no match")
 ```
 """
 macro rule(name, ex)
@@ -207,7 +226,7 @@ style_rules = RuleGroup("style")
     \"""
 
     pattern = @pattern begin
-        const _:::identifier = _:::identifier = _
+        const {_:::identifier} = {_:::identifier} = {_}
     end
 end
 ```
