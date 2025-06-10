@@ -164,7 +164,20 @@ macro pattern(expr)
             idx += 2
         end
         if length(toplevel_children) > 1
-            pattern_expr = :( [:pattern_toplevel, $(toplevel_children...)] )
+            # `Meta.quot` each toplevel expressions to avoid accidental misparse.
+            # For example, this pattern:
+            #
+            # ```
+            # @pattern begin
+            #     const _:::identifier = _...
+            #     _...
+            # end
+            # ```
+            #
+            # would, without quoting, be parsed as the same as:
+            #
+            # `@pattern const _:::identifier = (_..., _...)`
+            pattern_expr = :( [:pattern_toplevel, $(Meta.quot.(toplevel_children)...)] )
         end
         # All expressions from `idx` onwards, if any, should be fail conditions.
         if idx <= length(expr.args)

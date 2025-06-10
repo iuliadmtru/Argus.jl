@@ -355,9 +355,9 @@ expression.
 julia> Argus.parse_multiple_exprs_as_toplevel(SyntaxPatternNode(:(
            [
                :pattern_toplevel,
-               _x:::identifier = _val1,
-               _...,
-               _x:::identifier = _val2
+               :( _x:::identifier = _val1 ),
+               :( _... ),
+               :( _x:::identifier = _val2 )
            ]
        )))
 SyntaxPatternNode:
@@ -394,16 +394,37 @@ SyntaxPatternNode:
 """
 function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatternNode
     if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
+        # The expression has the following form:
+        #
+        # :(
+        #   ~and(
+        #        [
+        #         :pattern_toplevel,
+        #         <pattern_expr>+
+        #        ],
+        #        (~fail(<cond>, <msg>))+
+        #       )
+        #  )
+        vec_expr = children(node)[1]
         new_children = [
-            parse_multiple_exprs_as_toplevel(children(node)[1]),
+            parse_multiple_exprs_as_toplevel(vec_expr),
             children(node)[2:end]...
         ]
         return SyntaxPatternNode(nothing, new_children, node.data)
     elseif kind(node) === K"vect"            &&
         kind(children(node)[1]) === K"quote" &&
         children(children(node)[1])[1].data.val === :pattern_toplevel
+        # The expression has the following form:
+        #
+        # :(
+        #   [
+        #    :pattern_toplevel,
+        #    <pattern_expr>+
+        #   ]
+        #  )
         toplevel_data = update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0))
-        return SyntaxPatternNode(nothing, children(node)[2:end], toplevel_data)
+        new_children = [children(c)[1] for c in children(node)[2:end]]
+        return SyntaxPatternNode(nothing, new_children, toplevel_data)
     end
     return node
 end
