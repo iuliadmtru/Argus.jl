@@ -49,6 +49,21 @@ Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 """
 const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData, AbstractPatternFormSyntaxData}}
 
+# TODO: Check weird parsing of `const`:
+#       julia> @pattern begin
+#                  const _x:::identifier = _...
+#                  _...
+#              end
+#       Pattern:
+#       [toplevel]
+#         [const]
+#           [=]
+#             _x:::identifier                    :: ~var
+#             [tuple]
+#               [~rep]
+#                 _:::expr                       :: ~var
+#               [~rep]
+#                 _:::expr                       :: ~var
 """
     SyntaxPatternNode(ex)
 

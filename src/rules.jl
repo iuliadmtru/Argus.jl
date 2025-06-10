@@ -1,12 +1,61 @@
-# ------------------------------------------------------------------------------------------
-# Rules.
+# Rules
+# =====
 
+"""
+    Rule
+
+Rule for syntax matching. Consists of a name, descrciption and pattern.
+"""
 struct Rule
     name::String
     description::String
     pattern::Pattern
 end
 
+"""
+    @rule(name, ex)
+
+Create a [`Rule`](@ref) from a name string and a rule body expression.
+
+# Examples
+# ========
+
+```
+julia> consecutive_assign = @rule "consecutive-assign" begin
+           description = "Detected reassigned variable."
+
+           pattern = @pattern begin
+               _x:::identifier = _...
+               _...
+               _x:::identifier = _...
+           end
+       end
+consecutive-assign:
+Detected reassigned variable.
+
+Pattern:
+[toplevel]
+  [=]
+    _x:::identifier                      :: ~var
+    [~rep]
+      _:::expr                           :: ~var
+  [~rep]
+    _:::expr                             :: ~var
+  [=]
+    _x:::identifier                      :: ~var
+    [~rep]
+      _:::expr                           :: ~var
+
+julia> rule_match(consecutive_assign, parseall(SyntaxNode, \"""
+                                                           a = 2
+                                                           some_expr
+                                                           a = 4
+                                                           \"""))
+RuleMatchResult with 1 matches and 0 failures:
+Matches:
+  BindingSet(:_x => Binding(:_x, a @ 3:1, BindingSet(:_id => Binding(:_id, a @ 3:1, BindingSet()))))
+```
+"""
 macro rule(name, ex)
     err_msg_general =
         """
@@ -60,7 +109,8 @@ macro rule(name, ex)
     return :( Rule($name, $description, $(esc(pattern_expr))) )
 end
 
-# Display.
+# Display
+# -------
 
 function Base.show(io::IO, rule::Rule)
     name = isempty(rule.name) ? "<no name>" : rule.name
@@ -70,11 +120,16 @@ function Base.show(io::IO, rule::Rule)
     show(io, MIME("text/plain"), rule.pattern)
 end
 
-# ------------------------------------------------------------------------------------------
-# Rule groups.
+# Rule groups
+# ===========
 
 const DEFAULT_RULE_GROUP_NAME = "default"
 
+"""
+    RuleGroup <: AbstractDict{String, Rule}
+
+Group of rules with associated names.
+"""
 struct RuleGroup <: AbstractDict{String, Rule}
     name::String
     rules::Dict{String, Rule}
@@ -85,7 +140,7 @@ struct RuleGroup <: AbstractDict{String, Rule}
     RuleGroup(name::String, kvs) = new(name, Dict{String, Rule}(kvs))
 end
 
-# Dict interface.
+# Dict interface
 
 Base.isempty(rg::RuleGroup) = isempty(rg.rules)
 Base.empty!(rg::RuleGroup) = empty!(rg.rules)
@@ -118,7 +173,7 @@ Base.mergewith!(c, rg::RuleGroup, others::RuleGroup...) =
 Base.keytype(rg::RuleGroup) = keytype(rg.rules)
 Base.valtype(rg::RuleGroup) = valtype(rg.rules)
 
-# Display.
+# Display
 
 function Base.summary(io::IO, rg::RuleGroup)
     Base.showarg(io, rg, true)
@@ -131,40 +186,81 @@ Base.show(io::IO, rg::RuleGroup) =
     print(io, "RuleGroup(\"", rg.name, "\")") :
     invoke(show, Tuple{IOBuffer, AbstractDict}, io, rg)
 
-# --------------------------------------------
-# Rule definition in groups.
+# Rule definition in groups
+# -------------------------
 
+"""
+    @define_rule_in_group(group, rule_name, rule_expr)
+
+Create a [`Rule`](@ref) from a name string and an expession body and register it in a given
+group.
+
+# Examples
+# ========
+
+```
+style_rules = RuleGroup("style")
+
+@define_rule_in_group style_rules "chained-const-assignment" begin
+    description = \"""
+    Do not chain assignments with const. The right hand side is not constant here.
+    \"""
+
+    pattern = @pattern begin
+        const _:::identifier = _:::identifier = _
+    end
+end
+```
+"""
 macro define_rule_in_group(group, rule_name, rule_expr)
     rule = :( @rule($(esc(rule_name)), $rule_expr) )
     return :( register_rule!($(esc(group)), $rule) )
 end
 
-# --------------------------------------------
-# Utils.
+"""
+    register_rule!(group::RuleGroup, rule::Rule)
 
+Register a rule in a group. Used by [`@define_rule_in_group`](@ref).
+"""
 function register_rule!(group::RuleGroup, rule::Rule)
     group[rule.name] = rule
 end
 
-# ------------------------------------------------------------------------------------------
-# Rule matching.
+# Rule matching
+# =============
 
+"""
+    RuleMatchResult
+
+The result of a rule match. It contains a vector of `BindingSet`s and a vector of
+`MatchFail`s. Usually, only the binding sets are relevant when inspecting the result of a
+rule match.
+"""
 struct RuleMatchResult
     matches::Vector{BindingSet}
     failures::Vector{MatchFail}
 end
 RuleMatchResult() = RuleMatchResult([], [])
 
+"""
+    RuleGroupMatchResult
+
+The result of a rule group match. Alias for `Dict{String, RuleMatchResult}`.
+"""
 const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
 # TODO: Add non-greedy alternative.
+#       Explain in docs afterwards.
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
+    rule_match(rule::Rule, filename::String; only_matches=true)
 
-Match a rule against an AST. Return the set of all matches. If `only_matches` is set to
+Match a rule against a source code. Return the set of all matches. If `only_matches` is
 `false` return failures as well.
+
+The rule pattern is matched against all children nodes in the source node, up to the leafs.
 """
-function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
+function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
     rule_result = RuleMatchResult()
     if is_toplevel(rule.pattern) && (kind(src) == K"block" || kind(src) == K"toplevel")
         # Both the pattern and the source are series of expressions. Match the pattern's
@@ -188,22 +284,21 @@ function rule_match(rule::Rule, src::JuliaSyntax.SyntaxNode; only_matches=true)
     end
     return rule_result
 end
-"""
-    rule_match(rule::Rule, filename::String; only_matches=true)
-
-Match a rule against a source file.
-"""
 function rule_match(rule::Rule, filename::String; only_matches=true)
     src_txt = read(filename, String)
-    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
+    src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
     return rule_match(rule, src; only_matches)
 end
 
 """
-Match all the rules in a given group against a source node.
+    rule_group_match(group::RuleGroup, src::JuliaSyntax.SyntaxNode; only_matches=true)
+    rule_group_match(group::RuleGroup, filename::String; only_matches=true)
+
+Match all the rules in a given group against a source node. Return a
+[`RuleGroupMatchResult`](@ref).
 """
-function rule_group_match(group::RuleGroup, src::JuliaSyntax.SyntaxNode; only_matches=true)
+function rule_group_match(group::RuleGroup, src::JS.SyntaxNode; only_matches=true)
     match_result = RuleGroupMatchResult()
     for (name, rule) in group
         match_result[name] = rule_match(rule, src; only_matches)
@@ -211,17 +306,14 @@ function rule_group_match(group::RuleGroup, src::JuliaSyntax.SyntaxNode; only_ma
 
     return match_result
 end
-"""
-Match all the rules in a given group against a source file.
-"""
 function rule_group_match(group::RuleGroup, filename::String; only_matches=true)
     src_txt = read(filename, String)
-    src = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, src_txt; filename=filename)
+    src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
     return rule_group_match(group, src; only_matches)
 end
 
-# Utils.
+# Utils
 
 function push_match_result!(rule_result::RuleMatchResult,
                            match_result::MatchResult;
@@ -229,12 +321,12 @@ function push_match_result!(rule_result::RuleMatchResult,
     if isa(match_result, MatchFail)
         only_matches || push!(rule_result.failures, match_result)
     else
-        push!(rule_result.matches, match_result)
+        push!(rule_result.matches, make_permanent(match_result))
     end
 end
 
 
-# Display.
+# Display
 
 Base.summary(io::IO, res::RuleMatchResult) =
     print(io,

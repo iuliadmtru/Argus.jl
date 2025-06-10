@@ -364,7 +364,7 @@ function _partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         # repetition ends the entry is "permanentised". This means it is either given the
         # appropriate name (the name of the pattern variable in the repetition node) or it
         # is discarded if the repetition pattern variable is anonymous.
-        # bindings = make_permanent(bindings)
+        bindings = make_permanent(bindings)
         return _partial_syntax_match(rest(pattern_nodes),
                                      srcs,
                                      bindings;
