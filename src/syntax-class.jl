@@ -102,15 +102,15 @@ SyntaxClass: `true` or `false`
 julia> syntax_match(bool_literal2, parsestmt(SyntaxNode, "true"))
 BindingSet with 1 entry:
   :_b => Binding:
-           Name:                 _b
+           Name: :_b
            Bound source: true @ 1:1
-           Ellipsis depth:        0
+           Ellipsis depth: 0
            Sub-bindings:
              BindingSet with 1 entry:
                :_lit => Binding:
-                          Name:               _lit
+                          Name: :_lit
                           Bound source: true @ 1:1
-                          Ellipsis depth:        0
+                          Ellipsis depth: 0
                           Sub-bindings:
                             BindingSet with 0 entries
 

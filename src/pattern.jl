@@ -69,18 +69,17 @@ julia> syntax_match(pattern, parseall(SyntaxNode,
                                       x = 2
                                       x = 3
                                       \"""))
-
 BindingSet with 1 entry:
   :_a => Binding:
-           Name:              _a
+           Name: :_a
            Bound source: x @ 2:1
-           Ellipsis depth:     0
+           Ellipsis depth: 0
            Sub-bindings:
              BindingSet with 1 entry:
                :_id => Binding:
-                         Name:             _id
+                         Name: :_id
                          Bound source: x @ 2:1
-                         Ellipsis depth:     0
+                         Ellipsis depth: 0
                          Sub-bindings:
                            BindingSet with 0 entries
 ```

@@ -66,8 +66,7 @@ Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
 function _show_binding_set(io::IO, bs, indent)
     if isa(bs, AbstractVector)
         print(io, indent * "[")
-        if length(bs) == 1
-            _show_binding_set(io, bs[1], "")
+        if isempty(bs)
             print(io, "]")
         else
             for (i, el) in enumerate(bs)
@@ -168,18 +167,18 @@ a `Vector` of source nodes of depth `n`.
 julia> match_result = syntax_match((@pattern _x), parsestmt(SyntaxNode, "[a, b, c]"))
 BindingSet with 1 entry:
   :_x => Binding:
-           Name:                         _x
+           Name: :_x
            Bound source: (vect a b c) @ 1:1
-           Ellipsis depth:                0
+           Ellipsis depth: 0
            Sub-bindings:
              BindingSet with 0 entries
 
 julia> match_result = syntax_match((@pattern [_x...]), parsestmt(SyntaxNode, "[a, b, c]"))
 BindingSet with 1 entry:
   :_x => Binding:
-           Name:                                   _x
+           Name: :_x
            Bound sources: [a @ 1:2, b @ 1:5, c @ 1:8]
-           Ellipsis depth:                          1
+           Ellipsis depth: 1
            Sub-bindings:
              [
               BindingSet with 0 entries,
@@ -190,14 +189,20 @@ BindingSet with 1 entry:
 julia> match_result = syntax_match((@pattern [(_x...)...]), parsestmt(SyntaxNode, "[a, b, c]"))
 BindingSet with 1 entry:
   :_x => Binding:
-           Name:                                         _x
+           Name: :_x
            Bound sources: [[a @ 1:2], [b @ 1:5], [c @ 1:8]]
-           Ellipsis depth:                                2
+           Ellipsis depth: 2
            Sub-bindings:
              [
-              [BindingSet with 0 entries],
-              [BindingSet with 0 entries],
-              [BindingSet with 0 entries]
+              [
+               BindingSet with 0 entries
+              ],
+              [
+               BindingSet with 0 entries
+              ],
+              [
+               BindingSet with 0 entries
+              ]
              ]
 ```
 """
@@ -309,7 +314,7 @@ Binding(b::TemporaryBinding{S, B}) where {S, B} =
 # ---------------
 
 # Allow accessing sub-bindings as fields.
-function Base.getproperty(b::Binding, name::Symbol)
+function Base.getproperty(b::AbstractBinding, name::Symbol)
     name === :bname && return getfield(b, :bname)
     src = getfield(b, :src)
     name === :src && return src
@@ -320,11 +325,11 @@ function Base.getproperty(b::Binding, name::Symbol)
     internal_fields = [:bname, :src, :bindings]
     available_fields = []
     [push!(available_fields, subb) for subb in keys(bindings)]
-    JuliaSyntax.is_identifier(src) && push!(available_fields, :name)
-    JuliaSyntax.is_literal(src) && push!(available_fields, :value)
+    JS.is_identifier(src) && push!(available_fields, :name)
+    JS.is_literal(src) && push!(available_fields, :value)
     # Check for node-specific field access.
     if name === :value
-        JuliaSyntax.is_literal(src) && return src.val
+        JS.is_literal(src) && return src.val
         kind(src) === K"string" && return src.children[1].val
         # Only literals have a `value` field.
         throw(BindingFieldError(b,
@@ -334,7 +339,7 @@ function Base.getproperty(b::Binding, name::Symbol)
                                 "the bound expression is not a literal"))
     end
     if name === :name
-        JuliaSyntax.is_identifier(src) && return string(src.val)
+        JS.is_identifier(src) && return string(src.val)
         # Only identifiers have a `name` field.
         throw(BindingFieldError(b,
                                 :name,
@@ -350,6 +355,8 @@ function Base.getproperty(b::Binding, name::Symbol)
                                 "`$name` is not a sub-binding of `$(b.bname)`"))
     end
 end
+Base.getproperty(b::InvalidBinding, name::Symbol) =
+    name === :msg ? getfield(b, :msg) : getfield(b, name)
 
 # Display
 # -------
@@ -363,6 +370,8 @@ Base.show(io::IO, b::AbstractBinding) =
           _src_with_location_str(b.src), ", ",
           repr(b.bindings),
           ")")
+Base.show(io::IO, b::InvalidBinding) =
+    print(io, "InvalidBinding(", b.msg, ")")
 Base.show(io::IO, ::Type{Binding{S, B}}) where {S, B} = print(io, "Binding")
 
 function _show_bindings(io::IO, bs, outer_indent)
@@ -374,47 +383,29 @@ function _show_binding(io::IO, b::AbstractBinding, outer_indent)
     indent = outer_indent * "  "
     indent_size = length(indent)
 
-    if isa(b, InvalidBinding)
-        println(io, typeof(b), ":")
-        print(io, indent, "Message: ", b.msg)
-        return nothing
-    end
-
-    name_label = "Name: "
-    name = string(b.bname)
-    name_str = indent * name_label * name
-
     bound_src_label, bound_src = _repr_source_nodes(b.src)
     bound_src_str = indent * bound_src_label * bound_src
 
-    depth_label = "Ellipsis depth: "
-    depth = string(b.ellipsis_depth)
-    depth_str = indent * depth_label * depth
-
-    sub_bindings_label = "Sub-bindings: "
-
-    n = max(length.([name_str, bound_src_str, depth_str])...)
-    n_name = n - length(name_label) - indent_size
-    n_bound_src = n - length(bound_src_label) - indent_size
-    n_depth_label = n - length(depth_label) - indent_size
-    n_sub_bindings = n - length(sub_bindings_label) - indent_size
-
     println(io, typeof(b), ":")
-    println(io, indent, name_label, lpad(name, n_name))
-    println(io, indent, bound_src_label, lpad(bound_src, n_bound_src))
-    println(io, indent, depth_label, lpad(depth, n_depth_label))
-    print(io, indent, sub_bindings_label)
+    println(io, indent, "Name: ", repr(b.bname))
+    println(io, indent, bound_src_label, bound_src)
+    println(io, indent, "Ellipsis depth: ", b.ellipsis_depth)
+    print(io, indent, "Sub-bindings: ")
     _show_bindings(io, b.bindings, indent)
+end
+function _show_binding(io::IO, b::InvalidBinding, outer_indent)
+    println(io, typeof(b), ":")
+    print(io, outer_indent * "  ", "Message: ", b.msg)
 end
 
 function _repr_source_nodes(src)
-    label = isa(src, JuliaSyntax.SyntaxNode) ? "Bound source: " : "Bound sources: "
+    label = isa(src, JS.SyntaxNode) ? "Bound source: " : "Bound sources: "
     return label, _src_with_location_str(src)
 end
 
 function _src_with_location_str(src)
-    if isa(src, JuliaSyntax.SyntaxNode)
-        (line, col) = JuliaSyntax.source_location(src)
+    if isa(src, JS.SyntaxNode)
+        (line, col) = JS.source_location(src)
         return string(src, " @ ", line, ":", col)
     end
     str = "["
