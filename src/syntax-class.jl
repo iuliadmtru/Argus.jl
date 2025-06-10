@@ -211,6 +211,23 @@ function Base.show(io::IO, ::MIME"text/plain", sc::SyntaxClass)
 end
 Base.show(io::IO, ::Type{SyntaxClassRegistry}) = print(io, "SyntaxClassRegistry")
 
+# Errors
+# ======
+
+"""
+    SyntaxClassRegistryKeyError <: Exception
+
+A `~var` pattern form tried to access an unregistered syntax class.
+"""
+struct SyntaxClassRegistryKeyError <: Exception
+    syntax_class_name::Symbol
+end
+
+function Base.showerror(io::IO, err::SyntaxClassRegistryKeyError)
+    print(io, "SyntaxClassRegistryKeyError: ")
+    println(io, "unregistered syntax class ", repr(syntax_class_name))
+end
+
 # Pre-registered syntax classes
 # =============================
 
