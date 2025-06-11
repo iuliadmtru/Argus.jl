@@ -2,13 +2,11 @@
 
 # Argus.jl
 
-!!! Many changes have been made. The README will be updated soon.
-
-Syntax matching and static analysis rule writing for Julia. Heavily
+Matching syntax and writing static analysis rules for Julia. Heavily
 inspired by
-[`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse.html), a
-library for writing and processing macros in Racket, and
-[Resyntax](https://docs.racket-lang.org/resyntax/index.html), a
+[`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse.html) --
+a library for writing and processing macros in Racket -- and
+[Resyntax](https://docs.racket-lang.org/resyntax/index.html) -- a
 refactoring tool for Racket based on `syntax/parse`.
 
 ## Overview
@@ -25,34 +23,38 @@ concepts:
 _Syntax patterns_ form the basis for syntax matching and closely
 resemble Julia code. For example, `@pattern x = 2` matches an
 assignment where the left-hand side is a variable named `x` and the
-right-hand side is the literal `2`. On the other hand, `@pattern _x =
+right-hand side is the literal `2`. On the other hand, `@pattern {x} =
 2` matches any assignment or short-form function definition where the
 right-hand side is the literal `2`; the expression on the left-hand
-side is bound to the _pattern variable_ `_x`.
+side is bound to the _pattern variable_ `x`.
 
 A _pattern variable_ is one of several special forms permitted within
 patterns. It can be seen as a "hole" that is filled by matching
-syntax. For example, when matching `@pattern _x = 2` against the
-expression `f(a) = 2`, `_x` is bound to `f(a)`. The result of a
-pattern match is either a set of bindings corresponding to the syntax
-matched by each pattern variable, or an error explaining why the
-matching failed.
+syntax. For example, when matching `@pattern {x} = 2` against the
+expression `f(a) = 2`, `x` is bound to `f(a)`. The result of a pattern
+match is either a set of bindings corresponding to the syntax matched
+by each pattern variable, or an error explaining why the matching
+failed.
 
 A pattern variable can be constrained by a _syntax class_. In the
-example above, `@pattern _x = 2` is equivalent to `@pattern _x:::expr
-= 2`, where `expr` is the syntax class that matches any
+example above, `@pattern {x} = 2` is equivalent to `@pattern
+{x:::expr} = 2`, where `expr` is the syntax class that matches any
 expression. Syntax classes are defined through patterns and can
 reference other syntax classes. For example, a syntax class matching
-any assignment may be defined as such:
+any function definition may be defined as such:
 
 ```julia
-assign = @syntax_class "assignment" begin
-    _lhs:::identifier = _rhs
+fundef = @syntax_class "function definition" begin
+    @pattern {call:::funcall} = {body}
+    @pattern function ({call:::funcall})
+        {body}...
+    end
+    @pattern ~fail(:true, "not a function definition")
 end
 ```
 
 Argus provides a set of pre-defined syntax classes, including `expr`,
-`identifier` and `assign`.
+`funcall` and `fundef`.
 
 A _rule_ contains a description and a pattern. In the case of rules,
 matching recursively traverses a given unit of source code (e.g. a
@@ -73,16 +75,18 @@ lang_rules = RuleGroup("lang")
 
     pattern = @pattern begin
         ~or(
-            nothing == _,
-            _ == nothing,
-            nothing != _,
-            _ != nothing
+            nothing == {_},
+            {_} == nothing,
+            nothing != {_},
+            {_} != nothing
         )
     end
 end
 ```
 
-## Syntax matching
+## Matching syntax
+
+!! Everything from here onwards is outdated.
 
 Argus defines a syntax matching language (_pattern language_) capable
 to match Julia syntax and provide relevant information in case of
