@@ -642,6 +642,57 @@ At least it would be useful if the failure would contain other
 information such as the source location of the failure... This is plan
 for the future :).
 
+Sometimes it is useful to group rules by category. We can define a
+rule group and store rules inside it:
+
+```julia
+julia> style_rules = RuleGroup("style")
+RuleGroup("style")
+
+julia> @define_rule_in_group style_rules "useless-equals" begin
+           description = """
+           Comparing an object with itself always returns `true`.
+           """
+
+           pattern = @pattern begin
+               ~or(
+                   {x} ==  {x},
+                   {x} !=  {x},
+                   {x} === {x},
+                   {x} !== {x}
+               )
+           end
+       end;
+
+julia> @define_rule_in_group style_rules "lowercase-const" begin
+           description = """
+           Prefer writing `const` variables in all-uppercase.
+           """
+
+           pattern = @pattern begin
+               const {x:::identifier} = {_}
+               @fail !all(isuppercase, x.name) "`const` variable has lowercase characters"
+           end
+       end;
+```
+
+To check if the rules are correct, let's try them on a source file:
+
+```julia
+julia> f = tempname();
+
+julia> write(f, """
+       a == a
+       const low = 2
+       const OK = true
+       """);
+
+julia> rule_group_match(style_rules, f)
+ with 2 entries:
+  "useless-equals"  => RuleMatchResult(BindingSet[BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet()))], MatchFail[])
+  "lowercase-const" => RuleMatchResult(BindingSet[BindingSet(:c=>Binding(:c, OK @ 3:7, BindingSet(:_id => Binding(:_id, OK @ 3:7, BindingSet()))))], MatchFail[])
+```
+
 
 ## Matching Syntax
 
