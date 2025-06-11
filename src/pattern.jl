@@ -237,7 +237,7 @@ macro pattern(expr)
             end
             # Create the pattern as an `~and` between the pattern expression and the
             # fail conditions.
-            pattern_expr = :( ~and($pattern_expr, $(fail_exprs...)) )
+            pattern_expr = :( ~and($(Meta.quot(pattern_expr)), $(fail_exprs...)) )
         end
     end
     pattern_node = SyntaxPatternNode(pattern_expr)
