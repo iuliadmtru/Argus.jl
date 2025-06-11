@@ -268,6 +268,12 @@ function _register_syntax_classes()
         end
     end
 
+    # `vec`: match a vector.
+    @define_syntax_class :vec "vector" begin
+        @pattern [{_}...]
+        @pattern ~fail(:true, "not a vector")
+    end
+
     # `assign`: match an assignment.
     @define_syntax_class :assign "assignment" begin
         @pattern {lhs:::identifier} = {rhs:::expr}
