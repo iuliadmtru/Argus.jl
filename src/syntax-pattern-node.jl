@@ -555,6 +555,10 @@ is_symbol_node(node::JS.SyntaxNode) =
     length(children(node)) == 1 &&
     is_identifier(children(node)[1])
 
+is_toplevel(node::SyntaxPatternNode) =
+    kind(node) === K"toplevel" ||
+    kind(node) === K"~and" && kind(children(node)[1]) === K"toplevel"
+
 ### Pass 1 (`Expr` desugaring)
 
 is_pattern_variable(ex) = @isexpr(ex, :braces, 1) && isa(ex.args[1], Symbol)

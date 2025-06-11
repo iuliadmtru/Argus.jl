@@ -235,9 +235,7 @@ function cannot_eval_to_Pattern(ex)
     return true
 end
 
-is_toplevel(p::Pattern) =
-    kind(p) === K"toplevel" ||
-    kind(p) === K"~and" && kind(children(p)[1]) === K"toplevel"
+is_toplevel(p::Pattern) = is_toplevel(p.src)
 
 # Display
 # -------
