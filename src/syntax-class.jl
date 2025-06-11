@@ -271,11 +271,13 @@ function _register_syntax_classes()
     # `assign`: match an assignment.
     @define_syntax_class :assign "assignment" begin
         @pattern {lhs:::identifier} = {rhs:::expr}
+        @pattern ~fail(:true, "not an assignment")
     end
 
     # `funcall`: match a function call.
     @define_syntax_class :funcall "function call" begin
         @pattern ({fun_name:::identifier})({args}...)
+        @pattern ~fail(:true, "not a function call")
     end
 
     # `fundef`: match a function definition.
