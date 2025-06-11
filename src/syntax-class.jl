@@ -277,4 +277,11 @@ function _register_syntax_classes()
     @define_syntax_class :funcall "function call" begin
         @pattern ({fun_name:::identifier})({args}...)
     end
+
+    # `fundef`: match a function definition.
+    @define_syntax_class :fundef "function definition" begin
+        @pattern {call:::funcall} = {body}
+        @pattern function ({call:::funcall}) {body}... end
+        @pattern ~fail(:true, "not a function definition")
+    end
 end

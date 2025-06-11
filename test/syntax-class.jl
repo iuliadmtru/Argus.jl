@@ -29,6 +29,32 @@
         @test collect(keys(match_second)) == [:g]
     end
 
+    let
+        fundef = Argus.SYNTAX_CLASS_REGISTRY[:fundef]
+
+        match_first = syntax_match(fundef, parsestmt(SyntaxNode, "f(x) = 2"))
+        @test length(match_first) == 2
+        @test match_first[:call].fun_name.name == "f"
+        @test length(match_first[:call].args.bindings) == 1
+        @test match_first[:call].args.src[1].val == :x
+        @test match_first[:body].value == 2
+
+        match_second = syntax_match(fundef, parsestmt(SyntaxNode, """
+                                                                  function f()
+                                                                      ex1
+                                                                      ex2
+                                                                  end
+                                                                  """))
+        @test length(match_second) == 2
+        @test match_second[:call].fun_name.name == "f"
+        @test isempty(match_second[:call].args.bindings)
+        @test length(match_second[:body].src) == 2
+        @test map(s -> source_location(s), match_second[:body].src) == [(2, 5), (3, 5)]
+
+        no_match = syntax_match(fundef, parsestmt(SyntaxNode, "x"))
+        @test no_match == MatchFail("not a function definition")
+    end
+
     # Invalid syntax.
     @test_nowarn @macroexpand @syntax_class "abc" begin
         @pattern 2
