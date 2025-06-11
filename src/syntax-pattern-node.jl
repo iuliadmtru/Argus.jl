@@ -82,7 +82,7 @@ end
 The first pass in the construction of a `SyntaxPatternNode`.
 
 Desugar all special syntax expressions and transform the resulting `Expr` into a
-`JuliaSyntax.SyntaxNode`.
+`JuliaSyntax.SyntaxNode`. Avoid desugaring of expressions wrapped in `@esc`.
 
 There are some special regular Julia syntax cases such as `function f end` and
 `function (f) end`:
@@ -120,21 +120,72 @@ SyntaxNode:
       expr                               :: Identifier
 
 
-julia> Argus.desugar_expr(:( {_}... ))
+julia> Argus.desugar_expr(:( x... ))
 SyntaxNode:
 [call-pre]
   ~                                      :: Identifier
   [call]
     rep                                  :: Identifier
+    x                                    :: Identifier
+
+
+julia> Argus.desugar_expr(:( @esc(x...) ))
+SyntaxNode:
+[...]
+  x                                      :: Identifier
+
+julia> Argus.desugar_expr(:( [{elems}...]... ))
+SyntaxNode:
+[call-pre]
+  ~                                      :: Identifier
+  [call]
+    rep                                  :: Identifier
+    [vect]
+      [call-pre]
+        ~                                :: Identifier
+        [call]
+          rep                            :: Identifier
+          [call-pre]
+            ~                            :: Identifier
+            [call]
+              var                        :: Identifier
+              [quote-:]
+                elems                    :: Identifier
+              [quote-:]
+                expr                     :: Identifier
+
+
+julia> Argus.desugar_expr(:( @esc([{elems}...]..., 1) ))
+SyntaxNode:
+[...]
+  [vect]
     [call-pre]
       ~                                  :: Identifier
       [call]
-        var                              :: Identifier
-        [quote-:]
-          _                              :: Identifier
-        [quote-:]
-          expr                           :: Identifier
+        rep                              :: Identifier
+        [call-pre]
+          ~                              :: Identifier
+          [call]
+            var                          :: Identifier
+            [quote-:]
+              elems                      :: Identifier
+            [quote-:]
+              expr                       :: Identifier
 
+
+julia> Argus.desugar_expr(:( @esc([{elems}...]..., 3) ))
+SyntaxNode:
+[...]
+  [vect]
+    [...]
+      [call-pre]
+        ~                                :: Identifier
+        [call]
+          var                            :: Identifier
+          [quote-:]
+            elems                        :: Identifier
+          [quote-:]
+            expr                         :: Identifier
 
 julia> Argus.desugar_expr(:( function ({f:::expr}) end ))
 SyntaxNode:
@@ -210,8 +261,37 @@ function desugar_expr(ex)::JS.SyntaxNode
     end
     return JS.parsestmt(JS.SyntaxNode, desugared_ex_str)
 end
-function _desugar_expr(ex; inside_fail=false)
-    if is_sugared_rep(ex)
+function _desugar_expr(ex; esc=false, esc_depth=:all, inside_fail=false)
+    # Check for escaping.
+    if esc
+        # Return early if the entire expression is escaped.
+        esc_depth !== :all && isa(ex, Expr) || return ex
+        if isa(esc_depth, Int) && esc_depth > 0
+            esc_depth -= 1
+        end
+        if esc && isa(esc_depth, Int) && esc_depth <= 0
+            esc = false
+        end
+        return Expr(ex.head, _desugar_expr.(ex.args; esc, esc_depth, inside_fail)...)
+    end
+    # `ex` is not escaped, desugar it.
+    if is_esc_macro(ex)
+        esc_args = get_esc_args(ex)
+        (isempty(esc_args) || length(esc_args) > 2) &&
+            throw(SyntaxError("""
+                              invalid `@esc` syntax
+                              `@esc` should be called with either one or two arguments:
+                                - `@esc(<expr>)`
+                                - `@esc(<expr>, <escape_depth>)`
+                                """))
+        esc_depth = length(esc_args) == 1 ? :all : esc_args[2]
+        esc_depth === :all || isa(esc_depth, Int) ||
+            throw(SyntaxError("""
+                              invalid `@esc` syntax
+                              Escape depth should be either `:all` or an integer.
+                              """))
+        return _desugar_expr(esc_args[1]; esc=true, esc_depth, inside_fail)
+    elseif is_sugared_rep(ex)
         rep_arg = _desugar_expr(_get_sugared_rep_arg(ex); inside_fail)
         return :( ~rep($rep_arg) )
     elseif is_sugared_var(ex) && !inside_fail
@@ -234,8 +314,14 @@ function _desugar_expr(ex; inside_fail=false)
         inside_fail = true
     end
     !isa(ex, Expr) && return ex  # Literals remain the same.
-    # Recurse on children.
-    return Expr(ex.head, _desugar_expr.(ex.args; inside_fail)...)
+    # Recurse on children. If escaping, decrease escape level by 1.
+    if isa(esc_depth, Int) && esc_depth > 0
+        esc_depth -= 1
+    end
+    if esc && isa(esc_depth, Int) && esc_depth <= 0
+        esc = false
+    end
+    return Expr(ex.head, _desugar_expr.(ex.args; esc, esc_depth, inside_fail)...)
 end
 
 """
@@ -281,7 +367,7 @@ SyntaxPatternNode:
 """
 function parse_pattern_forms(node::JS.SyntaxNode)::SyntaxPatternNode
     is_pattern_form(node) && return _parse_pattern_form(node)
-    # Regular syntax node.
+    # Parse regular syntax node.
     pattern_data = node.data
     is_leaf(node) && return SyntaxPatternNode(nothing, nothing, pattern_data)
     cs = [parse_pattern_forms(c) for c in children(node)]
@@ -563,6 +649,8 @@ is_toplevel(node::SyntaxPatternNode) =
 
 is_pattern_variable(ex) = @isexpr(ex, :braces, 1) && isa(ex.args[1], Symbol)
 
+is_esc_macro(ex) = @isexpr(ex, :macrocall) && ex.args[1] === Symbol("@esc")
+
 is_pattern_form(ex) =
     # A pattern form expression has the following structure:
     #   `~<form_name>(<args>*)`
@@ -587,6 +675,16 @@ is_sugared_var(ex) =
 is_sugared_rep(ex) = @isexpr(ex, :..., 1)
 
 get_pattern_variable_name(ex) = ex.args[1]
+
+function get_esc_args(ex)
+    length(ex.args) < 4 && return [ex.args[3]]
+    esc_depth = ex.args[4]
+    if isa(esc_depth, QuoteNode)
+        esc_depth = esc_depth.value
+    end
+    remaining = length(ex.args) > 4 ? ex.args[5:end] : []
+    return [ex.args[3], esc_depth, remaining...]
+end
 
 get_pattern_form_name(ex) = ex.args[2].args[1]
 

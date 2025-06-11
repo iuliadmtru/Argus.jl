@@ -13,7 +13,15 @@ end
 """
     @pattern(expr)
 
-Create a [`Pattern`](@ref) from the given expression.
+Create a [`Pattern`](@ref) from the given expression. Special syntax can be escaped by
+wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro.
+
+`@esc` usage:
+  - `@esc(ex)`       : Escape everything inside `ex`.
+  - `@esc(ex, depth)`: Escape `ex` only up to `depth`.
+
+`@fail` usage:
+  - `@fail(condition, msg)`: Fail with the message `msg` if `condition` is satisfied.
 
 # Examples
 # ========
@@ -25,7 +33,6 @@ Pattern:
   a                                      :: Identifier
   +                                      :: Identifier
   b                                      :: Identifier
-
 
 julia> assign_to_x = @pattern begin
            {x:::assign}                               # Pattern variable matching an assignment.
@@ -86,15 +93,43 @@ BindingSet with 1 entry:
                         Ellipsis depth: 0
                         Sub-bindings:
                           BindingSet with 0 entries
+
+julia> pattern = @pattern @esc(x...)
+Pattern:
+[...]
+  x                                      :: Identifier
+
+julia> syntax_match(pattern, parsestmt(SyntaxNode, "x..."))
+BindingSet with 0 entries
+
+julia> pattern = @pattern @esc({x}..., 1)
+Pattern:
+[...]
+  x:::expr                               :: ~var
+
+julia> syntax_match(pattern, parsestmt(SyntaxNode, "x..."))
+BindingSet with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound source: x @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet with 0 entries
 ```
 
-Note: `@fail` macros only exist inside `@pattern` bodies.
+Note: `@fail` and `@esc` macros only exist inside `@pattern` bodies.
 
 ```
 julia> @fail :false ""
 ERROR: LoadError: UndefVarError: `@fail` not defined in `Main`
 Suggestion: check for spelling errors or missing imports.
-in expression starting at REPL[8]:1
+in expression starting at ...
+
+julia> @esc
+ERROR: LoadError: UndefVarError: `@esc` not defined in `Main`
+Suggestion: check for spelling errors or missing imports.
+Hint: a global variable of this name also exists in MacroTools.
+in expression starting at ...
 ```
 """
 macro pattern(expr)

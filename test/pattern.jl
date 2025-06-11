@@ -142,6 +142,55 @@
             end
         end
 
+        @testset "Escaping" begin
+            let
+                pattern = @pattern {x}...
+                @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "x")), BindingSet)
+                pattern_esc = @pattern @esc(x...)
+                @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "x")), MatchFail)
+            end
+            let
+                pattern = @pattern [{elems}...]...
+                @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[1]")),
+                          BindingSet)
+
+                pattern_esc = @pattern @esc([{elems}...]..., 1)
+                @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "[1]...")),
+                          BindingSet)
+                @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "[1]")),
+                          MatchFail)
+
+                pattern_esc2 = @pattern @esc([{elems}...]..., 3)
+                @test isa(syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[[1]...]...")),
+                          BindingSet)
+                @test isa(syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[[1]]")),
+                          MatchFail)
+                m = syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[{elems}...]..."))
+                @test kind(m[:elems].src) === K"braces"
+
+                pattern_esc9 = @pattern @esc([{elems}...]..., 9)
+                @test isa(syntax_match(pattern_esc9,
+                                       parsestmt(SyntaxNode, "[[1]...]...")),
+                          MatchFail)
+                @test isa(syntax_match(pattern_esc9,
+                                       parsestmt(SyntaxNode, "[{1}...]...")),
+                          MatchFail)
+
+                pattern_esc_all = @pattern @esc([{elems}...]..., :all)
+                @test isa(syntax_match(pattern_esc_all,
+                                       parsestmt(SyntaxNode, "[[1]...]...")),
+                          MatchFail)
+                @test isa(syntax_match(pattern_esc_all,
+                                       parsestmt(SyntaxNode, "[{elems}...]...")),
+                          BindingSet)
+            end
+            let
+                pattern = @pattern @esc(@esc)
+                @test kind(pattern) === K"macrocall" && length(pattern.src.children) == 1
+                @test pattern.src.children[1].val === Symbol("@esc")
+            end
+        end
+
         # TODO: Move these to `test/bindings.jl`.
         # Bindings fields access.
         let
