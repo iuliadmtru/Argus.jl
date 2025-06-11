@@ -652,12 +652,15 @@ function is_misparsed(node::SyntaxPatternNode)
     if kind(node) === K"function"
         lhs = node.children[1]
         is_var(lhs) || return false
-        # An `=` node with unconstrained lhs could either be an assignment or a short form
-        # function definition.
+        syntax_class_name = get_var_syntax_class_name(lhs)
         # An `=` node constrained to `:identifier` should be interpreted as an assignment,
         # not a function definition.
-        syntax_class_name = get_var_syntax_class_name(lhs)
-        return syntax_class_name === :expr || syntax_class_name === :identifier
+        syntax_class_name === :identifier && return true
+        # An `=` node constrained to `:funcall` should indeed be interpreted as a function
+        # definition.
+        syntax_class_name === :funcall && return false
+        # Any other constraint on the lhs causes makes the `=` node ambiguous.
+        return true
     end
     # Add other ambiguous cases here.
 
