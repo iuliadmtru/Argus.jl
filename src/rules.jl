@@ -218,9 +218,9 @@ group.
 # ========
 
 ```
-style_rules = RuleGroup("style")
+lang_rules = RuleGroup("lang")
 
-@define_rule_in_group style_rules "chained-const-assignment" begin
+@define_rule_in_group lang_rules "chained-const-assignment" begin
     description = \"""
     Do not chain assignments with const. The right hand side is not constant here.
     \"""
