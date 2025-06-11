@@ -235,7 +235,7 @@ end
 function _register_syntax_classes()
     # `expr`: match any expression.
     @define_syntax_class :expr "expr" begin
-        @pattern ~fail(:false, "")
+        @pattern ~fail(false, "")
     end
 
     # `identifier`: match an identifier.
@@ -271,25 +271,25 @@ function _register_syntax_classes()
     # `vec`: match a vector.
     @define_syntax_class :vec "vector" begin
         @pattern [{_}...]
-        @pattern ~fail(:true, "not a vector")
+        @pattern ~fail(true, "not a vector")
     end
 
     # `assign`: match an assignment.
     @define_syntax_class :assign "assignment" begin
         @pattern {lhs:::identifier} = {rhs:::expr}
-        @pattern ~fail(:true, "not an assignment")
+        @pattern ~fail(true, "not an assignment")
     end
 
     # `funcall`: match a function call.
     @define_syntax_class :funcall "function call" begin
         @pattern ({fun_name:::identifier})({args}...)
-        @pattern ~fail(:true, "not a function call")
+        @pattern ~fail(true, "not a function call")
     end
 
     # `fundef`: match a function definition.
     @define_syntax_class :fundef "function definition" begin
         @pattern {call:::funcall} = {body}
         @pattern function ({call:::funcall}) {body}... end
-        @pattern ~fail(:true, "not a function definition")
+        @pattern ~fail(true, "not a function definition")
     end
 end
