@@ -269,8 +269,8 @@ The result of a rule group match. Alias for `Dict{String, RuleMatchResult}`.
 const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
 """
-    rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; only_matches=true)
-    rule_match(rule::Rule, filename::String; only_matches=true)
+    rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; greedy=true, only_matches=true)
+    rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
 
 Match a rule against a source code. Return the set of all matches. If `only_matches` is
 `false` return failures as well. The rule pattern is matched against all children nodes in
@@ -279,9 +279,10 @@ the source node, up to the leafs.
 If the rule pattern contains only one pattern expression, it is matched against the source
 node exactly. If it contains multiple expressions, the sequence of expressions is partially
 matched against the source node's children (see [`partial_syntax_match`](@ref)). The
-algorithm tries all the potentially matching paths of all partial match results.
+algorithm tries all the potentially matching paths of all partial match results. Matching
+is greedy by default.
 """
-function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
+function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true)
     rule_result = RuleMatchResult()
     if is_toplevel(rule.pattern) && (kind(src) == K"block" || kind(src) == K"toplevel")
         # Both the pattern and the source are series of expressions. Match the pattern's
@@ -292,14 +293,14 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
             partial_result, _ = partial_syntax_match(children(rule.pattern),
                                                      srcs;
                                                      recovery_stack,
-                                                     greedy=false)
+                                                     greedy)
             # If there are recovery paths, try them all and store the results.
             while !isempty(recovery_stack)
                 partial_recovered_result, _ = recover!(recovery_stack,
                                                        partial_syntax_match,
                                                        true;
                                                        fail_ret=nothing,
-                                                       greedy=false)
+                                                       greedy)
                 !isnothing(partial_recovered_result) &&
                     push_match_result!(rule_result, partial_recovered_result; only_matches)
             end
@@ -311,14 +312,14 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
         # matching paths.
         recovery_stack = []
         match_result =
-            _syntax_match(rule.pattern.src, src; recovery_stack, greedy=false)
+            _syntax_match(rule.pattern.src, src; recovery_stack, greedy)
         push_match_result!(rule_result, match_result; only_matches)
         while !isempty(recovery_stack)
             match_result = recover!(recovery_stack,
                                     _syntax_match,
                                     true;
                                     fail_ret=nothing,
-                                    greedy=false)
+                                    greedy)
             !isnothing(match_result) &&
                 push_match_result!(rule_result, match_result; only_matches)
         end
@@ -326,39 +327,51 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
     # Recurse on children, if any.
     is_leaf(src) && return rule_result
     for c in children(src)
-        rule_result_child = rule_match(rule, c; only_matches)
+        rule_result_child = rule_match(rule, c; greedy, only_matches)
         append!(rule_result.failures, rule_result_child.failures)
         append!(rule_result.matches, rule_result_child.matches)
     end
     return rule_result
 end
-function rule_match(rule::Rule, filename::String; only_matches=true)
+function rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
     src_txt = read(filename, String)
     src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
-    return rule_match(rule, src; only_matches)
+    return rule_match(rule, src; greedy, only_matches)
 end
 
 """
-    rule_group_match(group::RuleGroup, src::JuliaSyntax.SyntaxNode; only_matches=true)
-    rule_group_match(group::RuleGroup, filename::String; only_matches=true)
+    rule_group_match(group::RuleGroup,
+                     src::JuliaSyntax.SyntaxNode;
+                     greedy=true,
+                     only_matches=true)
+    rule_group_match(group::RuleGroup,
+                     filename::String;
+                     greedy=true,
+                     only_matches=true)
 
 Match all the rules in a given group against a source node. Return a
-[`RuleGroupMatchResult`](@ref).
+[`RuleGroupMatchResult`](@ref). Matching is greedy by default.
 """
-function rule_group_match(group::RuleGroup, src::JS.SyntaxNode; only_matches=true)
+function rule_group_match(group::RuleGroup,
+                          src::JS.SyntaxNode;
+                          greedy=true,
+                          only_matches=true)
     match_result = RuleGroupMatchResult()
     for (name, rule) in group
-        match_result[name] = rule_match(rule, src; only_matches)
+        match_result[name] = rule_match(rule, src; greedy, only_matches)
     end
 
     return match_result
 end
-function rule_group_match(group::RuleGroup, filename::String; only_matches=true)
+function rule_group_match(group::RuleGroup,
+                          filename::String;
+                          greedy=true,
+                          only_matches=true)
     src_txt = read(filename, String)
     src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
-    return rule_group_match(group, src; only_matches)
+    return rule_group_match(group, src; greedy, only_matches)
 end
 
 # Utils

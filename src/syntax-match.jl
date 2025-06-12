@@ -26,9 +26,9 @@ const MatchResult = Union{MatchFail, BindingSet}
 # ===============
 
 """
-    syntax_match(pattern::Pattern, src::JuliaSyntax.SyntaxNode)::MatchResult
-    syntax_match(syntax_class::SyntaxClass, src::JuliaSyntax.SyntaxNode)::MatchResult
-    syntax_match(pattern_node::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode)::MatchResult
+    syntax_match(pattern::Pattern, src::JuliaSyntax.SyntaxNode; greedy=true)
+    syntax_match(syntax_class::SyntaxClass, src::JuliaSyntax.SyntaxNode; greedy=true)
+    syntax_match(pattern_node::SyntaxPatternNode, src::JuliaSyntax.SyntaxNode; greedy=true)
 
 Try to match a [`Pattern`](@ref), [`SyntaxClass`](@ref) or [`SyntaxPatternNode`](@ref) with
 a source node exactly. Return a [`BindingSet`](@ref) with all the bound pattern variables
@@ -36,7 +36,8 @@ in case of a successful match. Otherwise, return a [`MatchFail`](@ref) with an i
 failure message explaining why the match failed.
 
 In case of `~rep` nodes, greedily "consume" all matching children of the source node. If
-the match fails, try to backtrack up to a matching state.
+the match fails, try to backtrack up to a matching state. The default matching algorithm is
+greedy.
 """
 syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
     syntax_match(pattern.src, src; greedy)

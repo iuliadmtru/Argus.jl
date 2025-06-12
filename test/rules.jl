@@ -119,7 +119,7 @@
                 pattern = @pattern [1, {one1}..., 1, {one2}...]
             end
             src = "[1, 1, 1, 1]"
-            match_result = rule_match(rule, parsestmt(SyntaxNode, src))
+            match_result = rule_match(rule, parsestmt(SyntaxNode, src); greedy=false)
             @test length(match_result.matches) == 3
             one1 = map(m -> m[:one1], match_result.matches)
             @test length(one1[1].src) == 0
