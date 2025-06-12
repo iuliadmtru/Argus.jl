@@ -334,6 +334,19 @@
                     """)
                     @test syntax_match(pattern, src) == MatchFail()
                 end
+                let
+                    pattern = @pattern begin
+                        ~or(
+                            {b} || {_}...,
+                            {_}... || {b}
+                        )
+                        @fail typeof(b.value) != Bool "not `Bool`"
+                    end
+                    src = parsestmt(SyntaxNode, "cond || true")
+                    match_result = syntax_match(pattern, src)
+                    @test isa(match_result, BindingSet)
+                    @test length(match_result) == 1
+                end
             end
         end
     end

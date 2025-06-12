@@ -579,11 +579,20 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          bindings=BindingSet;
                          recovery_stack=[],
                          recover=true,
+                         greedy=true,
                          tmp=false)::MatchResult
-    alt_bindings::BindingSet = deepcopy(bindings)
+    bindings_alt::BindingSet = deepcopy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
-        match_result = _syntax_match(p, src, alt_bindings; recovery_stack, recover, tmp)
+        # Each `~or` alternative is independent: it has its own recovery stack and should
+        # recover from failures.
+        match_result = _syntax_match(p,
+                                     src,
+                                     bindings_alt;
+                                     recovery_stack=[],
+                                     recover=true,
+                                     greedy,
+                                     tmp)
         if isa(match_result, BindingSet)
             # If this is not the last branch, we might be able to recover from one of the
             # next branches if the encompassing pattern fails.
@@ -598,7 +607,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
         end
         # Reset the bindings for each alernative. The alternatives should not communicate
         # with each other.
-        alt_bindings = deepcopy(bindings)
+        bindings_alt = deepcopy(bindings)
         # Track the failures.
         failure = match_result
     end
