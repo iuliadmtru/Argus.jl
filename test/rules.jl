@@ -113,6 +113,23 @@
             match_result = rule_match(rule, parseall(SyntaxNode, src))
             @test length(match_result.matches) == 3
         end
+        let
+            rule = @rule "test non-greedy" begin
+                description = ""
+                pattern = @pattern [1, {one1}..., 1, {one2}...]
+            end
+            src = "[1, 1, 1, 1]"
+            match_result = rule_match(rule, parsestmt(SyntaxNode, src))
+            @test length(match_result.matches) == 3
+            one1 = map(m -> m[:one1], match_result.matches)
+            @test length(one1[1].src) == 0
+            @test length(one1[2].src) == 1
+            @test length(one1[3].src) == 2
+            one2 = map(m -> m[:one2], match_result.matches)
+            @test length(one2[3].src) == 0
+            @test length(one2[2].src) == 1
+            @test length(one2[1].src) == 2
+        end
     end
 
 end

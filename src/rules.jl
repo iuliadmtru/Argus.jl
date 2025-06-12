@@ -307,8 +307,21 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; only_matches=true)
             srcs = rest(srcs)
         end
     else
-        match_result = syntax_match(rule.pattern, src)
+        # The pattern and the source are simple expressions. Exhaust all the possibly
+        # matching paths.
+        recovery_stack = []
+        match_result =
+            _syntax_match(rule.pattern.src, src; recovery_stack, greedy=false)
         push_match_result!(rule_result, match_result; only_matches)
+        while !isempty(recovery_stack)
+            match_result = recover!(recovery_stack,
+                                    _syntax_match,
+                                    true;
+                                    fail_ret=nothing,
+                                    greedy=false)
+            !isnothing(match_result) &&
+                push_match_result!(rule_result, match_result; only_matches)
+        end
     end
     # Recurse on children, if any.
     is_leaf(src) && return rule_result

@@ -34,14 +34,18 @@ Try to match a [`Pattern`](@ref), [`SyntaxClass`](@ref) or [`SyntaxPatternNode`]
 a source node exactly. Return a [`BindingSet`](@ref) with all the bound pattern variables
 in case of a successful match. Otherwise, return a [`MatchFail`](@ref) with an informative
 failure message explaining why the match failed.
+
+In case of `~rep` nodes, greedily "consume" all matching children of the source node. If
+the match fails, try to backtrack up to a matching state.
 """
-syntax_match(pattern::Pattern, src::JS.SyntaxNode)::MatchResult =
-    syntax_match(pattern.src, src)
+syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
+    syntax_match(pattern.src, src; greedy)
 function syntax_match(syntax_class::SyntaxClass,
-                      src::JS.SyntaxNode)::MatchResult
+                      src::JS.SyntaxNode;
+                      greedy=true)::MatchResult
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
-        match_result = syntax_match(pattern, src)
+        match_result = syntax_match(pattern, src; greedy)
         # Return the first successful match.
         isa(match_result, BindingSet) && return match_result
         # TODO: Track the failures and return the most relevant one.
@@ -50,28 +54,13 @@ function syntax_match(syntax_class::SyntaxClass,
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
     return failure
 end
-# TODO: Don't duplicate code.
 function syntax_match(pattern_node::SyntaxPatternNode,
-                      src::JS.SyntaxNode)::MatchResult
-    match_result = _syntax_match(pattern_node, src)
+                      src::JS.SyntaxNode;
+                      greedy=true)::MatchResult
+    match_result = _syntax_match(pattern_node, src; greedy)
     isa(match_result, MatchFail) && return match_result
     # Remove invalid bindings and permanentise temporary bindings (there can be one
     # temporary binding if the last matching pattern was a repetition).
-    match_result = remove_invalid_bindings(match_result)
-    return make_permanent(match_result)
-end
-"""
-    syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                 srcs::Vector{JuliaSyntax.SyntaxNode})::MatchResult
-
-Try to match a sequence of pattern nodes to a sequence of source nodes. Each pair of nodes
-must match exactly. In case of `~rep` nodes, greedily "consume" all matching source nodes.
-If the match fails, try to backtrack up to a matching state.
-"""
-function syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                      srcs::Vector{JS.SyntaxNode})::MatchResult
-    match_result = _syntax_match(pattern_nodes, srcs)
-    isa(match_result, MatchFail) && return match_result
     match_result = remove_invalid_bindings(match_result)
     return make_permanent(match_result)
 end
@@ -213,6 +202,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
                             _syntax_match,
                             recover;
                             fail_ret=match_result,
+                            greedy,
                             tmp)
         # If there is a match, return it.
         return match_result
@@ -235,6 +225,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
                          bindings;
                          recovery_stack,
                          recover,
+                         greedy,
                          tmp)
 end
 function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
@@ -247,6 +238,8 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     match_result, srcs = partial_syntax_match(pattern_nodes,
                                               srcs,
                                               bindings;
+                                              recovery_stack,
+                                              recover,
                                               greedy,
                                               tmp)
     isa(match_result, MatchFail) && return recover!(recovery_stack,
@@ -259,6 +252,7 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                      _syntax_match,
                                      recover;
                                      fail_ret=MatchFail(),
+                                     greedy,
                                      tmp)
     return match_result
 end
@@ -315,6 +309,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                               recover=true,
                               greedy=true,
                               tmp=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+    # @info "partial match" pattern_nodes srcs bindings recovery_stack greedy
     if isempty(srcs)
         # Reasons to be here:
         #
@@ -336,7 +331,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         # Try the first pattern. There can only be a match if it's a repetition.
         p = pattern_nodes[1]
         if is_rep(p)
-            match_result = syntax_match_rep(p, srcs, bindings)
+            match_result = syntax_match_rep(p, srcs, bindings; greedy)
             # This could never fail, but it's good to be exhaustive.
             isa(match_result, MatchFail) && return (match_result, srcs)
             return partial_syntax_match(rest(pattern_nodes),                       # 1.a,
@@ -362,8 +357,8 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     # Here we know we have at least one pattern node and at least one source node.
     p = pattern_nodes[1]
     s = srcs[1]
-    match_result = _syntax_match(p, s, bindings; recover, greedy, tmp)
     if !is_rep(p)
+        match_result = _syntax_match(p, s, bindings; recover, greedy, tmp)
         # The first pattern node is not a repetition so it needs to match the first source
         # node exactly.
         if isa(match_result, MatchFail)
@@ -387,40 +382,30 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                     tmp)
     end
     # If we're here, the first pattern node in the list is a repetition.
-    if isa(match_result, MatchFail)
-        # No match for a repetition node means the repetition consumed all the source nodes
-        # it could. We can continue matching with the next pattern in the list.
-        #
-        # While consuming source nodes, a repetition node creates a temporary entry in the
-        # bindings set where source nodes get added as they are consumed. Once the
-        # repetition ends the entry is "permanentised". This means it is either given the
-        # appropriate name (the name of the pattern variable in the repetition node) or it
-        # is discarded if the repetition pattern variable is anonymous.
-        bindings = make_permanent(bindings)
-        return partial_syntax_match(rest(pattern_nodes),
-                                    srcs,
-                                    bindings;
-                                    recovery_stack,
-                                    recover,
-                                    greedy,
-                                    tmp)
-    end
-    # The last possibility is that the repetition is a match. We need to do two things:
-    #
-    # 1. Mark a recover state. Repetitions can match any number of source nodes (including
-    #    0). Whenever a repetition pattern node fits a source node, it can either "consume"
-    #    it or leave it for the next pattern node to match. Therefore, a decision is made.
-    #    We can't tell in advance which decision is right, so we continue on one path and
-    #    we save the other possible path in order to get back to it if the chosen path
-    #    fails.
     if greedy
-        # Greedy, like me trying to do two months' worth of work in two weeks:
-        #
-        # In the recovery state, the repetition is finished and the repetition node did not
-        # match the current source node.
+        match_result = _syntax_match(p, s, bindings; recover, greedy, tmp)
+        if isa(match_result, MatchFail)
+            # No match for a repetition node means the repetition consumed all the source
+            # nodes it could. We can continue matching with the next pattern in the list.
+            #
+            # While consuming source nodes, a repetition node creates a temporary entry in
+            # the bindings set where source nodes get added as they are consumed. Once the
+            # repetition ends the entry is "permanentised". This means it is either given
+            # the appropriate name (the name of the pattern variable in the repetition node)
+            # or it is discarded if the repetition pattern variable is anonymous.
+            return partial_syntax_match(rest(pattern_nodes),
+                                        srcs,
+                                        make_permanent(bindings);
+                                        recovery_stack,
+                                        recover,
+                                        greedy,
+                                        tmp)
+        end
+        # In the recovery state of a greedy algortihm, the repetition is finished and the
+        # repetition node did not match the current source node.
         push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
-        # 2. Continue on the preferred path. This path is greedy, meaning that a repetition
-        #    node consumes as many source nodes as possible.
+        # Continue on the preferred path. For a greedy algorithm this means that a
+        # repetition node consumes as many source nodes as possible.
         return partial_syntax_match(pattern_nodes,
                                     rest(srcs),
                                     match_result;
@@ -428,17 +413,20 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                     recover,
                                     greedy,
                                     tmp)
-    else
-        # Not greedy:
-        #
+    else  # Not greedy.
+        bindings_copy = deepcopy(bindings)
+        match_result = _syntax_match(p, s, bindings_copy; recover, greedy, tmp)
         # The opposite of the greedy algorithm. The recovery state continues the current
         # repetition.
-        push!(recovery_stack, (pattern_nodes, rest(srcs), match_result))
-        # 2. Continue on the preferred path. This path is not greedy, meaning that a
-        #    repetition stops after the first consume source node.
+        if isa(match_result, BindingSet)
+            push!(recovery_stack, (pattern_nodes, rest(srcs), match_result))
+        end
+        # Continue on the preferred path. For a non-greedy algorithm this means that a
+        # repetition stops before consuming any source nodes.
+        bindings = syntax_match_rep(p, JS.SyntaxNode[], bindings; greedy)
         return partial_syntax_match(rest(pattern_nodes),
                                     srcs,
-                                    make_permanent(bindings);
+                                    bindings;
                                     recovery_stack,
                                     recover,
                                     greedy,
@@ -468,14 +456,14 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    greedy=true,
                                    tmp=false)::MatchResult
     args = (pattern_node, src, bindings)
-    kwargs = (recovery_stack=recovery_stack, recover=recover, tmp=tmp)
+    kwargs = (recovery_stack=recovery_stack, recover=recover, greedy=greedy, tmp=tmp)
     node_data = pattern_node.data
     # Dispatch on form type.
     isa(node_data, FailSyntaxData) && return syntax_match_fail(args...)
     isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; tmp)
     isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; kwargs...)
-    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; tmp)
-    isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...)
+    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; greedy, tmp)
+    isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...; greedy)
     return MatchFail("unknown pattern form")
 end
 
@@ -491,6 +479,7 @@ and add the binding to `bindings`.
 function syntax_match_var(var_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet;
+                          greedy=true,
                           tmp=false)::MatchResult
     pattern_var_name = var_node.data.var_name
     syntax_class_name = var_node.data.syntax_class_name
@@ -505,7 +494,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
             end
         end
     # Try to match the pattern syntax class to the AST.
-    match_result = syntax_match(syntax_class, src)
+    match_result = syntax_match(syntax_class, src; greedy)
     isa(match_result, MatchFail) && return match_result
     # If there's a match and the pattern variable is not anonymous or if `tmp`
     # is `true`, bind the pattern variable and add it to the `BindingSet`.
@@ -627,6 +616,7 @@ the `MatchFail` of the first failing branch.
 function syntax_match_and(and_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet;
+                          greedy=true,
                           tmp=false)
     and_node = deepcopy(and_node)
     bindings::BindingSet = deepcopy(bindings)
@@ -634,13 +624,14 @@ function syntax_match_and(and_node::SyntaxPatternNode,
     for (i, p) in enumerate(children(and_node))
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
         # branch failures inside the `~and`.
-        match_result = _syntax_match(p, src, bindings; recovery_stack, recover=false, tmp)
+        match_result =
+            _syntax_match(p, src, bindings; recovery_stack, recover=false, greedy, tmp)
         if isa(match_result, MatchFail)
             # If we can, try another path until we get a match.
             while !isempty(recovery_stack) && isa(match_result, MatchFail)
                 new_p, src, bindings = pop!(recovery_stack)
                 and_node.children[i - 1] = new_p
-                match_result = syntax_match_and(and_node, src, bindings; tmp)
+                match_result = syntax_match_and(and_node, src, bindings; greedy, tmp)
             end
             # If we have no more paths to try and the match still failed return the failure.
             isa(match_result, MatchFail) && return match_result
@@ -717,10 +708,12 @@ BindingSet with 1 entry:
 """
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
-                          bindings::BindingSet)::MatchResult
-    kind(src) === K"toplevel" && return syntax_match_rep(rep_node, children(src), bindings)
+                          bindings::BindingSet;
+                          greedy=true)::MatchResult
+    kind(src) === K"toplevel" &&
+        return syntax_match_rep(rep_node, children(src), bindings; greedy)
 
-    match_result = _syntax_match(rep_node.children[1], src, BindingSet(); tmp=true)
+    match_result = _syntax_match(rep_node.children[1], src, BindingSet(); greedy, tmp=true)
     isa(match_result, MatchFail) && return match_result
 
     bindings::BindingSet = deepcopy(bindings)
@@ -750,7 +743,8 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
 end
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           srcs::Vector{JS.SyntaxNode},
-                          bindings::BindingSet)::MatchResult
+                          bindings::BindingSet;
+                          greedy=true)::MatchResult
     bindings::BindingSet = deepcopy(bindings)
     if isempty(srcs)
         # If there are no source nodes, the repetition pattern variables bind to empty
@@ -773,7 +767,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     partial_results = BindingSet[]
     while !isempty(srcs)
         partial_result, srcs =
-            partial_syntax_match(children(rep_node), srcs, BindingSet(); tmp=true)
+            partial_syntax_match(children(rep_node), srcs, BindingSet(); greedy, tmp=true)
         isa(partial_result, MatchFail) && return partial_result
         push!(partial_results, partial_result)
     end
