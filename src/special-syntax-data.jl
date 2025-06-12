@@ -84,7 +84,6 @@ struct FailSyntaxData <: AbstractPatternFormSyntaxData
     condition::Function
     message::String
 
-    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
     FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
 end
 
@@ -200,9 +199,8 @@ Pattern match time exceptions:
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
 """
-function fail_condition(condition)
-    # pattern_variables = get_pattern_vars(condition)
-    cond_fun = function (binding_context)
+fail_condition(condition) =
+    function (binding_context)
         # Create an evaluation context with the condition binding context.
         ConditionContext = Module()
         for (var_name, binding) in binding_context
@@ -223,9 +221,6 @@ function fail_condition(condition)
             throw(MatchError(result))
         return result
     end
-
-    return cond_fun
-end
 
 """
     get_pattern_vars_with_depth(node::JS.SyntaxNode)
