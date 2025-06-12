@@ -226,7 +226,7 @@ end
 
 function Base.showerror(io::IO, err::SyntaxClassRegistryKeyError)
     print(io, "SyntaxClassRegistryKeyError: ")
-    println(io, "unregistered syntax class ", repr(syntax_class_name))
+    println(io, "unregistered syntax class ", repr(err.syntax_class_name))
 end
 
 # Pre-registered syntax classes

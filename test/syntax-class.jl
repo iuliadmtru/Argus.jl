@@ -39,9 +39,8 @@
     @testset "General" begin
         let
             unregistered = @pattern {x:::y}
-            @test_throws SyntaxClassRegistryKeyError syntax_match(unregistered,
-                                                                  parsestmt(SyntaxNode,
-                                                                            "dummy"))
+            err_msg = "SyntaxClassRegistryKeyError: unregistered syntax class :y"
+            @test_throws err_msg syntax_match(unregistered, parsestmt(SyntaxNode, "dummy"))
         end
         let
             fundef = @syntax_class "fundef" begin
