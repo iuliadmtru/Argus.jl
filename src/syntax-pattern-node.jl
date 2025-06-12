@@ -314,13 +314,7 @@ function _desugar_expr(ex; esc=false, esc_depth=:all, inside_fail=false)
         inside_fail = true
     end
     !isa(ex, Expr) && return ex  # Literals remain the same.
-    # Recurse on children. If escaping, decrease escape level by 1.
-    if isa(esc_depth, Int) && esc_depth > 0
-        esc_depth -= 1
-    end
-    if esc && isa(esc_depth, Int) && esc_depth <= 0
-        esc = false
-    end
+    # Recurse on children.
     return Expr(ex.head, _desugar_expr.(ex.args; esc, esc_depth, inside_fail)...)
 end
 
@@ -769,9 +763,6 @@ function is_misparsed(node::SyntaxPatternNode)
     return false
 end
 
-is_short_form_function_def(node) =
-    JS.flags(node) === JS.SHORT_FORM_FUNCTION_FLAG
-
 """
     fundef_to_assign(lhs::SyntaxPatternNode,
                      rhs::SyntaxPatternNode,
@@ -825,11 +816,11 @@ is_var(node::JS.SyntaxNode) =
 is_rep(node::JS.SyntaxNode) =
     is_pattern_form(node) && get_pattern_form_name(node) === :rep
 
-is_var(node::SyntaxPatternNode) = isa(node.data, VarSyntaxData)
+is_var(node::SyntaxPatternNode)  = isa(node.data, VarSyntaxData)
 is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
-is_or(node::SyntaxPatternNode) = isa(node.data, OrSyntaxData)
-is_and(node::SyntaxPatternNode) = isa(node.data, AndSyntaxData)
-is_rep(node::SyntaxPatternNode) = isa(node.data, RepSyntaxData)
+is_or(node::SyntaxPatternNode)   = isa(node.data, OrSyntaxData)
+is_and(node::SyntaxPatternNode)  = isa(node.data, AndSyntaxData)
+is_rep(node::SyntaxPatternNode)  = isa(node.data, RepSyntaxData)
 
 ### Getters
 
@@ -855,7 +846,6 @@ end
 get_fail_condition(node::SyntaxPatternNode) = is_fail(node) ? node.data.condition : nothing
 get_fail_message(node::SyntaxPatternNode) = is_fail(node) ? node.data.message : nothing
 
-_get_rep_arg(node::SyntaxPatternNode) = is_rep(node) ? node.children[1] : nothing
 get_rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : nothing
 
 # Display
