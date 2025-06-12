@@ -126,6 +126,11 @@
             @test y.src[1][1].val == 3
             @test y.src[2][1].val == 4
         end
+        let
+            pattern = @pattern [{x:::identifier}..., 2]
+            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")), BindingSet)
+            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2]")), MatchFail)
+        end
     end
 
     @testset "General" begin
@@ -250,8 +255,8 @@
         end
 
         @testset "Pattern matching" begin
-            binary_funcall_pattern = @pattern ({f:::identifier})({arg1}, {_})
             let
+                binary_funcall_pattern = @pattern ({f:::identifier})({arg1}, {_})
                 ## Match.
                 let
                     match_result =
@@ -308,6 +313,26 @@
                 match_result = syntax_match(pattern, src)
                 @test isa(match_result, BindingSet)
                 @test length(match_result) == 1
+            end
+            let
+                pattern = @pattern begin
+                    {ex:::assign}
+                    {_}...
+                    {ex}
+                end
+                src = parseall(SyntaxNode, """
+                                           a = 1
+                                           a = 2
+                                           a = 1
+                                           """)
+                match_result = syntax_match(pattern, src)
+                @test source_location(match_result[:ex].src) == (3, 1)
+                src_fail = parseall(SyntaxNode, """
+                                                a = 1
+                                                a = 2
+                                                """)
+                @test syntax_match(pattern, src_fail) ==
+                    MatchFail("conflicting bindings for pattern variable ex")
             end
             ## Multiple pattern expressions.
             let

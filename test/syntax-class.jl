@@ -38,6 +38,12 @@
 
     @testset "General" begin
         let
+            unregistered = @pattern {x:::y}
+            @test_throws SyntaxClassRegistryKeyError syntax_match(unregistered,
+                                                                  parsestmt(SyntaxNode,
+                                                                            "dummy"))
+        end
+        let
             fundef = @syntax_class "fundef" begin
                 @pattern begin
                     function ({f:::funcall})

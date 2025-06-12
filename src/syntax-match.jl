@@ -813,7 +813,7 @@ function compatible(ex1::JS.SyntaxNode, ex2::JS.SyntaxNode)
     ex1.data.val == ex2.data.val || return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false
     is_leaf(ex1) && return true
-    return all(map(p -> p[1] == p[2], zip(children(ex1), children(ex2))))
+    return all(map(p -> compatible(p[1], p[2]), zip(children(ex1), children(ex2))))
 end
 
 """
