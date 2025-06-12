@@ -17,7 +17,7 @@ values if resulted from a successful and complete syntax match. May contain
 but incomplete syntax match.
 """
 struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-    bindings::OrderedDict{Symbol, T}
+    bindings::OrderedDict{Symbol, T}  # TODO: Order by appearance in the source code?
 end
 BindingSet() = BindingSet(OrderedDict{Symbol, AbstractBinding}())
 BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...))

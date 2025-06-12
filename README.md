@@ -276,6 +276,56 @@ You can read the pattern `vec_of_vecs` more intuitively as: _A vector
 that contains any number of elements. Its elements need to be vectors
 that have any number of elements of any kind._
 
+By default, the matching algorithm for ellipses is greedy.
+
+```julia
+julia> ones_vec = @pattern [1, {ones1}..., 1, {ones2}...];
+
+julia> syntax_match(ones_vec, parsestmt(SyntaxNode, "[1, 1, 1, 1]"))
+BindingSet with 2 entries:
+  :ones2 => Binding:
+              Name: :ones2
+              Bound sources: []
+              Ellipsis depth: 1
+              Sub-bindings:
+                []
+  :ones1 => Binding:
+              Name: :ones1
+              Bound sources: [1 @ 1:5, 1 @ 1:8]
+              Ellipsis depth: 1
+              Sub-bindings:
+                [
+                 BindingSet with 0 entries,
+                 BindingSet with 0 entries
+                ]
+```
+
+`ones1` consumes all the expressions it can, leaving none for
+`ones2`. We can choose to match with a non-greedy algorithm:
+
+```julia
+julia> syntax_match(ones_vec, parsestmt(SyntaxNode, "[1, 1, 1, 1]"); greedy=false)
+BindingSet with 2 entries:
+  :ones2 => Binding:
+              Name: :ones2
+              Bound sources: [1 @ 1:8, 1 @ 1:11]
+              Ellipsis depth: 1
+              Sub-bindings:
+                [
+                 BindingSet with 0 entries,
+                 BindingSet with 0 entries
+                ]
+  :ones1 => Binding:
+              Name: :ones1
+              Bound sources: []
+              Ellipsis depth: 1
+              Sub-bindings:
+                []
+```
+
+This is useful if we expect a non-greedy approach to be more efficient
+in a particular case.
+
 Argus highjacks Julia's [splat
 operator](https://docs.julialang.org/en/v1/base/base/#...). If we want
 to use `...` with the regular splat meaning, we need to escape it:
