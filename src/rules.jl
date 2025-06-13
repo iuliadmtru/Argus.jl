@@ -299,10 +299,9 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=tr
                 partial_recovered_result, _ = recover!(recovery_stack,
                                                        partial_syntax_match,
                                                        true;
-                                                       fail_ret=nothing,
+                                                       fail_ret=MatchFail(),
                                                        greedy)
-                !isnothing(partial_recovered_result) &&
-                    push_match_result!(rule_result, partial_recovered_result; only_matches)
+                push_match_result!(rule_result, partial_recovered_result; only_matches)
             end
             push_match_result!(rule_result, partial_result; only_matches)
             srcs = rest(srcs)
@@ -318,10 +317,9 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=tr
             match_result = recover!(recovery_stack,
                                     _syntax_match,
                                     true;
-                                    fail_ret=nothing,
+                                    fail_ret=MatchFail(),
                                     greedy)
-            !isnothing(match_result) &&
-                push_match_result!(rule_result, match_result; only_matches)
+            push_match_result!(rule_result, match_result; only_matches)
         end
     end
     # Recurse on children, if any.

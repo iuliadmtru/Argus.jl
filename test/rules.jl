@@ -66,31 +66,29 @@
                     {y}()
                 end
             end
-            let
-                src = """
-                x = 2
-                function f(a)
-                    a = 2
-                    f()
-                    g()
-                end
-                for el in vec
-                    if c
-                        el = 2
-                        g(y) = 2
-                        h()
-                    end
-                end
-                """
-                match_result = rule_match(rule, parseall(SyntaxNode, src))
-                @test length(match_result.matches) == 2
-                first_match = match_result.matches[1]
-                @test first_match[:x].name == "a"
-                @test first_match[:y].name == "f"
-                second_match = match_result.matches[2]
-                @test kind(second_match[:x].src) === K"call"
-                @test second_match[:y].name == "h"
+            src = """
+            x = 2
+            function f(a)
+                a = 2
+                f()
+                g()
             end
+            for el in vec
+                if c
+                    el = 2
+                    g(y) = 2
+                    h()
+                end
+            end
+            """
+            match_result = rule_match(rule, parseall(SyntaxNode, src))
+            @test length(match_result.matches) == 2
+            first_match = match_result.matches[1]
+            @test first_match[:x].name == "a"
+            @test first_match[:y].name == "f"
+            second_match = match_result.matches[2]
+            @test kind(second_match[:x].src) === K"call"
+            @test second_match[:y].name == "h"
         end
         let
             rule = @rule "" begin

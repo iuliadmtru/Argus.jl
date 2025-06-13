@@ -84,7 +84,7 @@ end
     end
 end
 @define_syntax_class :lit_or_chain "literal or logical chain with explicit literal" begin
-    @pattern ~or({b:::literal}, {b:::chain_with_lit})
+    @pattern ~or({b:::literal}, {c:::chain_with_lit})
 end
 
 # TODO: Needs more work in order to catch something like `x || y && true`.
