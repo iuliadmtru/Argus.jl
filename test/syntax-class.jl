@@ -34,6 +34,24 @@
             no_match = syntax_match(fundef, parsestmt(SyntaxNode, "x"))
             @test no_match == MatchFail("not a function definition")
         end
+        let
+            macrocall = Argus.SYNTAX_CLASS_REGISTRY[:macrocall]
+
+            match1 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m()"))
+            @test isa(match1, BindingSet)
+            @test match1[:mcall].name == "@m"
+            @test isempty(match1[:mcall].args)
+
+            match2 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m 2 3"))
+            @test isa(match2, BindingSet)
+            @test match2[:mcall].name == "@m"
+            @test length(match2[:mcall].args) == 2
+
+            match3 = syntax_match(macrocall, parsestmt(SyntaxNode, "r\"abc\""))
+            @test isa(match3, BindingSet)
+            @test match3[:mcall].name == "@r_str"
+            @test length(match3[:mcall].args) == 1
+        end
     end
 
     @testset "General" begin

@@ -12,7 +12,7 @@
         @test isa(field_err_literal, MatchFail)
         @test field_err_literal.message ==
             """
-            BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier.
+            BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier or a macro call.
             Available fields: `value`
 
             The following fields are internal, avoid using them in patterns: `bname`, `src`, `bindings`
@@ -21,7 +21,7 @@
         @test isa(field_err_literal, MatchFail)
         @test startswith(field_err_expr.message,
                          """
-                         BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier.
+                         BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier or a macro call.
                          Available fields: none
                          """)
     end

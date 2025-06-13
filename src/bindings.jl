@@ -328,7 +328,15 @@ function Base.getproperty(b::AbstractBinding, name::Symbol)
     [push!(available_fields, subb) for subb in keys(bindings)]
     JS.is_identifier(src) && push!(available_fields, :name)
     JS.is_literal(src) && push!(available_fields, :value)
+    if kind(src) === K"macrocall"
+        push!(available_fields, :name)
+        push!(available_fields, :args)
+    end
     # Check for node-specific field access.
+    if kind(src) === K"macrocall"
+        name === :name && return string(src.children[1].val)
+        name === :args && return src.children[2:end]
+    end
     if name === :value
         JS.is_literal(src) && return src.val
         kind(src) === K"string" && return src.children[1].val
@@ -341,12 +349,12 @@ function Base.getproperty(b::AbstractBinding, name::Symbol)
     end
     if name === :name
         JS.is_identifier(src) && return string(src.val)
-        # Only identifiers have a `name` field.
+        # Only identifiers and macro calls have a `name` field.
         throw(BindingFieldError(b,
                                 :name,
                                 available_fields,
                                 internal_fields,
-                                "the bound expression is not an identifier"))
+                                "the bound expression is not an identifier or a macro call"))
     end
     return get(bindings, name) do
         throw(BindingFieldError(b,

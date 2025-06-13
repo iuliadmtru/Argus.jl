@@ -292,4 +292,15 @@ function _register_syntax_classes()
         @pattern function ({call:::funcall}) {body}... end
         @pattern ~fail(true, "not a function definition")
     end
+
+    # `macrocall`: match a macro call.
+    @define_syntax_class :macrocall "macro call" begin
+        @pattern begin
+            {mcall}
+            @fail begin
+                using JuliaSyntax: kind, Kind
+                kind(mcall.src) !== Kind("macrocall")
+            end "not a macro call"
+        end
+    end
 end
