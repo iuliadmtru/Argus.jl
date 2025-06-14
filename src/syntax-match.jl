@@ -208,10 +208,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
         # If there is a match, return it.
         return match_result
     end
-    # Regular syntax.
-    if head(pattern) != head(src)           ||
-        pattern.data.val != src.data.val    ||
-        xor(is_leaf(pattern), is_leaf(src))
+    if !compatible(pattern, src; recurse=false)
         return recover!(recovery_stack,
                         _syntax_match,
                         recover;
@@ -802,18 +799,22 @@ recover!(recovery_stack::AbstractVector,
     from(pop!(recovery_stack)...; recovery_stack, kwargs...)
 
 """
-    compatible(ex1::JS.SyntaxNode, ex2::JS.SyntaxNode)
+    compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
+               ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
 
-Determine whether two `JuliaSyntax.SyntaxNode`s are compatible with each other. Compatible
-nodes have the same head, value and number of children and all their children are `==` to
-each other one by one.
+Determine whether two nodes are compatible with each other. Compatible nodes have the same
+head, value and number of children and all their children are `==` to each other one by one.
 """
-function compatible(ex1::JS.SyntaxNode, ex2::JS.SyntaxNode)
+function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
+                    ex2::Union{JS.SyntaxNode, SyntaxPatternNode};
+                    recurse=true)
     head(ex1) == head(ex2) || return false
     ex1.data.val == ex2.data.val || return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false
     is_leaf(ex1) && return true
-    return all(map(p -> compatible(p[1], p[2]), zip(children(ex1), children(ex2))))
+    return recurse ?
+        all(map(p -> compatible(p[1], p[2]), zip(children(ex1), children(ex2)))) :
+        true
 end
 
 """
