@@ -128,6 +128,48 @@
             @test length(one2[2].src) == 1
             @test length(one2[1].src) == 2
         end
+        let
+            rule = @rule "test no ellipses children" begin
+                description = ""
+                pattern = @pattern begin
+                    f()
+                    begin
+                        {a1}...
+                        a
+                        {a2}...
+                    end
+                end
+            end
+            src = """
+                  f()
+                  begin
+                      a
+                      a
+                      a
+                  end
+                  """;
+            @test length(rule_match(rule, parseall(SyntaxNode, src)).matches) == 3
+        end
+        let
+            rule = @rule "test no ellipses children 2" begin
+                description = ""
+                pattern = @pattern begin
+                    function f()
+                        {a1}...
+                        a
+                        {a2}...
+                    end
+                end
+            end
+            src = """
+                  function f()
+                      a
+                      a
+                      a
+                  end
+                  """;
+            @test length(rule_match(rule, parseall(SyntaxNode, src)).matches) == 3
+        end
     end
 
 end
