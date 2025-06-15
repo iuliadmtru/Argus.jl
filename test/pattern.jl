@@ -315,6 +315,45 @@
                     @test syntax_match(pattern, src) == MatchFail()
                 end
             end
+            let
+                pattern = @pattern begin
+                    function {f:::identifier}()
+                        {_}...
+                        a
+                    end
+                    @fail false ""
+                end
+                src = """
+                      function f()
+                          a
+                          a
+                          a
+                      end
+                      """
+                match_result =
+                    syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
+                @test isa(match_result, BindingSet)
+                @test length(match_result) == 1
+            end
+            let
+                pattern = @pattern begin
+                    function {f:::identifier}()
+                        {_}...
+                        a
+                    end
+                    @fail true "fail"
+                end
+                src = """
+                      function f()
+                          a
+                          a
+                          a
+                      end
+                      """
+                match_result =
+                    syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
+                @test match_result == MatchFail("fail")
+            end
         end
     end
 end

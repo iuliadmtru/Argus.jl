@@ -154,11 +154,15 @@
             rule = @rule "test no ellipses children 2" begin
                 description = ""
                 pattern = @pattern begin
-                    function f()
+                    function {f:::identifier}()
                         {a1}...
                         a
                         {a2}...
                     end
+                    @fail begin
+                        println("Function name: ", f.name)
+                        false
+                    end ""
                 end
             end
             src = """
@@ -168,7 +172,13 @@
                       a
                   end
                   """;
-            @test length(rule_match(rule, parseall(SyntaxNode, src)).matches) == 3
+            original_stdout = stdout
+            (read_pipe, write_pipe) = redirect_stdout()
+            match_result = rule_match(rule, parseall(SyntaxNode, src))
+            redirect_stdout(original_stdout)
+            close(write_pipe)
+            @test length(match_result.matches) == 3
+            @test readline(read_pipe) == "Function name: f"
         end
     end
 

@@ -50,12 +50,7 @@ end
     """
 
     pattern = @pattern begin
-        ~or(
-            open({x}, {_}...) do
-                {_}...
-            end,
-            open({x}, {_}...)
-        )
+        open({x}, {_}...)
         @fail match(r"^/tmp/.*", x.value) === nothing "path not /tmp/.*"
     end
 end
