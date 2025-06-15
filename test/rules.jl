@@ -54,9 +54,20 @@
                 src = "const a = b"
                 match_result =
                     rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
-                @test length(match_result.failures) == 4
+                @test length(match_result.failures) == 0
                 @test isempty(match_result.matches)
             end
+        end
+        let
+            rule = @rule "failures test" begin
+                description = ""
+                pattern = @pattern {_:::identifier}
+            end
+            match_result = rule_match(rule, parsestmt(SyntaxNode, "a = 2"); only_matches=false)
+            @test length(match_result.matches) == 1
+            @test length(match_result.failures) == 2
+            @test match_result.failures[1] == match_result.failures[2] ==
+                MatchFail("not an identifier")
         end
         let
             rule = @rule "" begin
@@ -141,13 +152,13 @@
                 end
             end
             src = """
-                  f()
-                  begin
-                      a
-                      a
-                      a
-                  end
-                  """;
+            f()
+            begin
+                a
+                a
+                a
+            end
+            """;
             @test length(rule_match(rule, parseall(SyntaxNode, src)).matches) == 3
         end
         let

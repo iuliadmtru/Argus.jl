@@ -22,6 +22,18 @@ reason, or a `BindingSet` with all the pattern variables bound during the match.
 """
 const MatchResult = Union{MatchFail, BindingSet}
 
+"""
+    MatchResults
+
+The result of a match that gathers all results. It contains a vector of `BindingSet`s and a
+vector of `MatchFail`s containing all non-trivial match failures.
+"""
+struct MatchResults
+    matches::Vector{BindingSet}
+    failures::Vector{MatchFail}
+end
+MatchResults() = MatchResults([], [])
+
 # Syntax matching
 # ===============
 
@@ -481,13 +493,24 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     end
 end
 
+"""
+    syntax_match_all(pattern_node::SyntaxPatternNode,
+                     src::JS.SyntaxNode,
+                     bindings::BindingSet=BindingSet();
+                     greedy=true,
+                     only_matches=true)
+
+Try to match a pattern node against a source node. Return all successful matches. If
+`only_matches` is `false` return the non-trivial failures as well.
+"""
 function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet=BindingSet();
                           greedy=true,
-                          only_matches=true)
-    # @info "match all" pattern_node src bindings
-    match_result_all = RuleMatchResult()
+                          only_matches=true)::MatchResults
+    bindings = BindingSet()
+    match_result_all = MatchResults()
+    # TODO: Rewrite this in a more generalised way, if possible.
     if is_toplevel(pattern_node) && (kind(src) == K"block" || kind(src) == K"toplevel")
         # Both the pattern and the source are series of expressions. Match the pattern's
         # expressions sequence with all the sub-sequences in the source.
@@ -500,6 +523,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                                          bindings;
                                                          recovery_stack,
                                                          greedy)
+                push_match_result!(match_result_all, partial_result; only_matches)
                 # If there are recovery paths, try them all and store the results.
                 while !isempty(recovery_stack)
                     partial_recovered_result, _ = recover!(recovery_stack,
@@ -510,7 +534,6 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                        partial_recovered_result;
                                        only_matches)
                 end
-                push_match_result!(match_result_all, partial_result; only_matches)
                 srcs = rest(srcs)
             end
             # Recurse on source children, if any.
@@ -524,69 +547,23 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             return match_result_all
         else
             # The pattern doesn't have repetitions and it has the same number of children as
-            # the source. Gather all the matching possibilities of their children and
-            # combine the result.
-            return match_and_combine_children!(match_result_all,
-                                               pattern_node,
-                                               src,
-                                               bindings;
-                                               greedy,
-                                               only_matches)
+            # the source. Exhaust al the possibly matching paths.
+            return match_and_recover!(match_result_all,
+                                      pattern_node,
+                                      src,
+                                      bindings;
+                                      greedy,
+                                      only_matches)
         end
-    elseif kind(src) === K"toplevel"
-        for c in children(src)
-            match_result = syntax_match_all(pattern_node, c, bindings; greedy, only_matches)
-            append!(match_result_all.failures, match_result.failures)
-            append!(match_result_all.matches, match_result.matches)
-        end
-        return match_result_all
     else
         # The pattern and the source are simple expressions. Exhaust all the possibly
         # matching paths.
-        recovery_stack = []
-        if _is_leaf(pattern_node)
-            # If the pattern node has no children, we can try to match it with the source
-            # node without recursing on the source node's children.
-            return match_and_recover!(match_result_all,
-                                      pattern_node,
-                                      src,
-                                      bindings;
-                                      greedy,
-                                      only_matches,
-                                      recurse=false)
-        elseif !has_reps(pattern_node)
-            # If the pattern doesn't have ellipsis nodes among its children, we need to get
-            # all the possibilities for each child and combine the resulting binding sets
-            # into a cartesian product.
-            compatible(pattern_node, src; recurse=false) &&
-                # If the pattern node and source node are compatible, gather all the results
-                # from matching their children.
-                return match_and_combine_children!(match_result_all,
-                                                   pattern_node,
-                                                   src,
-                                                   bindings;
-                                                   greedy,
-                                                   only_matches)
-            # If they are not compatible there can be no
-            # match at this depth. Continue with the source node's children.
-            return match_and_recover!(match_result_all,
-                                      pattern_node,
-                                      src,
-                                      bindings;
-                                      greedy,
-                                      only_matches,
-                                      recurse=true)
-        else
-            # If the pattern is not a leaf and it has repetitions, try to match it and
-            # continue with the source's children.
-            return match_and_recover!(match_result_all,
-                                      pattern_node,
-                                      src,
-                                      bindings;
-                                      greedy,
-                                      only_matches,
-                                      recurse=true)
-        end
+        return match_and_recover!(match_result_all,
+                                  pattern_node,
+                                  src,
+                                  bindings;
+                                  greedy,
+                                  only_matches)
     end
 end
 
@@ -779,11 +756,9 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           recovery_stack=[],
                           greedy=true,
                           tmp=false)
-    @info "match and" and_node src bindings recovery_stack
     and_node = deepcopy(and_node)
     bindings::BindingSet = deepcopy(bindings)
     for (i, p) in enumerate(children(and_node))
-        @info "and branch $i" p src recovery_stack
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
         # branch failures inside the `~and`.
         branch_recovery_stack = []
@@ -820,7 +795,6 @@ function syntax_match_and(and_node::SyntaxPatternNode,
         end
         bindings = match_result
     end
-    @info "finished and" and_node src bindings recovery_stack
     # Return the successful match or try another path in case of failure.
     isa(bindings, MatchFail) && return recover!(recovery_stack,
                                                 syntax_match_and;
@@ -915,7 +889,10 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
             # If the pattern variable is already bound, we need to add the new binding to
             # its binding list.
             b = bindings[var_name]
-            !isa(b, TemporaryBinding) && return MatchFail("repetition pattern variable already bound")
+            # Don't allow the usage of repetition pattern variables outside the repetition
+            # context.
+            !isa(b, TemporaryBinding) &&
+                return MatchFail("repetition pattern variable used in a different context")
             b_src = b.src
             push!(b_src, var_binding.src)
             b_bindings = b.bindings
@@ -971,6 +948,8 @@ end
 is_anonymous_pattern_variable(ex) = ex === :_
 is_exported_pattern_variable(ex) = !startswith(string(ex), "_")
 
+# Match utils
+
 """
     recover!(recovery_stack::AbstractVector,
              from::Function,
@@ -995,14 +974,19 @@ end
 """
     compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+    compatible(exs1::AbstractVector, exs2::AbstractVector)
 
-Determine whether two nodes are compatible with each other. Compatible nodes have the same
-head, value and number of children and all their children are `==` to each other one by one.
+Determine whether two bound sources are compatible with each other.
+
+Compatible nodes have the same head, value and number of children and all their children
+are compatible with each other one by one.
+
+Compatible source arrays have the same number of elements and all their elements are
+compatible with each other one by one.
 """
 function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                     ex2::Union{JS.SyntaxNode, SyntaxPatternNode};
                     recurse=true)
-    # @info "check compatible" ex1 ex2
     head(ex1) == head(ex2) || return false
     ex1.data.val == ex2.data.val || return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false
@@ -1012,9 +996,7 @@ function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
         true
 end
 function compatible(exs1::AbstractVector, exs2::AbstractVector)
-    # @info "check compatible" exs1 exs2
     length(exs1) != length(exs2) && return false
-    # any(isempty.([exs1, exs2])) && return true
     return compatible(exs1[1], exs2[1])
 end
 
@@ -1206,3 +1188,169 @@ empty_vec(type, depth::Int) = depth == 0      ?
     error("Can't create vector with 0 depth") :
     vec_type(type, depth)()
 vec_type(type, depth::Int) = depth == 1 ? Vector{type} : Vector{vec_type(type, depth - 1)}
+
+# Match all utils
+
+"""
+    push_match_result!(match_all_result::MatchResults,
+                       match_result::MatchResult;
+                       only_matches=true)
+
+Add a match result to a list of match results. If `only_matches` is `true`, don't include
+`MatchFail`s. Otherwise, include non-trivial failures.
+"""
+function push_match_result!(match_all_result::MatchResults,
+                            match_result::MatchResult;
+                            only_matches=true)
+    if isa(match_result, MatchFail)
+        !only_matches && match_result != MatchFail() &&
+            push!(match_all_result.failures, match_result)
+    else
+        push!(match_all_result.matches, make_permanent(match_result))
+    end
+end
+
+"""
+    match_and_recover!(match_all_result::MatchResults,
+                       pattern_node::SyntaxPatternNode,
+                       src::JS.SyntaxNode,
+                       bindings::BindingSet=BindingSet();
+                       greedy,
+                       only_matches,
+                       recurse)
+
+Try to match a pattern node with a source node. Recover in case of failure.
+"""
+function match_and_recover!(match_all_result::MatchResults,
+                            pattern_node::SyntaxPatternNode,
+                            src::JS.SyntaxNode,
+                            bindings::BindingSet=BindingSet();
+                            greedy,
+                            only_matches)
+    recovery_stack = []
+    match_result =
+        _syntax_match(pattern_node, src, bindings; recovery_stack, greedy)
+    push_match_result!(match_all_result, match_result; only_matches)
+    while !isempty(recovery_stack)
+        match_result = recover!(recovery_stack,
+                                _syntax_match;
+                                fail_ret=MatchFail(),
+                                greedy)
+        push_match_result!(match_all_result, match_result; only_matches)
+    end
+    # Recurse on the source's children, if any.
+    is_leaf(src) && return match_all_result
+    for c in children(src)
+        rule_result_child =
+            syntax_match_all(pattern_node, c, bindings; greedy, only_matches)
+        append!(match_all_result.failures, rule_result_child.failures)
+        append!(match_all_result.matches, rule_result_child.matches)
+    end
+    return match_all_result
+end
+
+"""
+    resolve_conflicts_and_combine(st1::AbstractVector, st2::AbstractVector)
+
+Combine two `partial_syntax_match` recovery stacks. The resulting recovery stack is
+constructed (conceptually) in the following way:
+
+  - Create a cartesian product of the states in `st1` and `st2`.
+  - Combine each resulting pair of states into one state by:
+    - concatenating the pattern nodes;
+    - concatenating the source nodes;
+    - merging the binding sets, if possible.
+  - Remove all resulting states where the binding set merging was not possible (there were
+    conflicting bindings).
+"""
+function resolve_conflicts_and_combine(st1::AbstractVector, st2::AbstractVector)
+    final_st = []
+    for (ps1, ss1, bs1) in st1
+        final_bs = BindingSet()
+        conflicting = false
+        for (ps2, ss2, bs2) in st2
+            conflicting && break
+            for (bname1, b1) in bs1
+                conflicting && break
+                isa(b1, TemporaryBinding) && continue
+                for (bname2, b2) in bs2
+                    conflicting && break
+                    isa(b2, TemporaryBinding) && continue
+                    if bname1 === bname2
+                        if !compatible(b1.src, b2.src)
+                            conflicting = true
+                            break
+                        end
+                    end
+                    final_bs[bname1] = b1
+                    final_bs[bname2] = b2
+                end
+            end
+            if !conflicting
+                push!(final_st, (union(ps1, ps2), union(ss1, ss2), deepcopy(final_bs)))
+            end
+        end
+    end
+
+    return final_st
+end
+
+"""
+    has_reps(pattern::SyntaxPatternNode)
+
+Return `true` if the pattern has any `~rep` nodes among its children and `false` otherwise.
+"""
+function has_reps(pattern::SyntaxPatternNode)
+    kind(pattern) === K"~and" && kind(pattern.children[1]) === K"toplevel" &&
+        return has_reps(pattern.children)
+    is_leaf(pattern) && return false
+    for p in children(pattern)
+        is_rep(p) && return true
+    end
+    return false
+end
+
+# Display
+
+Base.summary(io::IO, res::MatchResults) =
+    print(io,
+          "MatchResults with $(length(res.matches)) matches ",
+          "and $(length(res.failures)) failures")
+
+function Base.show(io::IO, ::MIME"text/plain", res::MatchResults)
+    summary(io, res)
+    matches = res.matches
+    fails = res.failures
+    isempty(matches) && isempty(fails) && return nothing
+    print(io, ":")
+    if !isempty(matches)
+        println(io)
+        print(io, "Matches:")
+        for m in matches
+            println(io)
+            print(io, "  ")
+            show(io, m)
+        end
+    end
+    if !isempty(fails)
+        shorten = length(fails) > 10
+        println(io)
+        print(io, "Failures:")
+        short_fails = fails[1:end-1]
+        if shorten
+            short_fails = fails[1:3]
+        end
+        for f in short_fails
+            println(io)
+            print(io, "  ")
+            show(io, f)
+        end
+        # Show the last one.
+        println(io)
+        if shorten
+            println(io, "  .\n  .\n  .")
+        end
+        print(io, "  ")
+        show(io, fails[end])
+    end
+end

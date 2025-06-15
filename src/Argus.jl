@@ -17,7 +17,7 @@ export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class, SyntaxE
 export SyntaxClassRegistry, @define_syntax_class, @define_syntax_class_in_registry,
     register_syntax_class!, SyntaxClassRegistryKeyError
 export Binding, BindingSet, BindingFieldError, BindingSetKeyError, MatchFail, MatchError
-export syntax_match, partial_syntax_match
+export syntax_match, partial_syntax_match, syntax_match_all, MatchResults
 
 include("syntax-pattern-node.jl")
 include("pattern.jl")
@@ -29,7 +29,7 @@ include("syntax-match.jl")
 # ==============================
 
 export Rule, @rule, RuleGroup, @define_rule_in_group, register_rule!
-export RuleMatchResult, rule_match, RuleGroupMatchResult, rule_group_match
+export rule_match, rule_group_match, RuleGroupMatchResult
 
 include("rules.jl")
 
