@@ -326,7 +326,7 @@ BindingSet with 2 entries:
 This is useful if we expect a non-greedy approach to be more efficient
 in a particular case.
 
-Argus highjacks Julia's [splat
+Argus hijacks Julia's [splat
 operator](https://docs.julialang.org/en/v1/base/base/#...). If we want
 to use `...` with the regular splat meaning, we need to escape it:
 
@@ -382,8 +382,8 @@ them in patterns. Let's write a syntax class for vectors:
 
 ```julia
 julia> vec = @syntax_class "vector" begin
-    @pattern [{_}...]
-end
+           @pattern [{_}...]
+       end
 ```
 
 Syntax class bodies consist of a sequence of patterns. The match
@@ -625,7 +625,7 @@ julia> src = """
        """;
 
 julia> match_result = rule_match(assignments, parseall(SyntaxNode, src))
-RuleMatchResult with 3 matches and 0 failures:
+MatchResults with 3 matches and 0 failures:
 Matches:
   BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
   BindingSet(:a => Binding(:a, (= y (call-i x + 1)) @ 2:1, BindingSet(:rhs => Binding(:rhs, (call-i x + 1) @ 2:5, BindingSet()), :lhs => Binding(:lhs, y @ 2:1, BindingSet(:_id => Binding(:_id, y @ 2:1, BindingSet()))))))
@@ -652,45 +652,45 @@ julia> lit_assignments = @rule "assignments" begin
        end;
 
 julia> match_result = rule_match(lit_assignments, parseall(SyntaxNode, src))
-RuleMatchResult with 2 matches and 0 failures:
+MatchResults with 2 matches and 0 failures:
 Matches:
   BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
   BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet(:_id => Binding(:_id, z @ 4:5, BindingSet()))))))
 ```
 
-`rule_match` can keep track of all failed matches as well by setting
-the `only_matches` keyword argument to `false`. This can be useful for
-debugging a rule.
+`rule_match` can keep track of all non-trivial failed matches as well
+by setting the `only_matches` keyword argument to `false`. This can be
+useful for debugging a rule.
 
 ```julia
 julia> rule_match(lit_assignments, parseall(SyntaxNode, src); only_matches=false).failures
 21-element Vector{MatchFail}:
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
  MatchFail("rhs not a literal")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
- MatchFail("no match")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
+ MatchFail("not an assignment")
 ```
 
 At least it would be useful if the failure would contain other
-information such as the source location of the failure... This is plan
-for the future :).
+information such as the source location of the failure... This is in
+plan for the future :).
 
 Sometimes it is useful to group rules by category. We can define a
 rule group and store rules inside it:
@@ -721,7 +721,7 @@ julia> @define_rule_in_group style_rules "lowercase-const" begin
 
            pattern = @pattern begin
                const {x:::identifier} = {_}
-               @fail !all(isuppercase, x.name) "`const` variable has lowercase characters"
+               @fail all(isuppercase, x.name) "`const` variable with all-uppercase name"
            end
        end;
 ```
@@ -737,10 +737,10 @@ julia> write(f, """
        const OK = true
        """);
 
-julia> rule_group_match(style_rules, f)
- with 2 entries:
-  "useless-equals"  => RuleMatchResult(BindingSet[BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet()))], MatchFail[])
-  "lowercase-const" => RuleMatchResult(BindingSet[BindingSet(:c=>Binding(:c, OK @ 3:7, BindingSet(:_id => Binding(:_id, OK @ 3:7, BindingSet()))))], MatchFail[])
+julia> rule_group_match(style_rules, f; only_matches=false)
+Dict{String, MatchResults} with 2 entries:
+  "useless-equals"  => MatchResults(BindingSet[BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet()))], MatchFail[])
+  "lowercase-const" => MatchResults(BindingSet[BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet(:_id => Binding(:_id, low @ 2:7, BindingSet()))))], MatchFail[MatchFail("`const` variable with all-uppercas…
 ```
 
 ## Notes
