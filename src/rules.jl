@@ -280,97 +280,7 @@ the source node, up to the leafs. Matching is greedy by default.
 function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true)
     rule_result = RuleMatchResult()
     pattern_node = rule.pattern.src
-    if is_toplevel(rule.pattern) && (kind(src) == K"block" || kind(src) == K"toplevel")
-        # Both the pattern and the source are series of expressions. Match the pattern's
-        # expressions sequence with all the sub-sequences in the source.
-        if has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
-            srcs = children(src)
-            while !isempty(srcs)
-                recovery_stack = []
-                partial_result, _ = partial_syntax_match(children(rule.pattern),
-                                                         srcs;
-                                                         recovery_stack,
-                                                         greedy)
-                # If there are recovery paths, try them all and store the results.
-                while !isempty(recovery_stack)
-                    partial_recovered_result, _ = recover!(recovery_stack,
-                                                           partial_syntax_match,
-                                                           true;
-                                                           fail_ret=MatchFail(),
-                                                           greedy)
-                    push_match_result!(rule_result, partial_recovered_result; only_matches)
-                end
-                push_match_result!(rule_result, partial_result; only_matches)
-                srcs = rest(srcs)
-            end
-            # Recurse on source children, if any.
-            is_leaf(src) && return rule_result
-            for c in children(src)
-                rule_result_child = rule_match(rule, c; greedy, only_matches)
-                append!(rule_result.failures, rule_result_child.failures)
-                append!(rule_result.matches, rule_result_child.matches)
-            end
-            return rule_result
-        else
-            # The pattern doesn't have repetitions and it has the same number of children as
-            # the source. Gather all the matching possibilities of their children and
-            # combine the result.
-            return match_and_combine_children(rule_result,
-                                              rule,
-                                              pattern_node,
-                                              src,
-                                              greedy,
-                                              only_matches)
-        end
-    else
-        # The pattern and the source are simple expressions. Exhaust all the possibly
-        # matching paths.
-        recovery_stack = []
-        if _is_leaf(pattern_node)
-            # If the pattern node has no children, we can try to match it with the source
-            # node without recursing on the source node's children.
-            match_result = _syntax_match(rule.pattern.src, src; recovery_stack, greedy)
-            push_match_result!(rule_result, match_result; only_matches)
-            while !isempty(recovery_stack)
-                match_result = recover!(recovery_stack,
-                                        _syntax_match,
-                                        true;
-                                        fail_ret=MatchFail(),
-                                        greedy)
-                push_match_result!(rule_result, match_result; only_matches)
-            end
-            return rule_result
-        elseif !has_reps(pattern_node)
-            # If the pattern doesn't have ellipsis nodes among its children, we need to get
-            # all the possibilities for each child and combine the resulting binding sets
-            # into a cartesian product.
-            !compatible(pattern_node, src; recurse=false) &&
-                # If the pattern node and source node are not compatible there can be no
-                # match at this depth. Continue with the source node's children.
-                return match_and_recover!(rule_result,
-                                          rule,
-                                          src,
-                                          greedy,
-                                          only_matches;
-                                          recurse=true)
-            # If they are compatible, gather all the results from matching their children.
-            return match_and_combine_children(rule_result,
-                                              rule,
-                                              pattern_node,
-                                              src,
-                                              greedy,
-                                              only_matches)
-        else
-            # If the pattern is not a leaf and it has repetitions, try to match it and
-            # continue with the source's children.
-            return match_and_recover!(rule_result,
-                                      rule,
-                                      src,
-                                      greedy,
-                                      only_matches;
-                                      recurse=true)
-        end
-    end
+    return syntax_match_all(pattern_node, src; greedy, only_matches)
 end
 function rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
     src_txt = read(filename, String)
@@ -426,6 +336,9 @@ function push_match_result!(rule_result::RuleMatchResult,
 end
 
 function has_reps(pattern::SyntaxPatternNode)
+    kind(pattern) === K"~and" && kind(pattern.children[1]) === K"toplevel" &&
+        return has_reps(pattern.children)
+    is_leaf(pattern) && return false
     for p in children(pattern)
         is_rep(p) && return true
     end
@@ -512,8 +425,9 @@ function resolve_conflicts_and_merge(matches::Vector{<:Tuple{Vararg{BindingSet}}
             conflicting && break
             for (b_name, b) in bs
                 if haskey(final_bs, b_name)
-                    b = final_bs[b_name]
-                    if compatible(b.src, b.src)
+                    final_b = final_bs[b_name]
+                    # @info "before compatible check" b
+                    if compatible(final_b.src, b.src)
                         final_bs[b_name] = b
                         continue
                     else
@@ -532,20 +446,86 @@ function resolve_conflicts_and_merge(matches::Vector{<:Tuple{Vararg{BindingSet}}
     return final_matches
 end
 
+function resolve_conflicts_and_combine(st1::AbstractVector,
+                                       st2::AbstractVector)
+    @info "resolve and combine" st1 st2
+    final_st = []
+    for (ps1, ss1, bs1) in st1
+        final_bs = BindingSet()
+        conflicting = false
+        for (ps2, ss2, bs2) in st2
+            conflicting && break
+            for (bname1, b1) in bs1
+                conflicting && break
+                isa(b1, TemporaryBinding) && continue
+                for (bname2, b2) in bs2
+                    conflicting && break
+                    isa(b2, TemporaryBinding) && continue
+                    if bname1 === bname2
+                        if !compatible(b1.src, b2.src)
+                            conflicting = true
+                            break
+                        end
+                    end
+                    final_bs[bname1] = b1
+                    final_bs[bname2] = b2
+                end
+            end
+            if !conflicting
+                push!(final_st, (union(ps1, ps2), union(ss1, ss2), deepcopy(final_bs)))
+            end
+        end
+    end
+
+    return final_st
+end
+
+
+
+
+
+                    
+#                     # If a binding from `bs2` already exists in `bs1` check for compatibility.
+#                     if haskey(final_bs, bname2)
+#                         if !compatible(final_bs[bname2].src, b2.src)
+#                             @info "not compatible" final_bs[bname2] b2
+#                             conflicting = true
+#                             break
+#                         end
+#                         final_bs[bname2] = b2
+#                     else
+#                         final_bs[bname2] = Binding(:bla, [], [], b2.ellipsis_depth)
+#                     end
+#                 end
+#                 # @info "conflict?" conflicting
+#                 if !conflicting
+#                     # @info "no conflicts, add to final st" (union(ps1, ps2), union(ss1, ss2), bs1)
+#                     push!(final_st, (union(ps1, ps2), union(ss1, ss2), deepcopy(final_bs)))
+#                 end
+#             end
+#         end
+#     end
+
+#     # @info "returning combined" final_st
+#     return final_st
+# end
+
 function match_and_recover!(rule_result::RuleMatchResult,
-                            rule::Rule,
+                            pattern_node::SyntaxPatternNode,
                             src::JS.SyntaxNode,
+                            bindings::BindingSet=BindingSet();
                             greedy,
-                            only_matches;
+                            only_matches,
                             recurse)
     recovery_stack = []
+    # @info "match and recover" pattern_node src
     match_result =
-        _syntax_match(rule.pattern.src, src; recovery_stack, greedy)
+        _syntax_match(pattern_node, src, bindings; recovery_stack, greedy)
+    # @info "result" recovery_stack
     push_match_result!(rule_result, match_result; only_matches)
     while !isempty(recovery_stack)
         match_result = recover!(recovery_stack,
-                                _syntax_match,
-                                true;
+                                _syntax_match;
                                 fail_ret=MatchFail(),
                                 greedy)
         push_match_result!(rule_result, match_result; only_matches)
@@ -553,7 +533,8 @@ function match_and_recover!(rule_result::RuleMatchResult,
     if recurse
         is_leaf(src) && return rule_result
         for c in children(src)
-            rule_result_child = rule_match(rule, c; greedy, only_matches)
+            rule_result_child =
+                syntax_match_all(pattern_node, c, bindings; greedy, only_matches)
             append!(rule_result.failures, rule_result_child.failures)
             append!(rule_result.matches, rule_result_child.matches)
         end
@@ -562,12 +543,11 @@ function match_and_recover!(rule_result::RuleMatchResult,
 end
 
 """
-    match_and_combine_children(rule_result::RuleMatchResult,
-                               rule::Rule,
-                               pattern_node::SyntaxPatternNode,
-                               src::JS.SyntaxNode,
-                               greedy,
-                               only_matches)
+    match_and_combine_children!(rule_result::RuleMatchResult,
+                                pattern_node::SyntaxPatternNode,
+                                src::JS.SyntaxNode,
+                                greedy,
+                                only_matches)
 
 Match all the children of `pattern_node` against the children of `src`, keeping track of all
 matching possibilities. Combine the resulting matches into a cartesian product. For each
@@ -580,8 +560,6 @@ resulting `BindingSet` pair, merge the `BindingSet`s into one (see
 # ========
 
 ```
-julia> rule = Rule("", "", Pattern(SyntaxPatternNode(:( dummy ))));
-
 julia> rule_result = RuleMatchResult();
 
 julia> pattern_node = SyntaxPatternNode(:(
@@ -600,7 +578,7 @@ julia> src = parsestmt(SyntaxNode, \"""
                                    end
                                    \""");
 
-julia> Argus.match_and_combine_children(rule_result, rule, pattern_node, src, true, true)
+julia> Argus.match_and_combine_children!(rule_result, pattern_node, src, true, true)
 RuleMatchResult with 3 matches and 0 failures:
 Matches:
   BindingSet(:ex => Binding(:ex, ex3 @ 4:5, BindingSet()))
@@ -608,26 +586,26 @@ Matches:
   BindingSet(:ex => Binding(:ex, ex1 @ 2:5, BindingSet()))
 ```
 """
-function match_and_combine_children(rule_result::RuleMatchResult,
-                                    rule::Rule,
-                                    pattern_node::SyntaxPatternNode,
-                                    src::JS.SyntaxNode,
-                                    greedy,
-                                    only_matches)
+function match_and_combine_children!(rule_result::RuleMatchResult,
+                                     pattern_node::SyntaxPatternNode,
+                                     src::JS.SyntaxNode,
+                                     bindings::BindingSet=BindingSet();
+                                     greedy,
+                                     only_matches)
     zipped_children = zip(children(pattern_node), children(src))
     children_matches = []
     for (pattern_c, pattern_s) in zipped_children
-        rule_c = Rule("", "", Pattern(pattern_c))
-        matches_c = rule_match(rule_c, pattern_s; greedy, only_matches).matches
+        matches_c = syntax_match_all(pattern_c, pattern_s, bindings; greedy, only_matches).matches
         isempty(matches_c) &&
             # If a pattern's child node and the corresponding source child node
             # don't match there can be no match at this depth. Continue with the
             # source node's children.
             return match_and_recover!(rule_result,
-                                      rule,
+                                      pattern_node,
                                       src,
+                                      bindings;
                                       greedy,
-                                      only_matches;
+                                      only_matches,
                                       recurse=true)
         push!(children_matches, matches_c)
     end
