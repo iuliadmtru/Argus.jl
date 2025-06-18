@@ -354,6 +354,29 @@
                     syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
                 @test match_result == MatchFail("fail")
             end
+            let
+                pattern = @pattern begin
+                    ~and(
+                        function {f:::identifier}({args}...)
+                            {_}...
+                        end,
+                        function {f}({args}...)
+                            {_}...
+                            a
+                            {_}...
+                        end
+                    )
+                end
+                src = """
+                      function f(x)
+                          a
+                          a
+                          a
+                      end
+                      """
+                match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
+                @test length(match_result[:args].src) == 1
+            end
         end
     end
 end

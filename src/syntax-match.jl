@@ -996,6 +996,7 @@ function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
 end
 function compatible(exs1::AbstractVector, exs2::AbstractVector)
     length(exs1) != length(exs2) && return false
+    isempty(exs1) && return true
     return compatible(exs1[1], exs2[1])
 end
 
