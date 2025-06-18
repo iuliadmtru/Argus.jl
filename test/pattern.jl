@@ -239,7 +239,7 @@
                 fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
                 @test fail_name == MatchFail("not x")
                 fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
-                @test fail_inner == MatchFail("not an identifier")
+                @test fail_inner == MatchFail("expected identifier")
                 fail = syntax_match(is_x, parsestmt(SyntaxNode, "2"))
                 @test fail == MatchFail("no match")
             end

@@ -32,7 +32,7 @@
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
         @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) ==
-            MatchFail("not an assignment")
+            MatchFail("expected assignment")
         @test syntax_match(pattern, parsestmt(SyntaxNode, "x = 2")) ==
             MatchFail("rhs is two")
         field_err = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))

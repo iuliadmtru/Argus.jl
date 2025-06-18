@@ -49,7 +49,6 @@ fundef = @syntax_class "function definition" begin
     @pattern function ({call:::funcall})
         {body}...
     end
-    @pattern ~fail(:true, "not a function definition")
 end
 ```
 
@@ -457,28 +456,12 @@ Argus's built-in implementation of the `vec` syntax class uses
 ```julia
 julia> @define_syntax_class :vec "vector" begin
            @pattern [{_}...]
-           @pattern ~fail(true, "not a vector")
        end
 SyntaxClass: vector
   Pattern alternative #1:
     [vect]
       [~rep]
         _:::expr                         :: ~var
-  Pattern alternative #2:
-    [~fail]
-      true                               :: Bool
-      "not a vector"                     :: String
-```
-
-This implementation is longer than ours, but it has the advantage that
-it can return a more specific failure message:
-
-```julia
-julia> syntax_match(vec_of_vecs2, parsestmt(SyntaxNode, "a"))
-MatchFail("no match")
-
-julia> syntax_match((@pattern {v:::vec}), parsestmt(SyntaxNode, "a"))
-MatchFail("not a vector")
 ```
 
 #### Pattern forms
@@ -665,27 +648,27 @@ useful for debugging a rule.
 ```julia
 julia> rule_match(lit_assignments, parseall(SyntaxNode, src); only_matches=false).failures
 21-element Vector{MatchFail}:
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
  MatchFail("rhs not a literal")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
- MatchFail("not an assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
+ MatchFail("expected assignment")
 ```
 
 At least it would be useful if the failure would contain other

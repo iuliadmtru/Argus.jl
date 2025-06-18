@@ -7,7 +7,7 @@
             @test isa(match, BindingSet)
             @test isempty(match)
             no_match = syntax_match(vec, parsestmt(SyntaxNode, "a"))
-            @test no_match == MatchFail("not a vector")
+            @test no_match == MatchFail("expected vector")
         end
         let
             fundef = Argus.SYNTAX_CLASS_REGISTRY[:fundef]
@@ -32,7 +32,7 @@
             @test map(s -> source_location(s), match_second[:body].src) == [(2, 5), (3, 5)]
 
             no_match = syntax_match(fundef, parsestmt(SyntaxNode, "x"))
-            @test no_match == MatchFail("not a function definition")
+            @test no_match == MatchFail("expected function definition")
         end
         let
             macrocall = Argus.SYNTAX_CLASS_REGISTRY[:macrocall]

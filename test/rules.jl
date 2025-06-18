@@ -67,7 +67,7 @@
             @test length(match_result.matches) == 1
             @test length(match_result.failures) == 2
             @test match_result.failures[1] == match_result.failures[2] ==
-                MatchFail("not an identifier")
+                MatchFail("expected identifier")
         end
         let
             rule = @rule "" begin

@@ -245,7 +245,7 @@ function _register_syntax_classes()
             @fail begin
                 using JuliaSyntax: is_identifier
                 !is_identifier(_id.src)
-            end "not an identifier"
+            end ""
         end
     end
 
@@ -256,41 +256,37 @@ function _register_syntax_classes()
             @fail begin
                 using JuliaSyntax: is_literal
                 !is_literal(_lit.src)
-            end "not a literal"
+            end ""
         end
     end
 
     # `bool_literal`: match `true` or `false`.
-    @define_syntax_class :bool_literal "`true` or `false`" begin
+    @define_syntax_class :bool_literal "`Bool` literal" begin
         @pattern begin
             {_b:::literal}
-            @fail _b.value != true && _b.value != false "not a `Bool` literal"
+            @fail _b.value != true && _b.value != false ""
         end
     end
 
     # `vec`: match a vector.
     @define_syntax_class :vec "vector" begin
         @pattern [{_}...]
-        @pattern ~fail(true, "not a vector")
     end
 
     # `assign`: match an assignment.
     @define_syntax_class :assign "assignment" begin
         @pattern {lhs:::identifier} = {rhs:::expr}
-        @pattern ~fail(true, "not an assignment")
     end
 
     # `funcall`: match a function call.
     @define_syntax_class :funcall "function call" begin
         @pattern ({fun_name:::identifier})({args}...)
-        @pattern ~fail(true, "not a function call")
     end
 
     # `fundef`: match a function definition.
     @define_syntax_class :fundef "function definition" begin
         @pattern {call:::funcall} = {body}
         @pattern function ({call:::funcall}) {body}... end
-        @pattern ~fail(true, "not a function definition")
     end
 
     # `macrocall`: match a macro call.
@@ -300,7 +296,7 @@ function _register_syntax_classes()
             @fail begin
                 using JuliaSyntax: kind, Kind
                 kind(mcall.src) !== Kind("macrocall")
-            end "not a macro call"
+            end ""
         end
     end
 end

@@ -65,7 +65,7 @@ function syntax_match(syntax_class::SyntaxClass,
         failure = match_result
     end
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
-    return failure
+    return MatchFail("expected " * syntax_class.description)
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JS.SyntaxNode;
