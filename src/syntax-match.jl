@@ -793,7 +793,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
             _and_node.children = SyntaxPatternNode[rec_p, _and_node.children[i+1:end]...]
             push!(recovery_stack, (_and_node, rec_s, rec_bs))
         end
-        bindings = match_result
+        bindings = make_permanent(match_result)
     end
     # Return the successful match or try another path in case of failure.
     isa(bindings, MatchFail) && return recover!(recovery_stack,
@@ -889,10 +889,9 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
             # If the pattern variable is already bound, we need to add the new binding to
             # its binding list.
             b = bindings[var_name]
-            # Don't allow the usage of repetition pattern variables outside the repetition
-            # context.
-            !isa(b, TemporaryBinding) &&
-                return MatchFail("repetition pattern variable used in a different context")
+            # The pattern variable may have already been bound, for example during an `~and`
+            # match.
+            !isa(b, TemporaryBinding) && return bindings
             b_src = b.src
             push!(b_src, var_binding.src)
             b_bindings = b.bindings
