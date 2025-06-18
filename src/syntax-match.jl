@@ -923,7 +923,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
                     TemporaryBinding(var_name,
                                      empty_vec(JS.SyntaxNode, var_depth),
                                      empty_vec(BindingSet, var_depth),
-                                     var.ellipsis_depth)
+                                     var_depth)
             end
         end
         return bindings
@@ -960,13 +960,15 @@ Try to recover from a match failure by calling `from` with the last possible rec
 If there are no recovery states return `fail_ret`.
 """
 function recover!(recovery_stack::AbstractVector,
-         from::Function;
-         recover=true,
-         fail_ret,
-         kwargs...)
+                  from::Function;
+                  recover=true,
+                  popfirst=false,
+                  fail_ret,
+                  kwargs...)
     !isempty(recovery_stack) && recover ||
         return fail_ret
-    recovered_result = from(pop!(recovery_stack)...; recovery_stack, kwargs...)
+    recovery_state = popfirst ? popfirst!(recovery_stack) : pop!(recovery_stack)
+    recovered_result = from(recovery_state...; recovery_stack, kwargs...)
     return isa(recovered_result, MatchFail) ? fail_ret : recovered_result
 end
 
@@ -1235,6 +1237,7 @@ function match_and_recover!(match_all_result::MatchResults,
         match_result = recover!(recovery_stack,
                                 _syntax_match;
                                 fail_ret=MatchFail(),
+                                popfirst=true,
                                 greedy)
         push_match_result!(match_all_result, match_result; only_matches)
     end
