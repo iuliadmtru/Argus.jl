@@ -462,6 +462,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         end
         # In the recovery state of a greedy algortihm, the repetition is finished and the
         # repetition node did not match the current source node.
+        bindings = syntax_match_rep(p, JS.SyntaxNode[], bindings; greedy)
         push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
         # Continue on the preferred path. For a greedy algorithm this means that a
         # repetition node consumes as many source nodes as possible.
