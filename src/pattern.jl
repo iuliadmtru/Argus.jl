@@ -152,7 +152,7 @@ macro pattern(expr)
     err_msg_should_be_fail =
         """
         invalid `@pattern` syntax
-        Pattern expressions and fail conditions cannot be intercalated."""
+        Pattern expressions and fail conditions cannot be interspersed."""
 
     @isexpr(expr, :quote) &&
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
@@ -225,7 +225,7 @@ macro pattern(expr)
             fail_exprs = Expr[]
             for (line_number_idx, fail_macro) in zip(Iterators.countfrom(idx - 1, 2),
                                                      expr.args[idx:2:end])
-                # Pattern expressions and fail conditions cannot be intercalated.
+                # Pattern expressions and fail conditions cannot be interspersed.
                 fail_macro_line_number = expr.args[line_number_idx]
                 is_fail_macro(fail_macro) ||
                     throw(SyntaxError(err_msg_should_be_fail,

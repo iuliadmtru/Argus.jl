@@ -140,7 +140,7 @@
             @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
                 @fail ex.value == 2 "is two"
             end
-            @test_throws "intercalated" @macroexpand @pattern begin
+            @test_throws "interspersed" @macroexpand @pattern begin
                 ex1
                 @fail cond ""
                 ex2
