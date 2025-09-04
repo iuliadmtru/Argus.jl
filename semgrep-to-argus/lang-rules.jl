@@ -129,6 +129,22 @@ end
     end
 end
 
+@define_rule_in_group lang_rules "invalid-module-name" begin
+    description = """
+    Same module name for parent and child modules.
+    """
+
+    pattern = @pattern begin
+        module {x}
+        {_}...
+        module {x}
+        {_}...
+        end
+        {_}...
+        end
+    end
+end
+
 # This doesn't work because the `Expr` representation is different than the
 # `SyntaxNode` one.
 # @define_rule_in_group lang_rules "overload-not-equals" begin

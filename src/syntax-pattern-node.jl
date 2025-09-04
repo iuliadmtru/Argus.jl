@@ -361,6 +361,8 @@ SyntaxPatternNode:
 """
 function parse_pattern_forms(node::JS.SyntaxNode)::SyntaxPatternNode
     is_pattern_form(node) && return _parse_pattern_form(node)
+    # Reparse `~var` module names correctly.
+    node = is_var_module_name(node) ? reparse_module_name(node) : node
     # Parse regular syntax node.
     pattern_data = node.data
     is_leaf(node) && return SyntaxPatternNode(nothing, nothing, pattern_data)
@@ -744,6 +746,48 @@ _strip_quote_node(node::JS.SyntaxNode) =
     kind(node) === K"quote" ? node.children[1] : node
 _strip_string_node(node::JS.SyntaxNode) =
     kind(node) === K"string" ? node.children[1] : node
+
+is_var_module_name(node::JS.SyntaxNode) =
+    kind(node) === K"module"                       &&
+    node.children[1].val === :~                    &&
+    kind(node.children[2].children[1]) === K"call" &&
+    node.children[2].children[1].children[1].val === :var
+function reparse_module_name(node::JS.SyntaxNode)
+    tilda_node = node.children[1]
+    tilda_raw = tilda_node.raw
+    var_node = node.children[2].children[1]
+    var_raw = node.raw.children[4].children[1]
+    module_name_raw = JS.GreenNode(
+        JS.SyntaxHead(K"call", JS.PREFIX_CALL_FLAG),
+        var_raw.span,
+        [var_raw]
+    )
+    module_name_data = JS.SyntaxData(
+        tilda_node.source,
+        module_name_raw,
+        tilda_node.position,
+        nothing
+    )
+    module_name = JS.SyntaxNode(nothing, [tilda_node, var_node], module_name_data)
+
+    block_node = node.children[2]
+    block_node_children =
+        length(block_node.children) == 1 ? JS.SyntaxNode[] : block_node.children[2:end]
+    module_body_raw = JS.GreenNode(
+        head(block_node),
+        block_node.raw.span - var_node.raw.span - 2,
+        block_node.raw.children[2:end]
+    )
+    module_body_data = JS.SyntaxData(
+        block_node.source,
+        module_body_raw,
+        block_node.position + var_raw.span,
+        nothing
+    )
+    module_body = JS.SyntaxNode(node, block_node_children, module_body_data)
+
+    return JS.SyntaxNode(node.parent, [module_name, module_body], node.data)
+end
 
 ### Pass 3 (misparse fix)
 

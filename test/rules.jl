@@ -211,6 +211,7 @@ end
     test_rule_in_group("useless-booleans", lang_rules, dir, 6)
     test_rule_in_group("open-tmp-path", lang_rules, dir, 3)
     test_rule_in_group("rand-bool", lang_rules, dir, 3)
+    test_rule_in_group("invalid-module-name", lang_rules, dir, 1)
 
     rule_group_match_result = rule_group_match(lang_rules, joinpath(dir, "rand-bool.jl"))
     @test length(rule_group_match_result["rand-bool"].matches) == 3
