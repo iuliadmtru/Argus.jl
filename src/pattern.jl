@@ -8,13 +8,16 @@ Syntax pattern used for matching syntax.
 """
 struct Pattern
     src::SyntaxPatternNode
+    substitute::Union{Nothing, SyntaxPatternNode}  # TODO: Specialised struct?
 end
+Pattern(src::SyntaxPatternNode) = Pattern(src, nothing)
 
 """
     @pattern(expr)
 
 Create a [`Pattern`](@ref) from the given expression. Special syntax can be escaped by
-wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro.
+wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro and
+substitutions with `@replace`.
 
 `@esc` usage:
   - `@esc(ex)`       : Escape everything inside `ex`.
@@ -22,6 +25,9 @@ wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` mac
 
 `@fail` usage:
   - `@fail(condition, msg)`: Fail with the message `msg` if `condition` is satisfied.
+
+`@replace` usage:
+  - `@replace(expr)`: Replace the pattern with `expr`.
 
 # Examples
 # ========
@@ -143,6 +149,7 @@ macro pattern(expr)
         |   @pattern begin
         |       <expr>+
         |       (@fail <condition> <message>)*
+        |       (@replace <expr>)?
         |   end
          -- ```"""
     err_msg_should_not_be_fail =
@@ -153,6 +160,14 @@ macro pattern(expr)
         """
         invalid `@pattern` syntax
         Pattern expressions and fail conditions cannot be interspersed."""
+    err_msg_should_not_be_replace =
+        """
+        invalid `@pattern` syntax
+        The first expression cannot be a substitution."""
+    err_msg_replace_should_be_last =
+        """
+        invalid `@pattern` syntax
+        Substitution macros may only appear at the end of a pattern definition."""
 
     @isexpr(expr, :quote) &&
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
@@ -165,16 +180,23 @@ macro pattern(expr)
     pattern_expr =  # The first pattern expression.
         @isexpr(expr, :block) ? expr.args[2] :  # Skip `LineNumberNode`.
         expr
+    substitute_expr = nothing
     # `pattern_expr` is one of the following:
     #   - <atom>  -- from either of the first two `expr` possibilities
     #   - <expr>  -- the first `<expr>` from the third `expr` possibility or
     #                the last `expr` possibility.
     if @isexpr(expr, :block)
         first_expr_line_number = expr.args[1]
-        length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
-            throw(SyntaxError(err_msg_should_not_be_fail,
-                              first_expr_line_number.file,
-                              first_expr_line_number.line))
+        if length(expr.args) >= 2
+            is_fail_macro(expr.args[2]) &&
+                throw(SyntaxError(err_msg_should_not_be_fail,
+                                  first_expr_line_number.file,
+                                  first_expr_line_number.line))
+            is_replace_macro(expr.args[2]) &&
+                throw(SyntaxError(err_msg_should_not_be_replace,
+                                  first_expr_line_number.file,
+                                  first_expr_line_number.line))
+        end
         # The pattern has at least one pattern expression.
         #
         #   ```
@@ -182,11 +204,14 @@ macro pattern(expr)
         #       <pattern_expr>
         #       <pattern_expr>*
         #       (@fail <condition> <msg>)*
+        #       (@replace <expr>)?
         #   end
         #   ```
         idx = 4  # Index of expressions inside the macro body, skipping `LineNumberNode`s.
         toplevel_children = [pattern_expr]
-        while idx <= length(expr.args) && !is_fail_macro(expr.args[idx])
+        while idx <= length(expr.args)        &&
+            !is_fail_macro(expr.args[idx])    &&
+            !is_replace_macro(expr.args[idx])
             # The pattern has more than one pattern expression.
             #
             #   ```
@@ -195,6 +220,7 @@ macro pattern(expr)
             #       <pattern_expr>
             #       <pattern_expr>*
             #       (@fail <condition> <msg>)*
+            #       (@replace <expr>)?
             #   end
             #   ```
             #
@@ -218,15 +244,23 @@ macro pattern(expr)
             # `@pattern const _:::identifier = (_..., _...)`
             pattern_expr = :( [:pattern_toplevel, $(Meta.quot.(toplevel_children)...)] )
         end
-        # All expressions from `idx` onwards, if any, should be fail conditions.
+        # All expressions from `idx` onwards, if any, should be fail conditions and/or one
+        # substitution macro.
+        replace_macro = nothing
         if idx <= length(expr.args)
             # Turn `@fail` macros into `~fail` expressions.
             # Skip `LineNumberNode`s when iterating but include them in the error message.
             fail_exprs = Expr[]
             for (line_number_idx, fail_macro) in zip(Iterators.countfrom(idx - 1, 2),
                                                      expr.args[idx:2:end])
-                # Pattern expressions and fail conditions cannot be interspersed.
                 fail_macro_line_number = expr.args[line_number_idx]
+                # Break if encountering `@replace`.
+                if is_replace_macro(fail_macro)
+                    idx = line_number_idx + 1
+                    replace_macro = fail_macro
+                    break
+                end
+                # Pattern expressions and fail conditions cannot be interspersed.
                 is_fail_macro(fail_macro) ||
                     throw(SyntaxError(err_msg_should_be_fail,
                                       fail_macro_line_number.file,
@@ -237,11 +271,25 @@ macro pattern(expr)
             end
             # Create the pattern as an `~and` between the pattern expression and the
             # fail conditions.
-            pattern_expr = :( ~and($(Meta.quot(pattern_expr)), $(fail_exprs...)) )
+            if !isempty(fail_exprs)
+                pattern_expr = :( ~and($(Meta.quot(pattern_expr)), $(fail_exprs...)) )
+            end
+        end
+        if idx <= length(expr.args) && !isnothing(replace_macro)
+            # Turn the final `@replace` macro into a substitute.
+            idx == length(expr.args) ||
+                throw(SyntaxError(err_msg_replace_should_be_last,
+                                  expr.args[idx - 1].file,
+                                  expr.args[idx - 1].line))
+            # The pattern and substitution expression should be wrapped in a
+            # `substitution` node.
+            substitute_expr = replace_macro.args[3]
         end
     end
     pattern_node = SyntaxPatternNode(pattern_expr)
-    return :( Pattern($pattern_node) )
+    substitution_node =
+        isnothing(substitute_expr) ? nothing : SyntaxPatternNode(substitute_expr)
+    return :( Pattern($pattern_node, $substitution_node) )
 end
 
 # JuliaSyntax overwrites
@@ -254,6 +302,7 @@ JuliaSyntax.children(p::Pattern) = children(p.src)
 # -----
 
 is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
+is_replace_macro(ex) = @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@replace")
 
 """
     cannot_eval_to_Pattern(ex)
@@ -304,10 +353,21 @@ end
 function Base.show(io::IO, ::MIME"text/plain", pattern::Pattern)
     println(io, "Pattern:")
     _show_pattern_syntax_node(io, pattern.src, "")
+    if !isnothing(pattern.substitute)
+        println(io)
+        println(io, "Substitute:")
+        _show_pattern_syntax_node(io, pattern.substitute, "")
+    end
 end
 function Base.show(io::IO, ::MIME"text/x.sexpression", pattern::Pattern)
+    isnothing(pattern.substitute) || print(io, "(~replace ")
     _show_syntax_node_sexpr(io, pattern.src, false)
+    if !isnothing(pattern.substitute)
+        print(io, " ")
+        _show_syntax_node_sexpr(io, pattern.substitute, false)
+        print(io, ")")
+    end
 end
 function Base.show(io::IO, pattern::Pattern)
-    _show_syntax_node_sexpr(io, pattern.src, false)
+    show(io, "text/x.sexpression", pattern)
 end
