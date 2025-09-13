@@ -73,7 +73,7 @@ function syntax_match(syntax_class::SyntaxClass,
                       greedy=true)::MatchResult
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
-        match_result = syntax_match(pattern, src; greedy)
+        match_result = _syntax_match(pattern, src; greedy)
         # Return the first successful match.
         is_successful(match_result) && return match_result
         # TODO: Track the failures and return the most relevant one.
@@ -92,6 +92,14 @@ function syntax_match(pattern_node::SyntaxPatternNode,
     match_result = remove_invalid_bindings(match_result)
     return make_permanent(match_result)
 end
+
+"""
+    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult
+
+Pattern syntax matching without template filling.
+"""
+_syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
+    syntax_match(pattern.src, src; greedy)
 
 """
     _syntax_match(pattern::SyntaxPatternNode,
