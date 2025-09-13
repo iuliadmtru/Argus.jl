@@ -65,8 +65,8 @@ function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchR
     match_result = syntax_match(pattern.src, src; greedy)
     !is_successful(match_result) && return match_result
     isnothing(pattern.substitute) && return MatchSuccess(match_result)
-    # TODO: Fill in pattern substitute variables.
-    return MatchSuccess(match_result)
+    # TODO: Fill in substitute pattern variables.
+    return MatchSuccess(match_result, fill_template(pattern.substitute, match_result))
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
@@ -955,6 +955,28 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     end
     match_result = make_permanent(partial_results)
     return merge(bindings, match_result)
+end
+
+# Pattern substitution
+# --------------------
+
+# TODO: Repetitions.
+# TODO: Return SyntaxNode.
+function fill_template(template::SyntaxPatternNode, bindings::BindingSet)
+    filled_template = deepcopy(template)
+    is_leaf(template) && return filled_template
+    # If the template is a `~var` node, replace it with the corresponding `SyntaxNode`.
+    if is_var(template)
+        binding = bindings[template.var_name]
+        src_node = binding.src
+        return parse_pattern_forms(src_node)
+    end
+    # The template is not a `~var` but may contain one.
+    cs = [fill_template(c, bindings) for c in children(template)]
+    [c.parent = filled_template for c in cs]
+    filled_template.children = cs
+    # Return the recursively modified template.
+    return filled_template
 end
 
 # Utils
