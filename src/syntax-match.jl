@@ -13,6 +13,14 @@ struct MatchFail
 end
 MatchFail() = MatchFail("no match")
 
+struct MatchSuccess
+    bindings::BindingSet
+    substitute::Union{Nothing, JS.TreeNode}
+end
+MatchSuccess(bs::BindingSet) = MatchSuccess(bs, nothing)
+
+const PartialMatchSuccess = BindingSet
+
 """
     MatchResult
 
@@ -20,7 +28,7 @@ The result of a pattern match. It can either be a `MatchFail` with details of th
 reason, or a `BindingSet` with all the pattern variables bound during the match. Alias for
 `Union{MatchFail, BindingSet}`.
 """
-const MatchResult = Union{MatchFail, BindingSet}
+const MatchResult = Union{MatchFail, MatchSuccess, PartialMatchSuccess}
 
 """
     MatchResults
@@ -29,10 +37,12 @@ The result of a match that gathers all results. It contains a vector of `Binding
 vector of `MatchFail`s containing all non-trivial match failures.
 """
 struct MatchResults
-    matches::Vector{BindingSet}
+    matches::Vector{Union{MatchSuccess, PartialMatchSuccess}}
     failures::Vector{MatchFail}
 end
 MatchResults() = MatchResults([], [])
+
+is_successful(result::MatchResult) = isa(result, PartialMatchSuccess) || isa(result, MatchSuccess)
 
 # Syntax matching
 # ===============
@@ -51,8 +61,13 @@ In case of `~rep` nodes, greedily "consume" all matching children of the source 
 the match fails, try to backtrack up to a matching state. The default matching algorithm is
 greedy.
 """
-syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
-    syntax_match(pattern.src, src; greedy)
+function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult
+    match_result = syntax_match(pattern.src, src; greedy)
+    !is_successful(match_result) && return match_result
+    isnothing(pattern.substitute) && return MatchSuccess(match_result)
+    # TODO: Fill in pattern substitute variables.
+    return MatchSuccess(match_result)
+end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
                       greedy=true)::MatchResult
@@ -60,7 +75,7 @@ function syntax_match(syntax_class::SyntaxClass,
     for pattern in syntax_class.pattern_alternatives
         match_result = syntax_match(pattern, src; greedy)
         # Return the first successful match.
-        isa(match_result, BindingSet) && return match_result
+        is_successful(match_result) && return match_result
         # TODO: Track the failures and return the most relevant one.
         failure = match_result
     end
