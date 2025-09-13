@@ -16,13 +16,14 @@
                     ~and({_}, {y} + 3))
             end
             match_first = syntax_match(pattern, parsestmt(SyntaxNode, "1 + 2"))
-            @test isa(match_first, BindingSet)
-            @test length(match_first) == 1
-            @test match_first[:x].src.val === 1
+            @test isa(match_first, MatchSuccess)
+            @test isnothing(match_first.substitute)
+            @test length(match_first.bindings) == 1
+            @test match_first.bindings[:x].src.val === 1
             match_second = syntax_match(pattern, parsestmt(SyntaxNode, "a + 3"))
-            @test isa(match_second, BindingSet)
-            @test length(match_second) == 1
-            @test match_second[:y].src.val === :a
+            @test is_successful(match_second)
+            @test length(match_second.bindings) == 1
+            @test match_second.bindings[:y].src.val === :a
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "2 + 1")), MatchFail)
         end
 
@@ -58,30 +59,32 @@
         let
             pattern = @pattern {x}...
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{JuliaSyntax.SyntaxNode})
-            @test length(match_result[:x].src) == 1
-            @test isa(match_result[:x].bindings, Vector{BindingSet{Argus.AbstractBinding}})
-            @test length(match_result[:x].bindings) == 1
+            @test is_successful(match_result)
+            bs = match_result.bindings
+            @test length(bs) == 1
+            @test isa(bs[:x].src, Vector{JuliaSyntax.SyntaxNode})
+            @test length(bs[:x].src) == 1
+            @test isa(bs[:x].bindings, Vector{BindingSet{Argus.AbstractBinding}})
+            @test length(bs[:x].bindings) == 1
         end
         let
             pattern = @pattern ({x}...)...
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
-            @test isa(match_result[:x].bindings,
-                      Vector{Vector{BindingSet{Argus.AbstractBinding}}})
+            @test is_successful(match_result)
+            bs = match_result.bindings
+            @test length(bs) == 1
+            @test isa(bs[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
+            @test isa(bs[:x].bindings, Vector{Vector{BindingSet{Argus.AbstractBinding}}})
         end
         let
             pattern = @pattern begin
                 {f}({args}...)
             end
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(a, b; c=2)"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 2
-            args = match_result[:args]
+            @test is_successful(match_result)
+            bs = match_result.bindings
+            @test length(bs) == 2
+            args = bs[:args]
             @test length(args.src) == 3
         end
         let
@@ -95,10 +98,11 @@
             h(a; b::Int=2) = begin a - b end
             """
             match_result = syntax_match(pattern, parseall(SyntaxNode, src))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 2
-            args_bindings = match_result[:args]
-            f_bindings = match_result[:f]
+            @test is_successful(match_result)
+            bs = match_result.bindings
+            @test length(bs) == 2
+            args_bindings = bs[:args]
+            f_bindings = bs[:f]
             @test length(args_bindings.src) == length(f_bindings.src) == 3
             src3 = args_bindings.src[3]
             @test source_location(src3[2]) == (3, 4)
@@ -114,12 +118,12 @@
         let
             pattern = @pattern [2, ({x:::literal})..., 2, ({y}...)...]
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2, 2, 2, 3, 4]"))
-            @test isa(match_result, BindingSet)
-            x = match_result[:x]
+            @test is_successful(match_result)
+            x = match_result.bindings[:x]
             @test length(x.src) == length(x.bindings) == 2
             @test x.bindings[1][:_lit].src.val == 2
             @test source_location(x.bindings[2][:_lit].src) == (1, 8)
-            y = match_result[:y]
+            y = match_result.bindings[:y]
             @test length(y.src) == length(y.bindings) == 2
             @test length(y.src[1]) == length(y.bindings[1]) == 1
             @test length(y.src[2]) == length(y.bindings[2]) == 1
@@ -128,8 +132,8 @@
         end
         let
             pattern = @pattern [{x:::identifier}..., 2]
-            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")), BindingSet)
-            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2]")), MatchFail)
+            @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")))
+            @test !is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2]")))
         end
     end
 
@@ -158,28 +162,28 @@
         @testset "Escaping" begin
             let
                 pattern = @pattern {x}...
-                @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "x")), BindingSet)
+                @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "x")))
                 pattern_esc = @pattern @esc(x...)
                 @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "x")), MatchFail)
             end
             let
                 pattern = @pattern [{elems}...]...
                 @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[1]")),
-                          BindingSet)
+                          MatchSuccess)
 
                 pattern_esc = @pattern @esc([{elems}...]..., 1)
                 @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "[1]...")),
-                          BindingSet)
+                          MatchSuccess)
                 @test isa(syntax_match(pattern_esc, parsestmt(SyntaxNode, "[1]")),
                           MatchFail)
 
                 pattern_esc2 = @pattern @esc([{elems}...]..., 3)
                 @test isa(syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[[1]...]...")),
-                          BindingSet)
+                          MatchSuccess)
                 @test isa(syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[[1]]")),
                           MatchFail)
                 m = syntax_match(pattern_esc2, parsestmt(SyntaxNode, "[{elems}...]..."))
-                @test kind(m[:elems].src) === K"braces"
+                @test kind(m.bindings[:elems].src) === K"braces"
 
                 pattern_esc9 = @pattern @esc([{elems}...]..., 9)
                 @test isa(syntax_match(pattern_esc9,
@@ -195,7 +199,7 @@
                           MatchFail)
                 @test isa(syntax_match(pattern_esc_all,
                                        parsestmt(SyntaxNode, "[{elems}...]...")),
-                          BindingSet)
+                          MatchSuccess)
             end
             let
                 pattern = @pattern @esc(@esc)
@@ -212,12 +216,13 @@
                     match_result =
                         syntax_match(binary_funcall_pattern,
                                      parsestmt(SyntaxNode, "f(x, 1 + 2)"))
-                    @test isa(match_result, BindingSet)
+                    @test is_successful(match_result)
                     # No binding for the anonymous pattern variable.
-                    @test length(match_result) == 2
+                    bs = match_result.bindings
+                    @test length(bs) == 2
                     # Bindings should appear in insertion order => `f` should be first.
-                    @test collect(keys(match_result)) == [:f, :arg1]
-                    @test map(s -> source_location(s.src), values(match_result)) == [(1, 1), (1, 3)]
+                    @test collect(keys(bs)) == [:f, :arg1]
+                    @test map(s -> source_location(s.src), values(bs)) == [(1, 1), (1, 3)]
                 end
                 ## No match.
                 let
@@ -233,7 +238,7 @@
                     @fail !iseven(x.value) "not even"
                 end
                 match = syntax_match(even, parsestmt(SyntaxNode, "2"))
-                @test isa(match, BindingSet)
+                @test is_successful(match)
                 fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
                 @test fail == MatchFail("not even")
             end
@@ -243,7 +248,7 @@
                          ~fail(f._id.name != "x", "not x"))
                 end
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
-                @test isa(match, BindingSet)
+                @test is_successful(match)
                 fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
                 @test fail_name == MatchFail("not x")
                 fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
@@ -261,8 +266,8 @@
                 end
                 src = parsestmt(SyntaxNode, "cond || true")
                 match_result = syntax_match(pattern, src)
-                @test isa(match_result, BindingSet)
-                @test length(match_result) == 1
+                @test is_successful(match_result)
+                @test length(match_result.bindings) == 1
             end
             let
                 pattern = @pattern begin
@@ -276,7 +281,7 @@
                                            a = 1
                                            """)
                 match_result = syntax_match(pattern, src)
-                @test source_location(match_result[:ex].src) == (3, 1)
+                @test source_location(match_result.bindings[:ex].src) == (3, 1)
                 src_fail = parseall(SyntaxNode, """
                                                 a = 1
                                                 a = 2
@@ -312,7 +317,7 @@
                     a = 2
                     a = 3
                     """)
-                    @test isa(syntax_match(pattern, src), BindingSet)
+                    @test is_successful(syntax_match(pattern, src))
                 end
                 let
                     src = parseall(SyntaxNode, """
@@ -340,8 +345,8 @@
                       """
                 match_result =
                     syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
-                @test isa(match_result, BindingSet)
-                @test length(match_result) == 1
+                @test is_successful(match_result)
+                @test length(match_result.bindings) == 1
             end
             let
                 pattern = @pattern begin
@@ -383,7 +388,7 @@
                       end
                       """
                 match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
-                @test length(match_result[:args].src) == 1
+                @test length(match_result.bindings[:args].src) == 1
             end
         end
     end

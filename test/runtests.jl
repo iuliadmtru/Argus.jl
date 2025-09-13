@@ -1,5 +1,6 @@
 using Test
 using Argus
+using Argus: is_successful
 using JuliaSyntax
 using JuliaSyntax: source_location, kind, @K_str, is_leaf, ParseError
 
