@@ -19,7 +19,7 @@ struct MatchSuccess
 end
 MatchSuccess(bs::BindingSet) = MatchSuccess(bs, nothing)
 
-const PartialMatchSuccess = BindingSet
+const PartialMatchSuccess = BindingSet  # TODO: Is this necessary?
 
 """
     MatchResult
@@ -1360,6 +1360,13 @@ function has_reps(pattern::SyntaxPatternNode)
 end
 
 # Display
+
+function Base.show(io::IO, mime::MIME"text/plain", ms::MatchSuccess)
+    show(io, mime, ms.bindings)
+    println(io)
+    println(io, "Substitute:")
+    _show_syntax_node(io, ms.substitute, "")
+end
 
 Base.summary(io::IO, res::MatchResults) =
     print(io,
