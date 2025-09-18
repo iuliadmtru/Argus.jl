@@ -377,6 +377,18 @@
                 match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
                 @test length(match_result[:args].src) == 1
             end
+            ## Templates.
+            let
+                pt = @pattern_with_template begin
+                    @pattern {x}
+                    @template {x} + 1
+                end
+                match_result = syntax_match(pt, parsestmt(SyntaxNode, "abc"))
+                @test isa(match_result, PatternSubstitute)
+                @test kind(match_result.substitute) === K"call"
+                @test length(match_result.substitute.children) == 3
+                @test match_result.substitute.children[1].val === :abc
+            end
         end
     end
 end
