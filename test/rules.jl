@@ -213,9 +213,17 @@ end
     test_rule_in_group("rand-bool", lang_rules, dir, 3)
     test_rule_in_group("invalid-module-name", lang_rules, dir, 1)
 
-    rule_group_match_result = rule_group_match(lang_rules, joinpath(dir, "rand-bool.jl"))
-    @test length(rule_group_match_result["rand-bool"].matches) == 3
+    rand_bool_rule_path = joinpath(dir, "rand-bool.jl")
+    rule_group_match_result = rule_group_match(lang_rules, rand_bool_rule_path)
+    rand_bool_rule_matches = rule_group_match_result["rand-bool"].matches
+    @test length(rand_bool_rule_matches) == 3
     for (rule_name, result) in filter(p -> p.first != "rand-bool", rule_group_match_result)
         @test length(result.matches) == 0
+    end
+
+    # Refactoring.
+    for m in rand_bool_rule_matches
+        @test isa(m, PatternSubstitute)
+        @test m.substitute == SyntaxPatternNode(:( rand(Bool) ))
     end
 end
