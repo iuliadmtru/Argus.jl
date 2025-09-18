@@ -519,6 +519,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     end
 end
 
+# TODO: Rewrite.
 """
     syntax_match_all(pattern_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
@@ -529,6 +530,20 @@ end
 Try to match a pattern node against a source node. Return all successful matches. If
 `only_matches` is `false` return the non-trivial failures as well.
 """
+function syntax_match_all(pt::PatternWithTemplate,
+                          src::JS.SyntaxNode;
+                          greedy=true,
+                          only_matches=true)
+    res = syntax_match_all(pt.pattern, src; greedy, only_matches)
+    matches = [PatternSubstitute(bs, fill_template(pt.template, bs)) for bs in res.matches]
+    return MatchResults(matches, res.failures)
+end
+function syntax_match_all(pattern::Pattern,
+                          src::JS.SyntaxNode;
+                          greedy=true,
+                          only_matches=true)
+    return syntax_match_all(pattern.src, src; greedy, only_matches)
+end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet=BindingSet();

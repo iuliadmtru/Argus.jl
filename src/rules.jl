@@ -9,7 +9,7 @@ Rule for syntax matching. Consists of a name, descrciption and pattern.
 struct Rule
     name::String
     description::String
-    pattern::Pattern
+    pattern::Union{Pattern, PatternWithTemplate}  # TODO: Different name?
 end
 
 """
@@ -266,7 +266,7 @@ the source node, up to the leafs. Matching is greedy by default.
 See [`syntax_match_all`](@ref).
 """
 rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true) =
-    syntax_match_all(rule.pattern.src, src; greedy, only_matches)
+    syntax_match_all(rule.pattern, src; greedy, only_matches)
 function rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
     src_txt = read(filename, String)
     src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
