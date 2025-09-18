@@ -13,14 +13,14 @@ struct MatchFail
 end
 MatchFail() = MatchFail("no match")
 
-struct MatchSuccess
+struct PatternSubstitute
     bindings::BindingSet
-    substitute::Union{Nothing, JS.TreeNode}
+    substitute::JS.TreeNode
 end
-MatchSuccess(bs::BindingSet) = MatchSuccess(bs, nothing)
 
-const PartialMatchSuccess = BindingSet  # TODO: Is this necessary?
+const MatchSuccess = Union{BindingSet, PatternSubstitute}
 
+# TODO: Rewrite.
 """
     MatchResult
 
@@ -28,7 +28,7 @@ The result of a pattern match. It can either be a `MatchFail` with details of th
 reason, or a `BindingSet` with all the pattern variables bound during the match. Alias for
 `Union{MatchFail, BindingSet}`.
 """
-const MatchResult = Union{MatchFail, MatchSuccess, PartialMatchSuccess}
+const MatchResult = Union{MatchFail, MatchSuccess}
 
 """
     MatchResults
@@ -37,12 +37,12 @@ The result of a match that gathers all results. It contains a vector of `Binding
 vector of `MatchFail`s containing all non-trivial match failures.
 """
 struct MatchResults
-    matches::Vector{Union{MatchSuccess, PartialMatchSuccess}}
+    matches::Vector{MatchSuccess}
     failures::Vector{MatchFail}
 end
 MatchResults() = MatchResults([], [])
 
-is_successful(result::MatchResult) = isa(result, PartialMatchSuccess) || isa(result, MatchSuccess)
+is_successful(result::MatchResult) = isa(result, MatchSuccess)
 
 # Syntax matching
 # ===============
@@ -61,12 +61,14 @@ In case of `~rep` nodes, greedily "consume" all matching children of the source 
 the match fails, try to backtrack up to a matching state. The default matching algorithm is
 greedy.
 """
+function syntax_match(pt::PatternWithTemplate, src::JS.SyntaxNode; greedy=true)::MatchResult
+    pattern_match_result = syntax_match(pt.pattern, src; greedy)
+    !is_successful(pattern_match_result) && return pattern_match_result
+    return PatternSubstitute(pattern_match_result,
+                             fill_template(pt.template, pattern_match_result))
+end
 function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult
-    match_result = syntax_match(pattern.src, src; greedy)
-    !is_successful(match_result) && return match_result
-    isnothing(pattern.substitute) && return MatchSuccess(match_result)
-    # TODO: Fill in substitute pattern variables.
-    return MatchSuccess(match_result, fill_template(pattern.substitute, match_result))
+    return syntax_match(pattern.src, src; greedy)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
