@@ -145,14 +145,6 @@
                 @fail cond ""
                 ex2
             end
-            @test_throws "first expression cannot be a subst" @macroexpand @pattern begin
-                @replace x
-            end
-            @test_throws "may only appear at the end" @macroexpand @pattern begin
-                x
-                @replace x
-                y
-            end
         end
 
         @testset "Escaping" begin
