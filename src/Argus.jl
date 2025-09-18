@@ -13,10 +13,12 @@ const JS = JuliaSyntax
 # Part 1: Syntax matching mechanism
 # =================================
 
-export SyntaxPatternNode, Pattern, @pattern, SyntaxClass, @syntax_class, SyntaxError
+export SyntaxPatternNode, Pattern, @pattern, PatternWithTemplate, @pattern_with_template,
+    SyntaxClass, @syntax_class, SyntaxError
 export SyntaxClassRegistry, @define_syntax_class, @define_syntax_class_in_registry,
     register_syntax_class!, SyntaxClassRegistryKeyError
-export Binding, BindingSet, BindingFieldError, BindingSetKeyError, MatchFail, MatchError
+export Binding, BindingSet, BindingFieldError, BindingSetKeyError,
+    PatternSubstitute, MatchSuccess, MatchFail, MatchError
 export syntax_match, partial_syntax_match, syntax_match_all, MatchResults
 
 include("syntax-pattern-node.jl")
