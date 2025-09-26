@@ -278,7 +278,7 @@ associated code refactoring, if any, and the list of all non-trivial match failu
 if matching with `only_matches=false`.
 """
 struct RuleMatchResult
-    matches::Vector{Tuple{MatchSuccess, Union{Nothing, JS.SyntaxNode}}}
+    matches::Vector{Tuple{BindingSet, Union{Nothing, JS.SyntaxNode}}}
     failures::Vector{MatchFail}
 end
 
