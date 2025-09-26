@@ -100,8 +100,8 @@ function expand_rep(template::Template,
             # TODO: `ExpansionError`?
             if isa(e, BindingSetKeyError) && vname in discarded_vars
                 error("""
-                      pattern variable $vname has inconsistent ellipsis depth
-                      Pattern variables should have the same depth in the template as in the pattern.
+                      template variable $vname has inconsistent ellipsis depth
+                      Template variables should have the same depth as the corresponding pattern variables.
                       """)
             else
                 rethrow(e)
@@ -110,8 +110,8 @@ function expand_rep(template::Template,
         src = b.src
         isa(src, JS.SyntaxNode) ||
             error("""
-                  pattern variable $vname has inconsistent ellipsis depth
-                  Pattern variables should have the same depth in the template as in the pattern.
+                  template variable $vname has inconsistent ellipsis depth
+                  Template variables should have the same depth as the corresponding pattern variables.
                   """)
         return [src]
     end
