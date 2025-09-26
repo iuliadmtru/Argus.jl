@@ -13,6 +13,37 @@ const Template = SyntaxPatternNode
     @template(expr)
 
 Create a [`Template`](@ref) from the given expression.
+
+# Examples
+# ========
+
+```
+julia> t = @template {x} + 1
+SyntaxPatternNode:
+[call-i]
+  [~var]
+    [quote-:]
+      x                                  :: Identifier
+    [quote-:]
+      expr                               :: Identifier
+  +                                      :: Identifier
+  1                                      :: Integer
+
+julia> t = @template {f}({args}...)
+SyntaxPatternNode:
+[call]
+  [~var]
+    [quote-:]
+      f                                  :: Identifier
+    [quote-:]
+      expr                               :: Identifier
+  [~rep]
+    [~var]
+      [quote-:]
+        args                             :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+```
 """
 macro template(expr)
     # Error messages.
