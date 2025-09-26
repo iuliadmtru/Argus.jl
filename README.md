@@ -728,11 +728,16 @@ julia> src = """
        """;
 
 julia> match_result = rule_match(assignments, parseall(SyntaxNode, src))
-MatchResults with 3 matches and 0 failures:
+RuleMatchResult with 3 matches and 0 failures:
 Matches:
   BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
+  nothing
+
   BindingSet(:a => Binding(:a, (= y (call-i x + 1)) @ 2:1, BindingSet(:rhs => Binding(:rhs, (call-i x + 1) @ 2:5, BindingSet()), :lhs => Binding(:lhs, y @ 2:1, BindingSet(:_id => Binding(:_id, y @ 2:1, BindingSet()))))))
+  nothing
+
   BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet(:_id => Binding(:_id, z @ 4:5, BindingSet()))))))
+  nothing
 ```
 
 The `assignments` rule above matches all the assignments in the
@@ -755,10 +760,13 @@ julia> lit_assignments = @rule "assignments" begin
        end;
 
 julia> match_result = rule_match(lit_assignments, parseall(SyntaxNode, src))
-MatchResults with 2 matches and 0 failures:
+RuleMatchResult with 2 matches and 0 failures:
 Matches:
   BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
+  nothing
+
   BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet(:_id => Binding(:_id, z @ 4:5, BindingSet()))))))
+  nothing
 ```
 
 `rule_match` can keep track of all non-trivial failed matches as well
@@ -794,6 +802,67 @@ julia> rule_match(lit_assignments, parseall(SyntaxNode, src); only_matches=false
 At least it would be useful if the failure would contain other
 information such as the source location of the failure... This is in
 plan for the future :).
+
+The result of a rule match consists of two vectors: one with all
+non-trivial failures and one with all matches with their associated
+template expansions, if applicable. The above rules don't have
+templates, so they have `nothing` as template expansions. A rule with
+a template is created using the `template` argument in the `@rule`
+macro.
+
+Say we want to replace all apparitions of `rand() < 0.5` with the call
+`rand(Bool)`.
+
+```julia
+julia> rand_bool = @rule "rand-bool" begin
+           description = """
+           To get a random Boolean, use `rand(Bool)`.
+           """
+
+           pattern = @pattern begin
+               {randf}() < 0.5
+               @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
+           end
+
+           template = @template rand(Bool)
+       end;
+```
+
+We could match this rule against a file called `"rand-bool.jl"` with
+the following content:
+
+```
+# Match.
+rand() < 0.5
+
+function some_rand_function(x)
+    # Match.
+    if rand() < 0.5
+        println("Random")
+    end
+end
+
+# Match.
+if some_flag && rand() < 0.5 || other_flag
+    println("Random")
+end
+```
+
+The result would be:
+
+```julia
+julia> rule_match(rand_bool, "rand-bool.jl")
+RuleMatchResult with 3 matches and 0 failures:
+Matches:
+  BindingSet(:randf => Binding(:randf, rand @ 2:1, BindingSet()))
+  (call rand Bool)
+
+  BindingSet(:randf => Binding(:randf, rand @ 6:8, BindingSet()))
+  (call rand Bool)
+
+  BindingSet(:randf => Binding(:randf, rand @ 12:17, BindingSet()))
+  (call rand Bool)
+```
 
 Sometimes it is useful to group rules by category. We can define a
 rule group and store rules inside it:
@@ -841,9 +910,9 @@ julia> write(f, """
        """);
 
 julia> rule_group_match(style_rules, f; only_matches=false)
-Dict{String, MatchResults} with 2 entries:
-  "useless-equals"  => MatchResults(BindingSet[BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet()))], MatchFail[])
-  "lowercase-const" => MatchResults(BindingSet[BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet(:_id => Binding(:_id, low @ 2:7, BindingSet()))))], MatchFail[MatchFail("`const` variable with all-uppercas…
+RuleGroupMatchResults with 2 entries:
+  "useless-equals"  => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet())), nothing)], MatchFail[])
+  "lowercase-const" => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet(:_id => Binding(:_id, low @ 2:7, BindingSet())))), nothing)], MatchF…
 ```
 
 ## Notes
