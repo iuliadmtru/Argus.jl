@@ -92,10 +92,10 @@ macro rule(name, ex)
     # Check the rule syntax.
     @isexpr(ex, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
-    length(ex.args) == 4 ||
+    length(ex.args) == 4 || length(ex.args) == 6 ||
         throw(SyntaxError("""
                           invalid `@rule` syntax
-                          Expected 2 arguments, got $(length(ex.args)/2).""",
+                          Expected 2 or 3 arguments, got $(length(ex.args)/2).""",
                           __source__.file,
                           __source__.line))
     # Get the first argument, which should be the description.
@@ -128,8 +128,26 @@ macro rule(name, ex)
                           line_number_arg2.file,
                           line_number_arg2.line))
     pattern_expr = arg2.args[2]
+    # If there is one, get the third argument, which should be the template.
+    template_expr = nothing
+    if length(ex.args) == 6
+        line_number_arg3 = ex.args[5]
+        arg3 = ex.args[6]
+        @isexpr(arg3, :(=), 2) ||
+            throw(SyntaxError(err_msg_invalid_arg_syntax,
+                              line_number_arg3.file,
+                              line_number_arg3.line))
+        arg3_name = arg3.args[1]
+        arg3_name === :template ||
+            throw(SyntaxError("""
+                              invalid rule argument name: $arg3_name
+                              The third argument of `@rule` should be `template`.""",
+                              line_number_arg3.file,
+                              line_number_arg3.line))
+        template_expr = arg3.args[2]
+    end
 
-    return :( Rule($name, $description, $(esc(pattern_expr))) )
+    return :( Rule($name, $description, $(esc(pattern_expr)), $(esc(template_expr))) )
 end
 
 # Display
@@ -253,30 +271,49 @@ end
 # =============
 
 """
-    RuleGroupMatchResult
+    RuleMatchResult
 
-The result of a rule group match. Alias for `Dict{String, MatchResults}`.
+The result of a rule match. Contains the list of all successful matches with their
+associated code refactoring, if any, and the list of all non-trivial match failure messages
+if matching with `only_matches=false`.
 """
-const RuleGroupMatchResult = Dict{String, MatchResults}
+struct RuleMatchResult
+    matches::Vector{Tuple{MatchSuccess, Union{Nothing, JS.SyntaxNode}}}
+    failures::Vector{MatchFail}
+end
 
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; greedy=true, only_matches=true)
     rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
 
-Match a rule against a source code. Return the set of all matches. If `only_matches` is
-`false` return failures as well. The rule pattern is matched against all children nodes in
-the source node, up to the leafs. Matching is greedy by default.
+Match a rule against a source code. Return the set of all matches with their associated
+refactored code, if applicable. If `only_matches` is `false` return failures as well.
+The rule pattern is matched against all children nodes in the source node, up to the leafs.
+Matching is greedy by default.
 
 See [`syntax_match_all`](@ref).
 """
-rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true) =
-    syntax_match_all(rule.pattern, src; greedy, only_matches)
+function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true)
+    match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
+    binding_sets = match_results.matches
+    matches_with_refactorings = isnothing(rule.template) ?
+        [(bs, nothing) for bs in binding_sets] :
+        [(bs, expand(rule.template, bs)) for bs in binding_sets]
+    return RuleMatchResult(matches_with_refactorings, match_results.failures)
+end
 function rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
     src_txt = read(filename, String)
     src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
     return rule_match(rule, src; greedy, only_matches)
 end
+
+"""
+    RuleGroupMatchResult
+
+The result of a rule group match. Alias for `Dict{String, RuleMatchResults}`.
+"""
+const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
 """
     rule_group_match(group::RuleGroup,

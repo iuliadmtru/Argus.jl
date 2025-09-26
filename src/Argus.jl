@@ -34,7 +34,7 @@ include("expand.jl")
 # ==============================
 
 export Rule, @rule, RuleGroup, @define_rule_in_group, register_rule!
-export rule_match, rule_group_match, RuleGroupMatchResult
+export rule_match, rule_group_match, RuleMatchResult, RuleGroupMatchResult
 
 include("rules.jl")
 
