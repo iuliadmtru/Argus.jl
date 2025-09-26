@@ -4,13 +4,17 @@
 """
     Rule
 
-Rule for syntax matching. Consists of a name, descrciption and pattern.
+Rule for syntax matching. Consists of a name, description, pattern and, optionally, a
+refactoring template.
 """
 struct Rule
     name::String
     description::String
-    pattern::Union{Pattern, PatternWithTemplate}  # TODO: Different name?
+    pattern::Pattern
+    template::Union{Nothing, Template}
 end
+Rule(name::String, description::String, pattern::Pattern) =
+    Rule(name, description, pattern, nothing)
 
 """
     @rule(name, ex)
