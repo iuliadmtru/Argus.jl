@@ -14,8 +14,7 @@ end
     @pattern(expr)
 
 Create a [`Pattern`](@ref) from the given expression. Special syntax can be escaped by
-wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro and
-substitutions with `@replace`.
+wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro.
 
 `@esc` usage:
   - `@esc(ex)`       : Escape everything inside `ex`.
@@ -23,9 +22,6 @@ substitutions with `@replace`.
 
 `@fail` usage:
   - `@fail(condition, msg)`: Fail with the message `msg` if `condition` is satisfied.
-
-`@replace` usage:
-  - `@replace(expr)`: Replace the pattern with `expr`.
 
 # Examples
 # ========
@@ -223,7 +219,6 @@ macro pattern(expr)
             pattern_expr = :( [:pattern_toplevel, $(Meta.quot.(toplevel_children)...)] )
         end
         # All expressions from `idx` onwards, if any, should be fail conditions.
-        replace_macro = nothing
         if idx <= length(expr.args)
             # Turn `@fail` macros into `~fail` expressions.
             # Skip `LineNumberNode`s when iterating but include them in the error message.
@@ -251,11 +246,89 @@ macro pattern(expr)
     return :( Pattern($pattern_node) )
 end
 
+"""
+    PatternWithTemplate
+
+Combination of a pattern and a template (to be filled after pattern matching).
+"""
 struct PatternWithTemplate
     pattern::Pattern
     template::SyntaxPatternNode
 end
 
+"""
+    @pattern_with_template(expr)
+
+Create a pattern and template combination from the given expression.
+
+# Examples
+# ========
+
+```
+julia> pt = @pattern_with_template begin
+           @pattern ([{x}, {y}...])...
+           @template ([{y}..., {x}])...
+       end
+Pattern:
+[~rep]
+  [vect]
+    x:::expr                             :: ~var
+    [~rep]
+      y:::expr                           :: ~var
+Template:
+[~rep]
+  [vect]
+    [~rep]
+      y:::expr                           :: ~var
+    x:::expr                             :: ~var
+
+julia> syntax_match(pt, parseall(SyntaxNode, \"""
+           [1, 2, 3]
+           [a, b, c]
+           [x]
+           \"""))
+BindingSet with 2 entries:
+  :y => Binding:
+          Name: :y
+          Bound sources: [[2 @ 1:5, 3 @ 1:8], [b @ 2:5, c @ 2:8], []]
+          Ellipsis depth: 2
+          Sub-bindings:
+            [
+             [
+              BindingSet with 0 entries,
+              BindingSet with 0 entries
+             ],
+             [
+              BindingSet with 0 entries,
+              BindingSet with 0 entries
+             ],
+             []
+            ]
+  :x => Binding:
+          Name: :x
+          Bound sources: [1 @ 1:2, a @ 2:2, x @ 3:2]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet with 0 entries,
+             BindingSet with 0 entries,
+             BindingSet with 0 entries
+            ]
+Substitute:
+SyntaxNode:
+[toplevel]
+  [vect]
+    2                                    :: Integer
+    3                                    :: Integer
+    1                                    :: Integer
+  [vect]
+    b                                    :: Identifier
+    c                                    :: Identifier
+    a                                    :: Identifier
+  [vect]
+    x                                    :: Identifier
+```
+"""
 macro pattern_with_template(expr)
     # Error messages.
     err_msg_general =
@@ -355,7 +428,7 @@ function Base.show(io::IO, ::MIME"text/plain", pattern::Pattern)
     _show_pattern_syntax_node(io, pattern.src, "")
 end
 Base.show(io::IO, ::MIME"text/x.sexpression", pattern::Pattern) =
-    _show_syntax_node_sexpr(io, pattern.src, false)
+    _show_syntax_pattern_node_sexpr(io, pattern.src, false)
 Base.show(io::IO, pattern::Pattern) =
     show(io, "text/x.sexpression", pattern)
 
@@ -367,10 +440,10 @@ function Base.show(io::IO, ::MIME"text/plain", pt::PatternWithTemplate)
     _show_pattern_syntax_node(io, pt.template, "")
 end
 function Base.show(io::IO, ::MIME"text/x.sexpression", pt::PatternWithTemplate)
-    isnothing(pt.template) || print(io, "(~replace ")
-    _show_syntax_node_sexpr(io, pt.pattern.src, false)
+    print(io, "(")
+    _show_syntax_pattern_node_sexpr(io, pt.pattern.src, false)
     print(io, " ")
-    _show_syntax_node_sexpr(io, pt.template, false)
+    _show_syntax_pattern_node_sexpr(io, pt.template, false)
     print(io, ")")
 end
 function Base.show(io::IO, pt::PatternWithTemplate)

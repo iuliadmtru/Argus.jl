@@ -389,6 +389,22 @@
                 @test length(match_result.substitute.children) == 3
                 @test match_result.substitute.children[1].val === :abc
             end
+            let
+                pt = @pattern_with_template begin
+                    @pattern function {f}({args}...)
+                        return {ex}
+                    end
+                    @template {f}({args}...) = {ex}
+                end
+                src = """
+                    function f(x, y)
+                        return x + y
+                    end
+                    """
+                match_result = syntax_match(pt, parsestmt(SyntaxNode, src))
+                @test is_successful(match_result)
+                @test flags(match_result.substitute) == JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+            end
         end
     end
 end
