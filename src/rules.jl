@@ -351,4 +351,51 @@ end
 
 # Display
 
+Base.summary(io::IO, res::RuleMatchResult) =
+    print(io,
+          "RuleMatchResult with $(length(res.matches)) matches ",
+          "and $(length(res.failures)) failures")
+
+function Base.show(io::IO, ::MIME"text/plain", res::RuleMatchResult)
+    summary(io, res)
+    matches = res.matches
+    fails = res.failures
+    isempty(matches) && isempty(fails) && return nothing
+    print(io, ":")
+    if !isempty(matches)
+        println(io)
+        print(io, "Matches:")
+        for m in matches
+            println(io)
+            print(io, "  ")
+            show(io, m[1])
+            println(io)
+            print(io, "  ")
+            show(io, m[2])
+            println(io)
+        end
+    end
+    if !isempty(fails)
+        shorten = length(fails) > 10
+        println(io)
+        print(io, "Failures:")
+        short_fails = fails[1:end-1]
+        if shorten
+            short_fails = fails[1:3]
+        end
+        for f in short_fails
+            println(io)
+            print(io, "  ")
+            show(io, f)
+        end
+        # Show the last one.
+        println(io)
+        if shorten
+            println(io, "  .\n  .\n  .")
+        end
+        print(io, "  ")
+        show(io, fails[end])
+    end
+end
+
 Base.show(io::IO, ::Type{RuleGroupMatchResult}) = "RuleGroupMatchResult"
