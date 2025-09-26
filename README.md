@@ -918,7 +918,8 @@ RuleGroupMatchResults with 2 entries:
 ## Notes
 
 Argus is the final project for my Computer Science and Engineering
-degree at University Politehnica of Bucharest.
+degree at University Politehnica of Bucharest. The paper is attached
+in the repo (Thesis.pdf).
 
 ## Acknowledgements
 
