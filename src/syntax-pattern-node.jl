@@ -595,21 +595,21 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         # Create alternative for `id:::identifier`.
         id_syntax_pattern_node =
             parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
-                                                      "~var(:$id, :identifier)"))
+                                             "~var(:$id, :identifier)"))
         assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
         assignment_alternative =
             SyntaxPatternNode(nothing, [id_syntax_pattern_node, rhs], assignment_data)
         # Create alternative for `id:::funcall`.
         funcall_syntax_pattern_node =
             parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
-                                                      "~var(:$id, :funcall)"))
+                                             "~var(:$id, :funcall)"))
         funcall_alternative =
             SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
         # Link the alternatives to the new `~or` pattern form node.
         cs = [assignment_alternative, funcall_alternative]
         new_node = SyntaxPatternNode(node.parent,
-                                    [assignment_alternative, funcall_alternative],
-                                    new_node_data)
+                                     [assignment_alternative, funcall_alternative],
+                                     new_node_data)
         assignment_alternative.parent = new_node
         funcall_alternative.parent = new_node
         # Return the `~or` node.
@@ -899,7 +899,7 @@ get_rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : noth
 # -------
 
 using JuliaSyntax: untokenize, leaf_string, is_error
-function _show_syntax_node(io, node::SyntaxPatternNode, indent)
+function _show_syntax_pattern_node(io, node::SyntaxPatternNode, indent)
     nodestr = is_leaf(node) ? leaf_string(node) : "[$(untokenize(head(node)))]"
     treestr = string(indent, nodestr)
     if is_leaf(node)
@@ -910,12 +910,12 @@ function _show_syntax_node(io, node::SyntaxPatternNode, indent)
         new_indent = indent * "  "
         for n in children(node)
             println(io)
-            _show_syntax_node(io, n, new_indent)
+            _show_syntax_pattern_node(io, n, new_indent)
         end
     end
 end
 
-function _show_syntax_node_sexpr(io, node::SyntaxPatternNode, show_kind)
+function _show_syntax_pattern_node_sexpr(io, node::SyntaxPatternNode, show_kind)
     if is_leaf(node)
         if is_error(node)
             print(io, "(", untokenize(head(node)), ")")
@@ -930,7 +930,7 @@ function _show_syntax_node_sexpr(io, node::SyntaxPatternNode, show_kind)
         first = true
         for n in children(node)
             print(io, ' ')
-            _show_syntax_node_sexpr(io, n, show_kind)
+            _show_syntax_pattern_node_sexpr(io, n, show_kind)
             first = false
         end
         print(io, ')')
@@ -939,9 +939,9 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", node::SyntaxPatternNode)
     println(io, "SyntaxPatternNode:")
-    _show_syntax_node(io, node, "")
+    _show_syntax_pattern_node(io, node, "")
 end
 Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxPatternNode; show_kind=false) =
-    _show_syntax_node_sexpr(io, node, show_kind)
-Base.show(io::IO, node::SyntaxPatternNode) = _show_syntax_node_sexpr(io, node, false)
+    _show_syntax_pattern_node_sexpr(io, node, show_kind)
+Base.show(io::IO, node::SyntaxPatternNode) = _show_syntax_pattern_node_sexpr(io, node, false)
 Base.show(io::IO, ::Type{SyntaxPatternNode}) = print(io, "SyntaxPatternNode")
