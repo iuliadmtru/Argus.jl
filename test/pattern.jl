@@ -379,31 +379,29 @@
             end
             ## Templates.
             let
-                pt = @pattern_with_template begin
-                    @pattern {x}
-                    @template {x} + 1
-                end
-                match_result = syntax_match(pt, parsestmt(SyntaxNode, "abc"))
-                @test isa(match_result, PatternSubstitute)
-                @test kind(match_result.substitute) === K"call"
-                @test length(match_result.substitute.children) == 3
-                @test match_result.substitute.children[1].val === :abc
+                p = @pattern {x}
+                t = @template {x} + 1
+                match_result = syntax_match(p, parsestmt(SyntaxNode, "abc"))
+                @test is_successful(match_result)
+                substitute = expand(t, match_result)
+                @test kind(substitute) === K"call"
+                @test length(substitute.children) == 3
+                @test substitute.children[1].val === :abc
             end
             let
-                pt = @pattern_with_template begin
-                    @pattern function {f}({args}...)
+                p = @pattern function {f}({args}...)
                         return {ex}
                     end
-                    @template {f}({args}...) = {ex}
-                end
+                t = @template {f}({args}...) = {ex}
                 src = """
                     function f(x, y)
                         return x + y
                     end
                     """
-                match_result = syntax_match(pt, parsestmt(SyntaxNode, src))
+                match_result = syntax_match(p, parsestmt(SyntaxNode, src))
                 @test is_successful(match_result)
-                @test flags(match_result.substitute) == JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
+                substitute = expand(t, match_result)
+                @test flags(substitute) == JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
             end
         end
     end

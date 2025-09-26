@@ -60,12 +60,9 @@ end
     To get a random Boolean, use `rand(Bool)`.
     """
 
-    pattern = @pattern_with_template begin
-        @pattern begin
-            {randf}() < 0.5
-            @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
-        end
-        @template rand(Bool)
+    pattern = @pattern begin
+        {randf}() < 0.5
+        @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
     end
 end
 
