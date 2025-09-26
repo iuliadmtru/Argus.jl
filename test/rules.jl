@@ -6,10 +6,11 @@
             description = ""
             pattern = p
         end
-        @test_throws "Expected 2 arguments, got 3" @macroexpand @rule "" begin
+        @test_throws "Expected 2 or 3 arguments, got 4" @macroexpand @rule "" begin
             description = ""
             pattern = p
-            arg3 = "bla"
+            template = t
+            arg4 = "bla"
         end
         @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
             description => ""
@@ -26,6 +27,11 @@
         @test_throws "should be `pattern`" @macroexpand @rule "" begin
             description = ""
             other = p
+        end
+        @test_throws "should be `template`" @macroexpand @rule "" begin
+            description = ""
+            pattern = p
+            other = t
         end
     end
 
@@ -44,16 +50,20 @@
             # Match.
             let
                 src = "f(a, b) = const a = b = 1 + 2"
-                match_result = rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
+                match_result =
+                    rule_match(chained_const_assignment, parsestmt(SyntaxNode, src))
                 @test isempty(match_result.failures)
                 @test length(match_result.matches) == 1
-                @test length(match_result.matches[1]) == 2
+                @test length(match_result.matches[1][1]) == 2
+                @test all(isnothing, [m[2] for m in match_result.matches])
             end
             # No match.
             let
                 src = "const a = b"
                 match_result =
-                    rule_match(chained_const_assignment, parsestmt(SyntaxNode, src); only_matches=false)
+                    rule_match(chained_const_assignment,
+                               parsestmt(SyntaxNode, src);
+                               only_matches=false)
                 @test length(match_result.failures) == 0
                 @test isempty(match_result.matches)
             end
@@ -63,7 +73,8 @@
                 description = ""
                 pattern = @pattern {_:::identifier}
             end
-            match_result = rule_match(rule, parsestmt(SyntaxNode, "a = 2"); only_matches=false)
+            match_result =
+                rule_match(rule, parsestmt(SyntaxNode, "a = 2"); only_matches=false)
             @test length(match_result.matches) == 1
             @test length(match_result.failures) == 2
             @test match_result.failures[1] == match_result.failures[2] ==
@@ -94,10 +105,11 @@
             """
             match_result = rule_match(rule, parseall(SyntaxNode, src))
             @test length(match_result.matches) == 2
-            first_match = match_result.matches[1]
+            matches = [m[1] for m in match_result.matches]
+            first_match = matches[1]
             @test first_match[:x].name == "a"
             @test first_match[:y].name == "f"
-            second_match = match_result.matches[2]
+            second_match = matches[2]
             @test kind(second_match[:x].src) === K"call"
             @test second_match[:y].name == "h"
         end
@@ -130,11 +142,12 @@
             src = "[1, 1, 1, 1]"
             match_result = rule_match(rule, parsestmt(SyntaxNode, src); greedy=false)
             @test length(match_result.matches) == 3
-            one1 = map(m -> m[:one1], match_result.matches)
+            matches = [m[1] for m in match_result.matches]
+            one1 = map(m -> m[:one1], matches)
             @test length(one1[1].src) == 0
             @test length(one1[2].src) == 1
             @test length(one1[3].src) == 2
-            one2 = map(m -> m[:one2], match_result.matches)
+            one2 = map(m -> m[:one2], matches)
             @test length(one2[3].src) == 0
             @test length(one2[2].src) == 1
             @test length(one2[1].src) == 2
@@ -223,7 +236,7 @@ end
 
     # Refactoring.
     for m in rand_bool_rule_matches
-        @test is_successful(m)
-        # @test Argus.compatible(m.substitute, SyntaxPatternNode(:( rand(Bool) )))
+        @test is_successful(m[1])
+        @test Argus.compatible(m[2], SyntaxPatternNode(:( rand(Bool) )))
     end
 end

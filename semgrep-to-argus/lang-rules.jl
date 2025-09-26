@@ -64,6 +64,8 @@ end
         {randf}() < 0.5
         @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
     end
+
+    template = @template rand(Bool)
 end
 
 # Syntax classes useful for the `useless-booleans` rule.
