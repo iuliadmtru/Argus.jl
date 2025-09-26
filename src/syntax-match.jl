@@ -13,9 +13,6 @@ struct MatchFail
 end
 MatchFail() = MatchFail("no match")
 
-const MatchSuccess = BindingSet
-
-# TODO: Rewrite.
 """
     MatchResult
 
@@ -23,7 +20,7 @@ The result of a pattern match. It can either be a `MatchFail` with details of th
 reason, or a `BindingSet` with all the pattern variables bound during the match. Alias for
 `Union{MatchFail, BindingSet}`.
 """
-const MatchResult = Union{MatchFail, MatchSuccess}
+const MatchResult = Union{MatchFail, BindingSet}
 
 """
     MatchResults
@@ -32,12 +29,12 @@ The result of a match that gathers all results. It contains a vector of `Binding
 vector of `MatchFail`s containing all non-trivial match failures.
 """
 struct MatchResults
-    matches::Vector{MatchSuccess}
+    matches::Vector{BindingSet}
     failures::Vector{MatchFail}
 end
 MatchResults() = MatchResults([], [])
 
-is_successful(result::MatchResult) = isa(result, MatchSuccess)
+is_successful(result::MatchResult) = isa(result, BindingSet)
 
 # Syntax matching
 # ===============
