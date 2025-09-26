@@ -78,6 +78,14 @@ function expand(template::Template, bindings::BindingSet)::JS.SyntaxNode
     end
     return expand_rep(template, bindings)[1]  # TODO: Check length is 1.
 end
+
+"""
+    expand_rep(template::Template,
+               bindings::BindingSet,
+               discarded_vars::Vector{Symbol}=[])::Vector{JS.SyntaxNode}
+
+Expand a `~rep` template into the corresponding vector of `SyntaxNode`s.
+"""
 function expand_rep(template::Template,
                     bindings::BindingSet,
                     discarded_vars::Vector{Symbol}=Symbol[])::Vector{JS.SyntaxNode}
@@ -89,6 +97,7 @@ function expand_rep(template::Template,
         b = try
             bindings[vname]
         catch e
+            # TODO: `ExpansionError`?
             if isa(e, BindingSetKeyError) && vname in discarded_vars
                 error("""
                       pattern variable $vname has inconsistent ellipsis depth
@@ -106,13 +115,17 @@ function expand_rep(template::Template,
                   """)
         return [src]
     end
-    # If the template is a `~rep`, ...
+    # If the template is a `~rep`, expand it using a reduced binding set, effectively
+    # decreasing the ellipsis depth.
     if is_rep(template)
+        # Bindings with bound sources of type `SyntaxNode` correspond to the "previous"
+        # depth and should be discarded.
         bindings, new_discarded_vars = remove_simple_bindings(bindings)
+        # Only keep bindings of variables referenced in the `~rep` node.
         rep_var_names = [v.name for v in template.rep_vars]
         rep_bindings::BindingSet = filter(b -> b.first in rep_var_names, bindings)
         # The number of repetitions is the number of bound sources.
-        reps_no = size_of_shallowest(rep_bindings)
+        reps_no = number_of_bound_sources(rep_bindings)
         # Repeat the expansion.
         reps_no == 0 && return []
         rep_node = template.children[1]
@@ -132,6 +145,12 @@ end
 
 # Utils
 
+"""
+    remove_simple_bindings(bs::BindingSet)::Tuple{BindingSet, Vector{Symbol}}
+
+Remove all bindings bound to `SyntaxNode`s from a [`BindingSet`](@ref). Keep track of the
+names of the discarded binding names.
+"""
 function remove_simple_bindings(bs::BindingSet)::Tuple{BindingSet, Vector{Symbol}}
     new_bs = BindingSet()
     discarded_vars = []
@@ -146,7 +165,13 @@ function remove_simple_bindings(bs::BindingSet)::Tuple{BindingSet, Vector{Symbol
     return (new_bs, discarded_vars)
 end
 
-function size_of_shallowest(bs::BindingSet)
+"""
+    number_of_bound_sources(bs::BindingSet)
+
+Get the number of sources bound at the first depth in a [`BindingSet`](@ref). The
+binding set should contain only bindings bound to vectors of `SyntaxNode`s.
+"""
+function number_of_bound_sources(bs::BindingSet)
     isempty(bs) && return 0
     first_binding = first(bs)
     size = length(first_binding.second.src)
@@ -163,6 +188,11 @@ function size_of_shallowest(bs::BindingSet)
     return size
 end
 
+"""
+    pick_from_binding_set(bs::BindingSet, idx::Int)
+
+Pick only the `idx`th bound source from each binding in `bs`.
+"""
 function pick_from_binding_set(bs::BindingSet, idx::Int)
     new_bs = BindingSet()
     for (bname, b) in bs

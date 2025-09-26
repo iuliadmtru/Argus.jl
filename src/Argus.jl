@@ -19,7 +19,7 @@ export SyntaxClassRegistry, @define_syntax_class, @define_syntax_class_in_regist
     register_syntax_class!, SyntaxClassRegistryKeyError
 export Binding, BindingSet, BindingFieldError, BindingSetKeyError
 export syntax_match, partial_syntax_match, syntax_match_all, is_successful,
-    PatternSubstitute, MatchSuccess, MatchFail, MatchError, MatchResults
+    MatchFail, MatchError, MatchResults
 export expand
 
 include("syntax-pattern-node.jl")
