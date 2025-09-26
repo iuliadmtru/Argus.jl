@@ -18,6 +18,7 @@ concepts:
   - Syntax patterns
   - Pattern variables
   - Syntax classes
+  - Syntax templates
   - Rules
 
 _Syntax patterns_ form the basis for syntax matching and closely
@@ -55,11 +56,15 @@ end
 Argus provides a set of pre-defined syntax classes, including `expr`,
 `funcall` and `fundef`.
 
-A _rule_ contains a description and a pattern. In the case of rules,
-matching recursively traverses a given unit of source code (e.g. a
-file) and collects the sub-expressions that match the rule's
-pattern. Pattern variables bound by these identifications are returned
-in corresponding _binding sets_.
+_Syntax templates_ are expanded to produce Julia code. They contain
+variables that are replaced with information gathered during pattern
+matching.
+
+A _rule_ contains a description, a pattern and, optionally, a
+template. In the case of rules, matching recursively traverses a given
+unit of source code (e.g. a file) and collects the sub-expressions
+that match the rule's pattern. Pattern variables bound by these
+identifications are returned in corresponding _binding sets_.
 
 Rules may be organised into _rule groups_. For example, it may be
 useful to group all rules related to Julia usage in a `lang` group:
@@ -99,14 +104,68 @@ Pkg.add("https://github.com/iuliadmtru/Argus.jl/")
 
 #### Basics
 
-First, we need to import Argus.
+The essential structures in Argus are `Pattern`s, `SyntaxClass`es and
+`Template`s.
 
 ```julia
 julia> using Argus
+
+help?> Pattern
+search: Pattern @pattern
+
+  Pattern
+
+  Syntax pattern used for matching syntax.
+
+help?> SyntaxClass
+search: SyntaxClass @syntax_class SyntaxClassRegistry SyntaxError syntax_match
+
+  SyntaxClass
+
+  Syntax classes provide the basis for a syntax matching mechanism. A syntax class specifies a syntactic "shape" and provides a description for that shape.
+
+  Syntax class bodies can contain one or more patterns. If there are multiple patterns, the search for a syntax match stops at the first matching pattern. Pattern variables can be constrained by syntax
+  classes using the syntax <pattern_var_name>:::<syntax_class_name>. Unconstrained pattern variables are constrained by default to :::expr.
+
+  Examples
+  ≡≡≡≡≡≡≡≡
+
+  julia> binary_funcall = @syntax_class "binary function call" begin
+             @pattern {_}({_}, {_})
+         end
+  SyntaxClass: binary function call
+    Pattern alternative #1:
+      [call]
+        _:::expr                           :: ~var
+        _:::expr                           :: ~var
+        _:::expr                           :: ~var
+
+  julia> fundef = @syntax_class "function definition" begin
+             @pattern {f:::funcall} = {_}...
+             @pattern function ({f:::funcall}) {_}... end
+         end
+  SyntaxClass: function definition
+    Pattern alternative #1:
+      [function-=]
+        f:::funcall                        :: ~var
+        [~rep]
+          _:::expr                         :: ~var
+    Pattern alternative #2:
+      [function]
+        f:::funcall                        :: ~var
+        [block]
+          [~rep]
+            _:::expr                       :: ~var
+
+help?> Template
+search: Template @template replace tempname relpath keepat! replace! repeat accumulate Tuple realpath splat empty
+
+  Template
+
+  Syntax template, to be filled using a BindingSet obtained after pattern matching. Alias for SyntaxPatternNode.
 ```
 
-Now we can create some patterns. Let's start with the simplest
-pattern.
+A simple pattern to experiment with is the match-all pattern:
 
 ```julia
 julia> expr = @pattern {x}
@@ -116,10 +175,10 @@ x:::expr                                 :: ~var
 
 This pattern matches any Julia expression. It has one pattern
 variable: `x`. The pretty print tells us that the pattern consists of
-a `~var` node which constraints `x` to be an `expr`. We'll get to
-`~var` and `expr` later.
+a `~var` node which constraints `x` to be an `expr`. `~var` and `expr`
+are explained later.
 
-Let's try to match this pattern with some Julia expressions.
+Patterns can be matched against Julia expressions.
 
 ```julia
 julia> using JuliaSyntax: parsestmt, SyntaxNode
@@ -146,7 +205,7 @@ BindingSet with 1 entry:
 The result of a successful match is a `BindingSet` — a dictionary with
 bound pattern variables (`Binding`s). A `Binding` contains information
 about a pattern variable that matched (part of) the source, as well as
-the source node matched
+the matched source node.
 
 In the second example above, the pretty print tells us that the
 pattern variable `x` was bound to the function definition found at
@@ -164,6 +223,8 @@ julia> exprs = @pattern {x}...
 Pattern:
 [~rep]
   x:::expr                               :: ~var
+
+julia> using JuliaSyntax: parseall
 
 julia> syntax_match(exprs, parseall(SyntaxNode, """
                                                 a = 1
@@ -235,7 +296,7 @@ BindingSet with 3 entries:
 `args` and `body` both bind to sequences of expressions. You can see
 this by looking at their ellipsis depth, which is 1, or by noting that
 they are bound to vectors of source nodes instead of just source
-nodes, like `x` in the `expr` pattern.
+nodes, like `f` is.
 
 Ellipses can be nested to match sequences of any depth.
 
@@ -275,7 +336,7 @@ You can read the pattern `vec_of_vecs` more intuitively as: _A vector
 that contains any number of elements. Its elements need to be vectors
 that have any number of elements of any kind._
 
-By default, the matching algorithm for ellipses is greedy.
+By default, the matching algorithm for ellipses is "greedy".
 
 ```julia
 julia> ones_vec = @pattern [1, {ones1}..., 1, {ones2}...];
@@ -300,7 +361,7 @@ BindingSet with 2 entries:
 ```
 
 `ones1` consumes all the expressions it can, leaving none for
-`ones2`. We can choose to match with a non-greedy algorithm:
+`ones2`. We can choose to match with a non-"greedy" algorithm:
 
 ```julia
 julia> syntax_match(ones_vec, parsestmt(SyntaxNode, "[1, 1, 1, 1]"); greedy=false)
@@ -354,7 +415,7 @@ BindingSet with 1 entry:
                 ]
 ```
 
-Without the specifying an escape depth, `@esc` would have escaped the
+Without specifying an escape depth, `@esc` would have escaped the
 entire expression:
 
 ```julia
@@ -374,6 +435,8 @@ that `x` is constrained by the _syntax class_ `expr`.
 
 A syntax class is a syntax matching construct useful for defining
 syntactic "categories". You can see it as an abstraction for patterns.
+(You can read more about them in the [`syntax/parse`
+documentation](https://docs.racket-lang.org/syntax/stxparse-specifying.html).)
 
 `expr` is the "category" of all Julia expressions. It is a syntax
 class provided by Argus. We can define our own syntax classes and use
@@ -406,7 +469,7 @@ If we want to use our syntax class in a pattern with the `:::` syntax
 we need to register it first.
 
 ```julia
-julia> register_syntax_class!(:vec, vec)
+julia> register_syntax_class!(:my_vec, vec)
 SyntaxClass: vector
   Pattern alternative #1:
     [vect]
@@ -414,10 +477,10 @@ SyntaxClass: vector
         _:::expr                         :: ~var
 ```
 
-Now we can find it in the syntax class registry under the name `:vec`.
+Now we can find it in the syntax class registry under the name `:my_vec`.
 
 ```julia
-julia> Argus.SYNTAX_CLASS_REGISTRY[:vec]
+julia> Argus.SYNTAX_CLASS_REGISTRY[:my_vec]
 SyntaxClass: vector
   Pattern alternative #1:
     [vect]
@@ -466,19 +529,21 @@ SyntaxClass: vector
 
 #### Pattern forms
 
-We have come across pattern nodes preceeded by `~`, such as `~var` or
-`~fail`. There are called _pattern forms_. A pattern form is a special
+We have come across pattern nodes preceeded by `~`, such as
+`~var`. There are called _pattern forms_. A pattern form is a special
 syntax form that performs actions on patterns or enables special
-matching behaviour.
+matching behaviour. (They [come from
+`syntax/parse`](https://docs.racket-lang.org/syntax/stxparse-patterns.html)
+as well.)
 
-`~var` and `~fail` are both _action forms_ — `~var` binds pattern
-variables and `~fail` causes the matching to fail if a given condition
-is satisfied. We have seen `~fail` explicitly written in the body of
-the built-in `vec` syntax class, in the pattern `@pattern ~fail(true,
-"not a vector")`. This pattern means: _if the condition `true` is
-satified, fail with the message "not a vector"_. Since `true` is
-always satified, the syntax class will always fail with the message
-"not a vector" if its first pattern fails.
+`~var` and `~fail` are _action forms_ — `~var` binds pattern variables
+and `~fail` causes the matching to fail if a given condition is
+satisfied.
+
+`~fail` expects a fail condition (given as an expression) and a
+failure message. The fail condition is evaluated during a pattern
+match using the match's `BindingSet`. If it is satisfied, the matching
+fails with the specified failure mesage.
 
 `~var` expects a pattern variable name and a syntax class name. If the
 source matches the syntax class, it is bound to the pattern
@@ -578,6 +643,61 @@ Pattern:
 
 julia> syntax_match(equals_x, parsestmt(SyntaxNode, "2 == y"))
 MatchFail("not x")
+```
+
+#### Templates
+
+The `BindingSet` resulting from a successful pattern match can be used
+to fill in a _template_ in order to generate new code.
+
+Let's say we want to replace a call to `append!` with one to
+`vcat`. First, we write the pattern and match it with something:
+
+```julia
+julia> pattern = @pattern append!({vs}...)
+Pattern:
+[call]
+  append!                                :: Identifier
+  [~rep]
+    vs:::expr                            :: ~var
+
+julia> bindings = syntax_match(pattern, parsestmt(SyntaxNode, "append!([1, 2, 3], 4)"))
+BindingSet with 1 entry:
+  :vs => Binding:
+           Name: :vs
+           Bound sources: [(vect 1 2 3) @ 1:9, 4 @ 1:20]
+           Ellipsis depth: 1
+           Sub-bindings:
+             [
+              BindingSet with 0 entries,
+              BindingSet with 0 entries
+             ]
+```
+
+Then, we write the template and expand it using the bindings obtained
+after matching:
+
+```julia
+julia> expand(template, bindings)
+SyntaxNode:
+[call]
+  vcat                                   :: Identifier
+  [vect]
+    1                                    :: Integer
+    2                                    :: Integer
+    3                                    :: Integer
+  4                                      :: Integer
+```
+
+Template variables should have the same ellipsis depth as the
+corresponding pattern variables.
+
+```julia
+julia> expand((@template vcat({vs})), bindings)
+ERROR: template variable vs has inconsistent ellipsis depth
+Template variables should have the same depth as the corresponding pattern variables.
+
+...
 ```
 
 #### Rules
