@@ -7,7 +7,6 @@
 Expand a template using a given set of bindings.
 
 # Examples
-# ========
 
 ```
 julia> p = @pattern ([{x}, {y}...])...;

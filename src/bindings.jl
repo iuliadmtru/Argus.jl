@@ -161,7 +161,6 @@ within any ellipsis nodes) bind to single nodes. Variables with ellipsis depth `
 a `Vector` of source nodes of depth `n`.
 
 # Examples
-# ========
 
 ```
 julia> match_result = syntax_match((@pattern {x}), parsestmt(SyntaxNode, "[a, b, c]"))
@@ -223,7 +222,6 @@ stop matching them further.
 Compatibility is decided through the [`compatible`](@ref) predicate.
 
 # Examples
-# ========
 
 ```
 julia> pattern = @pattern begin
@@ -267,7 +265,6 @@ end
 Internal binding type used for storing bindings for unfinished repetitions.
 
 # Examples
-# ========
 
 ```
 julia> pattern = @pattern {_}...

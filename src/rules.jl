@@ -22,7 +22,6 @@ Rule(name::String, description::String, pattern::Pattern) =
 Create a [`Rule`](@ref) from a name string and a rule body expression.
 
 # Examples
-# ========
 
 ```
 julia> consecutive_assign = @rule "consecutive-assign" begin
@@ -237,7 +236,6 @@ Create a [`Rule`](@ref) from a name string and an expession body and register it
 group.
 
 # Examples
-# ========
 
 ```
 lang_rules = RuleGroup("lang")

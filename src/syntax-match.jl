@@ -114,7 +114,6 @@ try again.
 
 
 # Examples
-# ========
 
 Allowing recoveries inside `~and` branches:
 
@@ -320,7 +319,6 @@ matching state.
 The algorithm can be made non-greedy by setting `greedy` to `false`.
 
 # Examples
-# ========
 
 ```
 julia> using JuliaSyntax: children
@@ -836,7 +834,6 @@ nodes. An ellipsis of depth 2 matches a sequence of sequences of nodes. Ellipses
 any depth.
 
 # Examples
-# ========
 
 ```
 julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( {x}... )),
@@ -1043,7 +1040,6 @@ remove_invalid_bindings(bs::BindingSet)::BindingSet =
 Turn all `TemporaryBinding`s into `Binding`s.
 
 # Examples
-# ========
 
 ```
 julia> srcs = [parsestmt(SyntaxNode, "1 + a"), parsestmt(SyntaxNode, "1 + 2"), parsestmt(SyntaxNode, "c + 1")];
@@ -1086,7 +1082,6 @@ single [`Binding`](@ref) and increase ellipsis depth accordingly.
 Should only be called at the end of a repetition match.
 
 # Examples
-# ========
 
 ```
 julia> pattern = @pattern begin
@@ -1194,7 +1189,6 @@ end
 Create an empty vector of a given depth, eventually holding elements of `type`.
 
 # Examples
-# ========
 
 ```
 julia> Argus.empty_vec(Int, 4)

@@ -105,7 +105,6 @@ used than `function (_f) end`, it makes more sense to parse `function (_f:::expr
 same as `function _f end`. Therefore, the `:tuple` head is eliminated in this case.
 
 # Examples
-# ========
 
 ```
 julia> Argus.desugar_expr(:( {x} ))
@@ -328,7 +327,6 @@ form syntax data. Parse regular `SyntaxNode`s into `SyntaxPatternNode`s with reg
 `SyntaxData`.
 
 # Examples
-# ========
 
 ```
 julia> using JuliaSyntax: parsestmt, SyntaxNode
@@ -420,7 +418,6 @@ expressions is written as a vector of expressions which starts with the symbol
 expression.
 
 # Examples
-# ========
 
 ```
 julia> Argus.parse_multiple_exprs_as_toplevel(SyntaxPatternNode(:(
@@ -521,7 +518,6 @@ Misparsed cases:
          pass removes the short form function definition flag from the assignment head node.
 
 # Examples
-# ========
 
 ```
 julia> ambiguous = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x} = 2 )))

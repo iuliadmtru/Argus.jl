@@ -11,7 +11,6 @@ constrained by syntax classes using the syntax `<pattern_var_name>:::<syntax_cla
 Unconstrained pattern variables are constrained by default to `:::expr`.
 
 # Examples
-# ========
 
 ```
 julia> binary_funcall = @syntax_class "binary function call" begin
@@ -54,7 +53,6 @@ Create a [`SyntaxClass`](@ref) from a description string and an expression body.
 should be a `begin ... end` block containing expressions that evaluate to `Pattern`s.
 
 # Examples
-# ========
 
 ```
 julia> bool_literal = @syntax_class "`true` or `false`" begin

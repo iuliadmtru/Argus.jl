@@ -15,7 +15,6 @@ const Template = SyntaxPatternNode
 Create a [`Template`](@ref) from the given expression.
 
 # Examples
-# ========
 
 ```
 julia> t = @template {x} + 1

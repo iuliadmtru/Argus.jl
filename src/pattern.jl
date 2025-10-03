@@ -24,7 +24,6 @@ wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` mac
   - `@fail(condition, msg)`: Fail with the message `msg` if `condition` is satisfied.
 
 # Examples
-# ========
 
 ```
 julia> @pattern a + b  # Simple expression with no pattern variables.
