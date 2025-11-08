@@ -276,6 +276,19 @@
                 @test syntax_match(pattern, src_fail) ==
                     MatchFail("conflicting bindings for pattern variable ex")
             end
+            let
+                pattern = @pattern begin
+                    @show {x}
+                    @fail x.name != "x" "not x"
+                end
+                src = parsestmt(SyntaxNode, "@show x")
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "@show x")))
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "@show(x)")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "@show(y)")))
+            end
             ## Multiple pattern expressions.
             let
                 pattern = @pattern begin

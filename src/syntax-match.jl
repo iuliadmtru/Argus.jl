@@ -1003,7 +1003,10 @@ compatible with each other one by one.
 function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                     ex2::Union{JS.SyntaxNode, SyntaxPatternNode};
                     recurse=true)
-    head(ex1) == head(ex2) || return false
+    head(ex1) == head(ex2) ||
+        # If the nodes differ only by `PARENS_FLAG`, they are compatible.
+        _differ_by_parens(ex1, ex2) ||
+        return false
     ex1.data.val == ex2.data.val || return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false
     is_leaf(ex1) && return true
@@ -1015,6 +1018,13 @@ function compatible(exs1::AbstractVector, exs2::AbstractVector)
     length(exs1) != length(exs2) && return false
     isempty(exs1) && return true
     return compatible(exs1[1], exs2[1])
+end
+
+function _differ_by_parens(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
+                           ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+    kind(ex1) == kind(ex2) || return false
+    kind(ex1) in JS.KSet"tuple block macrocall" || return false
+    return xor(JS.flags(ex1), JS.flags(ex2)) == JS.PARENS_FLAG
 end
 
 """
