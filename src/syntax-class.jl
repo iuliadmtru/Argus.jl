@@ -290,10 +290,21 @@ function _register_syntax_classes()
     # `macrocall`: match a macro call.
     @define_syntax_class :macrocall "macro call" begin
         @pattern begin
-            {mcall}
+            {_mcall}
             @fail begin
                 using JuliaSyntax: kind, Kind
-                kind(mcall.src) !== Kind("macrocall")
+                kind(_mcall.src) !== Kind("macrocall")
+            end ""
+        end
+    end
+
+    # `macrodef`: match a macro definition.
+    @define_syntax_class :macrodef "macro definition" begin
+        @pattern begin
+            {_mdef}
+            @fail begin
+                using JuliaSyntax: kind, Kind
+                kind(_mdef.src) !== Kind("macro")
             end ""
         end
     end

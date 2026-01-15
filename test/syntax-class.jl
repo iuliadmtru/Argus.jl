@@ -39,18 +39,18 @@
 
             match1 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m()"))
             @test isa(match1, BindingSet)
-            @test match1[:mcall].name == "@m"
-            @test isempty(match1[:mcall].args)
+            @test match1[:_mcall].name == "@m"
+            @test isempty(match1[:_mcall].args)
 
             match2 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m 2 3"))
             @test isa(match2, BindingSet)
-            @test match2[:mcall].name == "@m"
-            @test length(match2[:mcall].args) == 2
+            @test match2[:_mcall].name == "@m"
+            @test length(match2[:_mcall].args) == 2
 
             match3 = syntax_match(macrocall, parsestmt(SyntaxNode, "r\"abc\""))
             @test isa(match3, BindingSet)
-            @test match3[:mcall].name == "@r_str"
-            @test length(match3[:mcall].args) == 1
+            @test match3[:_mcall].name == "@r_str"
+            @test length(match3[:_mcall].args) == 1
         end
     end
 

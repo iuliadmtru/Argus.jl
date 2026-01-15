@@ -334,6 +334,10 @@ function Base.getproperty(b::AbstractBinding, name::Symbol)
         name === :name && return string(src.children[1].val)
         name === :args && return src.children[2:end]
     end
+    if kind(src) === K"macro"
+        name === :call && return src.children[1]
+        name === :body && return src.children[2]
+    end
     if name === :value
         JS.is_literal(src) && return src.val
         kind(src) === K"string" && return src.children[1].val
