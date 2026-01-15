@@ -299,7 +299,7 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=tr
         [(bs, expand(rule.template, bs)) for bs in binding_sets]
     return RuleMatchResult(matches_with_refactorings, match_results.failures)
 end
-function rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
+function rule_match(rule::Rule, filename::AbstractString; greedy=true, only_matches=true)
     src_txt = read(filename, String)
     src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
 
@@ -338,7 +338,7 @@ function rule_group_match(group::RuleGroup,
     return match_result
 end
 function rule_group_match(group::RuleGroup,
-                          filename::String;
+                          filename::AbstractString;
                           greedy=true,
                           only_matches=true)
     src_txt = read(filename, String)
