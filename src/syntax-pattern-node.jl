@@ -622,6 +622,17 @@ JS.head(node::SyntaxPatternNode) =
     is_pattern_form(node) ? head(node.data) : head(node.data.raw)
 JS.kind(node::SyntaxPatternNode) = head(node).kind
 
+# Base overwrites
+# ---------------
+
+function Base.push!(node::SyntaxPatternNode, child::SyntaxPatternNode)
+    if is_leaf(node)
+        error("Cannot add children")
+    end
+    args = children(node)
+    push!(args, child)
+end
+
 # Utils
 # -----
 

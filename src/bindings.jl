@@ -26,6 +26,7 @@ BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...))
 # --------------
 
 Base.isempty(bs::BindingSet) = isempty(bs.bindings)
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings))
 Base.empty!(bs::BindingSet) = empty!(bs.bindings)
 Base.length(bs::BindingSet) = length(bs.bindings)
 
@@ -55,6 +56,14 @@ Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
     BindingSet(mergewith!(c, bs.bindings, others...))
 Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
+
+function Base.copy(bs::BindingSet)
+    new_bs = empty(bs)
+    for (k, v) in bs
+        new_bs[k] = copy(v)
+    end
+    return new_bs
+end
 
 # Display
 # -------
@@ -367,6 +376,11 @@ function Base.getproperty(b::AbstractBinding, name::Symbol)
 end
 Base.getproperty(b::InvalidBinding, name::Symbol) =
     name === :msg ? getfield(b, :msg) : getfield(b, name)
+
+Base.copy(b::Binding) = Binding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
+Base.copy(b::InvalidBinding) = InvalidBinding(b.msg)
+Base.copy(b::TemporaryBinding) =
+    TemporaryBinding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
 
 # Display
 # -------

@@ -256,10 +256,10 @@ function _syntax_match(pattern::SyntaxPatternNode,
             # Don't add obviously failing states.
             continue
         end
-        _pattern = deepcopy(pattern)
+        _pattern = copy(pattern)
         [c.parent = _pattern for c in rec_ps]
         _pattern.children = rec_ps
-        _src = deepcopy(src)
+        _src = copy(src)
         [c.parent = _src for c in rec_srcs]
         _src.children = rec_srcs
         push!(recovery_stack, (_pattern, _src, rec_bs))
@@ -483,7 +483,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                     tmp,
                                     rep_sequence)
     else  # Not greedy.
-        bindings_copy = deepcopy(bindings)
+        bindings_copy = copy(bindings)
         match_result = _syntax_match(p, s, bindings_copy; recovery_stack, greedy, tmp)
         # The opposite of the greedy algorithm. The recovery state continues the current
         # repetition.
@@ -720,7 +720,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          recover=true,
                          greedy=true,
                          tmp=false)::MatchResult
-    bindings_alt::BindingSet = deepcopy(bindings)
+    bindings_alt::BindingSet = copy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
         # Each `~or` alternative is independent: it has its own recovery stack and should
@@ -746,7 +746,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
         end
         # Reset the bindings for each alernative. The alternatives should not communicate
         # with each other.
-        bindings_alt = deepcopy(bindings)
+        bindings_alt = copy(bindings)
         # Track the failures.
         failure = match_result
     end
@@ -772,8 +772,8 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           recovery_stack=[],
                           greedy=true,
                           tmp=false)
-    and_node = deepcopy(and_node)
-    bindings::BindingSet = deepcopy(bindings)
+    and_node = copy(and_node)
+    bindings::BindingSet = copy(bindings)
     for (i, p) in enumerate(children(and_node))
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
         # branch failures inside the `~and`.
@@ -804,7 +804,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
         # Here we know the match was a success so we can continue. Mark the `~and` node's
         # recovery states.
         while !isempty(branch_recovery_stack)
-            _and_node = deepcopy(and_node)
+            _and_node = copy(and_node)
             rec_p, rec_s, rec_bs = pop!(branch_recovery_stack)
             _and_node.children = SyntaxPatternNode[rec_p, _and_node.children[i+1:end]...]
             push!(recovery_stack, (_and_node, rec_s, rec_bs))
@@ -894,7 +894,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     match_result = _syntax_match(rep_node.children[1], src, BindingSet(); greedy, tmp=true)
     isa(match_result, MatchFail) && return match_result
 
-    bindings::BindingSet = deepcopy(bindings)
+    bindings::BindingSet = copy(bindings)
     for var in get_rep_vars(rep_node)
         var_name = var.name
         var_binding = match_result[var_name]
@@ -926,7 +926,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
                           srcs::Vector{JS.SyntaxNode},
                           bindings::BindingSet;
                           greedy=true)::MatchResult
-    bindings::BindingSet = deepcopy(bindings)
+    bindings::BindingSet = copy(bindings)
     if isempty(srcs)
         # If there are no source nodes, the repetition pattern variables bind to empty
         # vectors.
@@ -1320,7 +1320,7 @@ function resolve_conflicts_and_combine(st1::AbstractVector, st2::AbstractVector)
                 end
             end
             if !conflicting
-                push!(final_st, (union(ps1, ps2), union(ss1, ss2), deepcopy(final_bs)))
+                push!(final_st, (union(ps1, ps2), union(ss1, ss2), copy(final_bs)))
             end
         end
     end

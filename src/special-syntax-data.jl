@@ -84,6 +84,7 @@ struct FailSyntaxData <: AbstractPatternFormSyntaxData
     condition::Function
     message::String
 
+    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
     FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
 end
 
@@ -180,6 +181,12 @@ Base.getproperty(data::RepSyntaxData, name::Symbol) =
     name === :rep_vars ? getfield(data, :rep_vars) :
     name === :val      ? nothing                   :
     getfield(data, name)
+
+Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
+Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
+Base.copy(::OrSyntaxData) = OrSyntaxData()
+Base.copy(::AndSyntaxData) = AndSyntaxData()
+Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 
 # Utils
 # -----
