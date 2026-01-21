@@ -364,12 +364,19 @@ function Base.show(io::IO, ::MIME"text/plain", res::RuleMatchResult)
         println(io)
         print(io, "Matches:")
         for m in matches
+            # Source location.
+            println(io)
+            print(io, "  @ $(_repr_location(m[1]))")
+            # Match.
             println(io)
             print(io, "  ")
             show(io, m[1])
-            println(io)
-            print(io, "  ")
-            show(io, m[2])
+            # Substitute.
+            if !isnothing(m[2])
+                println(io)
+                print(io, "  ")
+                show(io, m[2])
+            end
             println(io)
         end
     end

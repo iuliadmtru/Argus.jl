@@ -70,6 +70,11 @@ end
 # Display
 # -------
 
+function Base.summary(io::IO, bs::BindingSet)
+    show(io, typeof(bs))
+    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
+end
+
 Base.show(io::IO, ::Type{BindingSet{AbstractBinding}}) = print(io, "BindingSet")
 Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
     _show_binding_set(io, bs, "")
@@ -104,6 +109,13 @@ function _show_binding_set(io::IO, bs, indent)
             end
         end
     end
+end
+
+function _repr_location(bs::BindingSet)
+    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
+    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
+
+    return location
 end
 
 # Errors
