@@ -279,10 +279,11 @@ struct RuleMatchResult
     matches::Vector{Tuple{BindingSet, Union{Nothing, JS.SyntaxNode}}}
     failures::Vector{MatchFail}
 end
+RuleMatchResult() = RuleMatchResult([], [])
 
 """
     rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; greedy=true, only_matches=true)
-    rule_match(rule::Rule, filename::String; greedy=true, only_matches=true)
+    rule_match(rule::Rule, filename::AbstractString; greedy=true, only_matches=true)
 
 Match a rule against a source code. Return the set of all matches with their associated
 refactored code, if applicable. If `only_matches` is `false` return failures as well.
@@ -299,11 +300,22 @@ function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=tr
         [(bs, expand(rule.template, bs)) for bs in binding_sets]
     return RuleMatchResult(matches_with_refactorings, match_results.failures)
 end
-function rule_match(rule::Rule, filename::AbstractString; greedy=true, only_matches=true)
-    src_txt = read(filename, String)
-    src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
-
-    return rule_match(rule, src; greedy, only_matches)
+function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=true)
+    if isfile(src)
+        src_txt = read(src, String)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        return rule_match(rule, src_node; greedy, only_matches)
+    end
+    if isdir(src)
+        files = source_files(src)
+        match_results = RuleMatchResult()
+        for f in files
+            match_result = rule_match(rule, f; greedy, only_matches)
+            append!(match_results, match_result)
+        end
+        return match_results
+    end
+    error("not a file or directory: $src")
 end
 
 """
@@ -319,7 +331,7 @@ const RuleGroupMatchResult = Dict{String, RuleMatchResult}
                      greedy=true,
                      only_matches=true)
     rule_group_match(group::RuleGroup,
-                     filename::String;
+                     src::AbstractString;
                      greedy=true,
                      only_matches=true)
 
@@ -338,13 +350,42 @@ function rule_group_match(group::RuleGroup,
     return match_result
 end
 function rule_group_match(group::RuleGroup,
-                          filename::AbstractString;
+                          src::AbstractString;
                           greedy=true,
                           only_matches=true)
-    src_txt = read(filename, String)
-    src = JS.parseall(JS.SyntaxNode, src_txt; filename=filename)
+    if isfile(src)
+        src_txt = read(src, String)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        return rule_group_match(group, src_node; greedy, only_matches)
+    end
+    if isdir(src)
+        files = source_files(src)
+        match_results = RuleGroupMatchResult()
+        for f in files
+            match_result = rule_group_match(group, f; greedy, only_matches)
+            for (k, v) in match_result
+                haskey(match_results, k)         ?
+                    append!(match_results[k], v) :
+                    match_results[k] = v
+            end
+        end
+        return match_results
+    end
+    error("not a file or directory: $src")
+end
 
-    return rule_group_match(group, src; greedy, only_matches)
+# Utils
+
+# TODO: More efficient way?
+source_files(dir::AbstractString) = read(`find $dir -name '*.jl'`, String) |> split
+
+# Base overwrites
+
+function Base.append!(res1::RuleMatchResult, res2::RuleMatchResult)
+    append!(res1.matches, res2.matches)
+    append!(res1.failures, res2.failures)
+
+    return res1
 end
 
 # Display

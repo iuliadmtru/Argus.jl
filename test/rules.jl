@@ -241,6 +241,20 @@ end
         @test length(result.matches) == 0
     end
 
+    # Run on directories.
+    let
+        g = RuleGroup("test")
+        @define_rule_in_group g "test" begin
+            description = ""
+            pattern = @pattern highly_unlikely_variable_name_really
+        end
+
+        rule_group_match_result = rule_group_match(g, "../src")
+        @test length(keys(rule_group_match_result)) == 1
+        @test length(rule_group_match_result["test"].matches) == 0
+        @test length(rule_group_match_result["test"].failures) == 0
+    end
+
     # Refactoring.
     for m in rand_bool_rule_matches
         @test is_successful(m[1])
