@@ -16,17 +16,19 @@ values if resulted from a successful and complete syntax match. May contain
 [`TemporaryBinding`](@ref) and/or [`InvalidBinding`](@ref) if resulted from a successful
 but incomplete syntax match.
 """
-struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
+mutable struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
     bindings::OrderedDict{Symbol, T}  # TODO: Order by appearance in the source code?
+    source_location::Tuple{Int64, Int64}
+    file_name::String
 end
-BindingSet() = BindingSet(OrderedDict{Symbol, AbstractBinding}())
-BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...))
+BindingSet() = BindingSet(OrderedDict{Symbol, AbstractBinding}(), (0, 0), "")
+BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...), (0, 0), "")
 
 # Dict interface
 # --------------
 
 Base.isempty(bs::BindingSet) = isempty(bs.bindings)
-Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings))
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name)
 Base.empty!(bs::BindingSet) = empty!(bs.bindings)
 Base.length(bs::BindingSet) = length(bs.bindings)
 

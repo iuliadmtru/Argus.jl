@@ -539,7 +539,10 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                                          bindings;
                                                          recovery_stack,
                                                          greedy)
-                push_match_result!(match_result_all, partial_result; only_matches)
+                push_match_result!(match_result_all,
+                                   partial_result,
+                                   srcs[1];
+                                   only_matches)
                 # If there are recovery paths, try them all and store the results.
                 while !isempty(recovery_stack)
                     partial_recovered_result, _ = recover!(recovery_stack,
@@ -547,7 +550,8 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                                            fail_ret=MatchFail(),
                                                            greedy)
                     push_match_result!(match_result_all,
-                                       partial_recovered_result;
+                                       partial_recovered_result,
+                                       srcs[1];
                                        only_matches)
                 end
                 srcs = rest(srcs)
@@ -1070,7 +1074,7 @@ BindingSet with 1 entry:
 ```
 """
 function make_permanent(bs::BindingSet)
-    without_temp = BindingSet()
+    without_temp = empty(bs)
     for (k, v) in bs
         if isa(v, TemporaryBinding)
             # Only permanentise non-anonymous bindings.
@@ -1232,12 +1236,15 @@ Add a match result to a list of match results. If `only_matches` is `true`, don'
 `MatchFail`s. Otherwise, include non-trivial failures.
 """
 function push_match_result!(match_all_result::MatchResults,
-                            match_result::MatchResult;
+                            match_result::MatchResult,
+                            src::JS.SyntaxNode;
                             only_matches=true)
     if isa(match_result, MatchFail)
         !only_matches && match_result != MatchFail() &&
             push!(match_all_result.failures, match_result)
     else
+        (match_result::BindingSet).source_location = JS.source_location(src)
+        (match_result::BindingSet).file_name = JS.filename(src)
         push!(match_all_result.matches, make_permanent(match_result))
     end
 end
@@ -1262,14 +1269,14 @@ function match_and_recover!(match_all_result::MatchResults,
     recovery_stack = []
     match_result =
         _syntax_match(pattern_node, src, bindings; recovery_stack, greedy)
-    push_match_result!(match_all_result, match_result; only_matches)
+    push_match_result!(match_all_result, match_result, src; only_matches)
     while !isempty(recovery_stack)
         match_result = recover!(recovery_stack,
                                 _syntax_match;
                                 fail_ret=MatchFail(),
                                 popfirst=true,
                                 greedy)
-        push_match_result!(match_all_result, match_result; only_matches)
+        push_match_result!(match_all_result, match_result, src; only_matches)
     end
     # Recurse on the source's children, if any.
     is_leaf(src) && return match_all_result

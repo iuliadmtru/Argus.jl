@@ -56,6 +56,8 @@
                 @test length(match_result.matches) == 1
                 @test length(match_result.matches[1][1]) == 2
                 @test all(isnothing, [m[2] for m in match_result.matches])
+                @test match_result.matches[1][1].source_location == (1, 11)
+                @test match_result.matches[1][1].file_name == ""
             end
             # No match.
             let
@@ -109,9 +111,13 @@
             first_match = matches[1]
             @test first_match[:x].name == "a"
             @test first_match[:y].name == "f"
+            @test first_match.source_location == (3, 5)
+            @test first_match.file_name == ""
             second_match = matches[2]
             @test kind(second_match[:x].src) === K"call"
             @test second_match[:y].name == "h"
+            @test second_match.source_location == (10, 9)
+            @test second_match.file_name == ""
         end
         let
             rule = @rule "" begin
@@ -230,6 +236,7 @@ end
     rule_group_match_result = rule_group_match(lang_rules, rand_bool_rule_path)
     rand_bool_rule_matches = rule_group_match_result["rand-bool"].matches
     @test length(rand_bool_rule_matches) == 3
+    @test all(m -> m[1].file_name == joinpath(dir, "rand-bool.jl"), rand_bool_rule_matches)
     for (rule_name, result) in filter(p -> p.first != "rand-bool", rule_group_match_result)
         @test length(result.matches) == 0
     end
