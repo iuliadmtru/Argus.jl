@@ -310,6 +310,12 @@ refactored code, if applicable. If `only_matches` is `false` return failures as 
 The rule pattern is matched against all children nodes in the source node, up to the leafs.
 Matching is greedy by default.
 
+!!! note
+    Matching a rule with a `SyntaxNode` may return different results than matching against
+    a file. The reason is that `Expr` and `SyntaxNode` representations differ in some
+    respects. These differences may be addressed when parsing a file. Therefore, in case
+    of disagreeing results, prefer to trust file-parsing method.
+
 See [`syntax_match_all`](@ref).
 """
 function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true)
@@ -323,7 +329,9 @@ end
 function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=true)
     if isfile(src)
         src_txt = read(src, String)
-        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        src_expr = JS.parseall(Expr, src_txt)
+        src_node = _expr_to_syntax_node(src_expr; file_name=src, rule_name=rule.name)
+
         return rule_match(rule, src_node; greedy, only_matches)
     end
     if isdir(src)
@@ -398,6 +406,278 @@ end
 
 # TODO: More efficient way?
 source_files(dir::AbstractString) = read(`find $dir -name '*.jl'`, String) |> split
+
+function _expr_to_syntax_node(ex::Expr; file_name::AbstractString="", rule_name::String="")
+    ex_str = string(JS.remove_linenums!(ex))
+    # # Remove `$` and `Expr` calls.
+    # regex = r"\$\((?<ex>Expr(?<parens>\(([^()]|(?&parens))*\)))\)"
+    # for m in eachmatch(regex, ex_str; overlap=true)
+    #     ex_str =
+    #         replace(ex_str, regex => m[:ex])
+    # end
+    src_node = JS.parseall(JS.SyntaxNode, ex_str; filename=file_name)
+    # Remove `$` and `Expr` calls and the first argument of `Expr` (`:toplevel`).
+    # TODO: Error handling.
+    src_node.children = src_node.children[1].children[1].children[3:end]
+    # Remove `quote` calls.
+    src_node.children =
+        map(c -> c = kind(c) === K"quote" ? c.children[1] : c, src_node.children)
+
+    # Obtain `SyntaxData` by parsing the original code as `SyntaxNode`.
+    src_syntax_node =
+        JS.parseall(JS.SyntaxNode, read(file_name, String); filename=file_name)
+    # Fix potential disagreements between `Expr` and `SyntaxNode` parsing.
+    _fix_disagreements!(src_node, src_syntax_node; rule_name=rule_name)
+    # Replace the `Expr`-parsed `SyntaxNode`'s data with the `SyntaxNode`-parsed data.
+    src_node.data = _update_data_without_head!(src_node, src_syntax_node; rule_name=rule_name)
+
+    return src_node
+end
+
+function _update_data_without_head!(node_dst::JS.SyntaxNode,
+                                    node_src::JS.SyntaxNode;
+                                    rule_name::String="")
+    new_raw_children = JS.GreenNode{JS.SyntaxHead}[]
+    # TODO: More accurate error handling.
+    if isnothing(node_dst.children)
+        isnothing(node_src.children) ||
+            throw(RuleMatchError("`Expr`-parsed `SyntaxNode` is different than `SyntaxNode`-parsed",
+                                 rule_name,
+                                 JS.filename(node_src),
+                                 JS.source_location(node_src)))
+    else
+        # @info "here" node_dst node_src
+        length(children(node_dst)) == length(children(node_src)) ||
+            throw(RuleMatchError("`Expr`-parsed `SyntaxNode` is different than `SyntaxNode`-parsed",
+                                 rule_name,
+                                 JS.filename(node_src),
+                                 JS.source_location(node_src)))
+        for (c_dst, c_src) in zip(children(node_dst), children(node_src))
+            c_dst.data = _update_data_without_head!(c_dst, c_src)
+            push!(new_raw_children, c_dst.data.raw)
+        end
+    end
+    if isempty(new_raw_children)
+        new_raw_children = nothing
+    end
+    new_raw = JS.GreenNode{JS.SyntaxHead}(
+        node_dst.data.raw.head,
+        node_src.data.raw.span,
+        new_raw_children
+    )
+    new_data = JS.SyntaxData(
+        node_src.data.source,
+        new_raw,
+        node_src.data.position,
+        node_src.data.val
+    )
+
+    node_dst.data = new_data
+
+    return new_data
+end
+
+function _fix_disagreements!(node_expr::JS.SyntaxNode,
+                             node_syntax_node::JS.SyntaxNode;
+                             rule_name::String="")
+    error_msg = """
+        `Expr`-parsed `SyntaxNode` is different than `SyntaxNode`-parsed.
+
+        `Expr`-parsed:
+        $node_expr
+
+        `SyntaxNode`-parsed:
+        $node_syntax_node
+        """
+
+    kind_syntax_node = kind(node_syntax_node)
+    kind_expr = kind(node_expr)
+    # Disagreements between `Expr` and `SyntaxNode`.
+    #
+    # Docs.
+    # Replace `Expr`-parsed docs node with `SyntaxNode`-parsed one.
+    if kind_syntax_node === K"doc" && kind_expr !== K"doc"
+        node_expr.children = [node_syntax_node.children[1], node_expr.children[3]]
+        node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
+    end
+    # Short form function definition or anonymous function.
+    # Remove the extra block added in the `Expr`-parsed node.
+    if is_short_function_def_without_block(node_syntax_node) ||
+        is_anon_function_without_block(node_syntax_node) &&
+        is_anon_function_with_block(node_expr)
+        kind_expr === kind_syntax_node ||
+            throw(RuleMatchError(error_msg,
+                                 rule_name,
+                                 JS.filename(node_syntax_node),
+                                 JS.source_location(node_syntax_node)))
+        if JS.has_flags(node_syntax_node, JS.SHORT_FORM_FUNCTION_FLAG)
+            JS.has_flags(node_expr, JS.SHORT_FORM_FUNCTION_FLAG) ||
+                throw(RuleMatchError(error_msg,
+                                     rule_name,
+                                     JS.filename(node_syntax_node),
+                                     JS.source_location(node_syntax_node)))
+        end
+        node_expr.children[2] = node_expr.children[2].children[1]
+    end
+    # Infix.
+    # Swap `SyntaxNode`-parsed children in case of infix/non-infix parse.
+    #
+    # Explanation: `Expr`-parsing changes infixable notation to infix, regardless
+    # of the original source code. `SyntaxNode`-parsing preserved source code order.
+    # `Expr`:       :( in(a, b) ) -> :( a in b )
+    # `SyntaxNode`:   "in(a, b)"  -> [call]
+    #                                  in   :: Identifier
+    #                                  a    :: Identifier
+    #                                  b    :: Identifier
+    #
+    # HOWEVER!
+    # `Expr`:        :( a + (b...) ) -> :( +(a, b...) )
+    if xor([JS.has_flags(f, JS.INFIX_FLAG) for f in
+                map(n -> n.data.raw.head.flags, [node_expr, node_syntax_node])]...)
+        children_syntax_node = children(node_syntax_node)
+        # Swap the first two children.
+        tmp = children_syntax_node[1]
+        children_syntax_node[1] = children_syntax_node[2]
+        children_syntax_node[2] = tmp
+    end
+    # Multi-line string.
+    # Keep information on line break.
+    if kind_syntax_node === K"string" && (kind_expr in JS.KSet"string String")
+        node_expr.children = node_syntax_node.children
+    end
+    # Ternary operator.
+    # Replace `if` with `?`.
+    if kind_syntax_node === K"?" && kind_expr !== K"?"
+          kind_expr === K"if" && length(children(node_expr)) == 3 ||
+            throw(RuleMatchError(error_msg,
+                                 rule_name,
+                                 JS.filename(node_syntax_node),
+                                 JS.source_location(node_syntax_node)))
+        node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
+        # Remove `block`s.
+        node_expr.children[2] = node_expr.children[2].children[1]
+        node_expr.children[3] = node_expr.children[3].children[1]
+    end
+    # `braces` for type parameters.
+    # Add the `braces` node.
+    if kind_syntax_node === K"braces" && kind_expr !== K"braces"
+        new_node_expr = JS.SyntaxNode(node_expr.parent, [node_expr], node_syntax_node.data)
+        node_expr = _replace_node!(node_expr, new_node_expr)
+    end
+    # `$(Expr(:head, :body))` wraps.
+    # Check if `head` is correct. Replace the node's head and body.
+    #
+    # Example: `:( :($x) )`
+    #
+    # SyntaxNode:
+    # [toplevel]
+    #   [$]
+    #     [call]
+    #       Expr             :: Identifier
+    #       [quote-:]
+    #         quote          :: Identifier     --> The head is `quote` -- it is correct.
+    #       [quote-:]
+    #         [$]                              --> The body starts here. Recursive call:
+    #           [call]
+    #             Expr       :: Identifier
+    #             [quote-:]
+    #               $        :: Identifier         --> The head is `$` -- it is correct.
+    #             [quote-:]
+    #               pid      :: Identifier         --> The body starts here.
+    #
+    # Result:
+    # SyntaxNode:
+    # [toplevel]
+    #   [quote-:]
+    #     [$]
+    #       pid               :: Identifier
+    if is_dollar_expr_call(node_expr)
+        # Check the head.
+        node_expr_head = node_expr.children[1].children[2].children[1].data.val
+        kind_from_head = JS.Kind(string(node_expr_head))
+        kind_syntax_node == kind_from_head ||
+            throw(RuleMatchError(error_msg,
+                                 rule_name,
+                                 JS.filename(node_syntax_node),
+                                 JS.source_location(node_syntax_node)))
+        # Replace the head.
+        node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
+        # Replace the body.
+        node_expr.children[1] =
+            _replace_node!(node_expr.children[1],
+                           node_expr.children[1].children[3].children[1])
+        # Recurse (there might be other `$(Expr(...))` calls left).
+        _fix_disagreements!(node_expr.children[1], node_syntax_node.children[1])
+    end
+    # `var"..."`.
+    # Replace the `Symbol` call in the `Expr`-parsed node with the `var` node in the
+    # `SyntaxNode`-parsed node.
+    if is_var_symbol(node_expr)
+        node_expr = _replace_node!(node_expr, node_syntax_node)
+    end
+    # `juxtapose`.
+    # Replace the `juxtapose` node with `call-i`.
+    #
+    # I don't know why this happens:
+    # :( const a = 2 * b ) -> :( const a = 2b )
+    if kind_expr === K"juxtapose" && kind_syntax_node === K"call"
+        node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
+        node_expr.children = [node_syntax_node.children[1], node_expr.children...]
+    end
+
+    if isnothing(children(node_expr))
+        isnothing(children(node_syntax_node)) ||
+            throw(RuleMatchError(error_msg,
+                                 rule_name,
+                                 JS.filename(node_syntax_node),
+                                 JS.source_location(node_syntax_node)))
+        return
+    end
+    length(children(node_expr)) == length(children(node_syntax_node)) ||
+        throw(RuleMatchError(error_msg,
+                             rule_name,
+                             JS.filename(node_syntax_node),
+                             JS.source_location(node_syntax_node)))
+   # Recurse.
+    for (c_expr, c_syntax_node) in zip(children(node_expr), children(node_syntax_node))
+        _fix_disagreements!(c_expr, c_syntax_node)
+    end
+end
+
+function _replace_node!(old::JS.SyntaxNode, new::JS.SyntaxNode)
+    idx = findfirst(c -> c == old, children(old.parent))
+    old.parent.children[idx] = new
+    return new
+end
+
+is_short_function_def_without_block(node::JS.SyntaxNode) =
+    kind(node) === K"function" &&
+    JS.has_flags(node, JS.SHORT_FORM_FUNCTION_FLAG) &&
+    kind(node.children[2]) !== K"block"
+is_anon_function_with_block(node::JS.SyntaxNode) =
+    kind(node) === K"->" &&
+    kind(node.children[2]) === K"block"
+is_anon_function_without_block(node::JS.SyntaxNode) =
+    kind(node) === K"->" &&
+    kind(node.children[2]) !== K"block"
+# SyntaxNode:
+# [$]
+#   [call]
+#     Expr             :: Identifier
+#     [quote-:]
+#       ...            :: Identifier
+#     [quote-:]
+#       ...
+is_dollar_expr_call(node::JS.SyntaxNode) =
+    kind(node) === K"$" &&
+    length(children(node)) == 1 &&
+    kind(children(node)[1]) === K"call" &&
+    length(children(children(node)[1])) == 3 &&
+    node.children[1].children[1].data.val == :Expr
+is_var_symbol(node::JS.SyntaxNode) =
+    kind(node) === K"call" &&
+    node.children[1].data.val === :Symbol &&
+    kind(node.children[2]) === K"string"
 
 # Base overwrites
 
