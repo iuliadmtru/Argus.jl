@@ -265,6 +265,26 @@ function register_rule!(group::RuleGroup, rule::Rule)
     group[rule.name] = rule
 end
 
+# Errors
+# ======
+
+struct RuleMatchError <: Exception
+    msg::String
+    rule_name::String
+    file::Union{Nothing, String}
+    source_location::Tuple{Int64, Int64}
+end
+
+# Display
+
+function Base.showerror(io::IO, err::RuleMatchError)
+    print(io, "RuleMatchError: ")
+    println(io, err.msg)
+    isnothing(err.file) ||
+        print(io, "@ $(err.file):")
+    println(io, "$(err.source_location[1]):$(err.source_location[2])")
+end
+
 # Rule matching
 # =============
 
