@@ -210,6 +210,275 @@
             @test length(match_result.matches) == 3
             @test readline(read_pipe) == "Function name: f"
         end
+        let
+            rule = @rule "expr vs syntaxnode mismatch" begin
+                description = ""
+                pattern = @pattern in({_}, {_})
+            end
+            src = """
+                in(a, b)
+                a in b
+                """;
+            (tmp_file_path, _) = mktemp()
+            write(tmp_file_path, src)
+            match_result = rule_match(rule, tmp_file_path)
+            @test length(match_result.matches) == 2
+            @test match_result.matches[1][1].source_location == (1, 1)
+            @test match_result.matches[2][1].source_location == (2, 1)
+        end
+    end
+
+    @testset "`Expr`-parsing compatibility" begin
+        function is_match(rule::Rule, src::String)
+            src_node = parseall(SyntaxNode, src)
+            src_node = Argus._make_Expr_compatible!(src_node)
+            m = rule_match(rule, src_node)
+            return length(m.matches) == 1
+        end
+
+        let
+            rule = @rule "var" begin
+                description = ""
+                pattern = @pattern var"x"
+            end
+            @test is_match(rule, "var\"x\"")
+        end
+        let
+            rule = @rule "?" begin
+                description = ""
+                pattern = @pattern x ? {_} : {_:::identifier}
+            end
+            @test is_match(rule, "x ? y : z")
+        end
+        let
+            rule = @rule "cmd macro sugared" begin
+                description = ""
+                pattern = @pattern foo`x`
+            end
+            @test is_match(rule, "foo`x`")
+        end
+        let
+            rule = @rule "cmd macro sugared with flags" begin
+                description = ""
+                pattern = @pattern foo`x`flags
+            end
+            @test is_match(rule, "foo`x`flags")
+        end
+        let
+            rule = @rule "cmd macro" begin
+                description = ""
+                pattern = @pattern @foo_cmd `x`
+            end
+            @test is_match(rule, "@foo_cmd `x`")
+        end
+        # let
+        #     rule = @rule "macro with do" begin
+        #         description = ""
+        #         pattern = @pattern @f(x) do y body end
+        #     end
+        #     @test is_match(rule, "@f(x) do y body end")
+        # end
+        # let
+        #     rule = @rule "doc" begin
+        #         description = ""
+        #         pattern = @pattern begin
+        #             """
+        #             docs
+        #             """
+        #             {_}
+        #         end
+        #     end
+        #     @test is_match(rule, """
+        #         \"""
+        #         docs
+        #         \"""
+        #         x
+        #         """)
+        # end
+        let
+            rule = @rule "infix" begin
+                description = ""
+                pattern = @pattern {_} + @esc({_}..., 1)
+            end
+            @test is_match(rule, "x + (y...)")
+        end
+        let
+            rule = @rule "not infix" begin
+                description = ""
+                pattern = @pattern +({_}, {_}...)
+            end
+            @test is_match(rule, "+(x, y, z)")
+        end
+        let
+            rule = @rule "trailing comma op" begin
+                description = ""
+                pattern = @pattern +({_},)
+            end
+            @test is_match(rule, "+(x,)")
+            @test is_match(rule, "+(x)")
+        end
+        let
+            rule = @rule "trailing comma .op" begin
+                description = ""
+                pattern = @pattern .+({_},)
+            end
+            @test is_match(rule, ".+(x,)")
+            @test is_match(rule, ".+(x)")
+        end
+        let
+            rule = @rule "trailing comma fun" begin
+                description = ""
+                pattern = @pattern f({_}, {_},)
+            end
+            @test is_match(rule, "f(x, y,)")
+            @test is_match(rule, "f(x, y)")
+        end
+        let
+            rule = @rule "trailing comma fun." begin
+                description = ""
+                pattern = @pattern f.({_}, {_},)
+            end
+            @test is_match(rule, "f.(x, y,)")
+            @test is_match(rule, "f.(x, y)")
+        end
+        let
+            rule = @rule "tuple assign one elem" begin
+                description = ""
+                pattern = @pattern x, = {_}
+            end
+            @test is_match(rule, "x, = 1, 2")
+            @test is_match(rule, "(x,) = 1, 2")
+        end
+        let
+            rule = @rule "tuple assign multiple elems" begin
+                description = ""
+                pattern = @pattern {_}, {_} = 1, 2
+            end
+            @test is_match(rule, "x, y = 1, 2")
+            @test is_match(rule, "(x, y) = (1, 2)")
+            @test is_match(rule, "(x, y) = 1, 2")
+            @test is_match(rule, "x, y = (1, 2)")
+            @test is_match(rule, "x, y, = 1, 2")
+        end
+        let
+            rule = @rule "vect trailing comma" begin
+                description = ""
+                pattern = @pattern [x,]
+            end
+            @test is_match(rule, "[x,]")
+            @test is_match(rule, "[x]")
+        end
+        let
+            rule = @rule "braces one elem" begin
+                description = ""
+                pattern = @pattern {_} where {{_}}
+            end
+            @test is_match(rule, "x where {T}")
+            @test is_match(rule, "x where {y for y in ys}")
+        end
+        let
+            rule = @rule "braces one elem in macro" begin
+                description = ""
+                pattern = @pattern @m{{_}}
+            end
+            @test is_match(rule, "@m{x}")
+        end
+        let
+            rule = @rule "braces multiple elem" begin
+                description = ""
+                pattern = @pattern {_} where {{_}, {_}...}
+            end
+            @test is_match(rule, "x where {S, T}")
+        end
+        let
+            rule = @rule "braces multiple elem trailing comma" begin
+                description = ""
+                pattern = @pattern {_} where {{_}, {_},}
+            end
+            @test is_match(rule, "x where {S, T,}")
+            @test is_match(rule, "x where {S, T}")
+        end
+        let
+            rule = @rule "-> block in body" begin
+                description = ""
+                pattern = @pattern x -> {_}
+            end
+            @test is_match(rule, "x -> y")
+            @test is_match(rule, "x -> begin y end")
+        end
+        let
+            rule = @rule "-> tuple no elems" begin
+                description = ""
+                pattern = @pattern (;) -> {_}
+            end
+            @test is_match(rule, "(;) -> x")
+        end
+        let
+            rule = @rule "-> tuple one elem" begin
+                description = ""
+                pattern = @pattern (x) -> {_}
+            end
+            @test is_match(rule, "(x) -> y")
+            @test is_match(rule, "x -> y")
+            @test !is_match(rule, "(x,) -> y")
+        end
+        let
+            rule = @rule "-> tuple one elem trailing comma" begin
+                description = ""
+                pattern = @pattern (x,) -> {_}
+            end
+            @test is_match(rule, "(x,) -> y")
+            @test !is_match(rule, "(x) -> y")
+        end
+        let
+            rule = @rule "-> tuple params" begin
+                description = ""
+                pattern = @pattern (x; y={_}) -> {_}
+            end
+            @test is_match(rule, "(x; y=1) -> z")
+        end
+        let
+            rule = @rule "-> where" begin
+                description = ""
+                pattern = @pattern (x where T) -> {_}
+            end
+            @test is_match(rule, "(x where T) -> y")
+        end
+        let
+            rule = @rule "short form function def" begin
+                description = ""
+                pattern = @pattern f(x) = y
+            end
+            @test is_match(rule, "f(x) = y")
+            @test is_match(rule, "f(x) = begin y end")
+        end
+        let
+            rule = @rule "anonymous long form function one arg" begin
+                description = ""
+                pattern = @pattern function (x) {_} end
+            end
+            @test is_match(rule, "function (x) body end")
+            @test is_match(rule, "function (x,) body end")
+        end
+        let
+            rule = @rule "anonymous long form function multiple args trailing comma" begin
+                description = ""
+                pattern = @pattern function (x, y,) {_} end
+            end
+            @test is_match(rule, "function (x,y,) body end")
+            @test is_match(rule, "function (x,y) body end")
+        end
+        let
+            rule = @rule "weird anonymous long form function args" begin
+                description = ""
+                pattern = @pattern function (x*y) end
+            end
+            @test is_match(rule, "function (x*y) end")
+        end
+
+        # (x for a in as, b in bs if z)     --- error
+        # [@foo]                            --- macrocall-p vs macrocall
+        # @S[a].b                           --- same
     end
 
 end
