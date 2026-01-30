@@ -329,7 +329,7 @@ end
 function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=true)
     if isfile(src)
         src_txt = read(src, String)
-        src_node = JS.parseall(JS.SyntaxNode, src_txt)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _make_Expr_compatible!(src_node)
 
 
