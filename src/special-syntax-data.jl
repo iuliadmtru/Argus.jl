@@ -9,7 +9,7 @@ A syntax object could not be constructed due to invalid syntax.
 struct SyntaxError <: Exception
     msg::String
     file::Union{Nothing, Symbol, String}
-    line::Union{Nothing, Int}
+    line::Union{Nothing, Int64}
 end
 SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing)
 
