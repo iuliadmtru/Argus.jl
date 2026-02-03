@@ -681,7 +681,7 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
             end
         end
         # Don't recurse on children.
-        return
+        return node
     elseif k == K"function"
         args = node.children[1]
         if JS.has_flags(node, JS.SHORT_FORM_FUNCTION_FLAG) &&
@@ -786,12 +786,8 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
 end
 
 is_operator(node::JS.SyntaxNode) =
-    try
-        JS.is_operator(JS.Kind(string(node.data.val)))
-    catch e
-        contains(e.msg, "unknown Kind name") || rethrow(e)
-        false
-    end
+    haskey(JS._kind_str_to_int, string(node.data.val)) &&
+    JS.is_operator(JS.Kind(string(node.data.val)))
 
 function remove_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
     new_flags = xor(JS.flags(node), flag)
