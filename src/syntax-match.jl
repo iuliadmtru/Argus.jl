@@ -1009,6 +1009,8 @@ function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                     recurse=true)
     head(ex1) == head(ex2) ||
         # If the nodes differ only by `PARENS_FLAG`, they are compatible.
+        #
+        # TODO: Remove this after correctly parsing `macrocall` (with or without params).
         _differ_by_parens(ex1, ex2) ||
         return false
     ex1.data.val == ex2.data.val || return false
@@ -1027,7 +1029,7 @@ end
 function _differ_by_parens(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                            ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
     kind(ex1) == kind(ex2) || return false
-    kind(ex1) in JS.KSet"tuple block macrocall" || return false
+    kind(ex1) in JS.KSet"macrocall" || return false
     return xor(JS.flags(ex1), JS.flags(ex2)) == JS.PARENS_FLAG
 end
 
