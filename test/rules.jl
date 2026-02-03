@@ -231,7 +231,7 @@
     @testset "`Expr`-parsing compatibility" begin
         function is_match(rule::Rule, src::String)
             src_node = parseall(SyntaxNode, src)
-            src_node = Argus._make_Expr_compatible!(src_node)
+            src_node = Argus._normalise!(src_node)
             m = rule_match(rule, src_node)
             return length(m.matches) == 1
         end

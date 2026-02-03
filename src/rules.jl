@@ -330,7 +330,7 @@ function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=t
     if isfile(src)
         src_txt = read(src, String)
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
-        src_node = _make_Expr_compatible!(src_node)
+        src_node = _normalise!(src_node)
 
 
         # src_expr = JS.parseall(Expr, src_txt)
@@ -388,7 +388,7 @@ function rule_group_match(group::RuleGroup,
     if isfile(src)
         src_txt = read(src, String)
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
-        src_node = _make_Expr_compatible!(src_node)
+        src_node = _normalise!(src_node)
         return rule_group_match(group, src_node; greedy, only_matches)
     end
     if isdir(src)
@@ -412,7 +412,49 @@ end
 # TODO: More efficient way?
 source_files(dir::AbstractString) = read(`find $dir -name '*.jl'`, String) |> split
 
-function _make_Expr_compatible!(node::JS.SyntaxNode)
+"""
+    _normalise!(node::JS.SyntaxNode)
+
+Normalise a `SyntaxNode`-parsed tree to an `Expr`-parsed equivalent.
+
+# Examples
+
+```
+julia> short_form_fundef = parsestmt(SyntaxNode, "f(x) = 2")
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  2                                      :: Integer
+
+
+julia> Argus._normalise!(short_form_fundef)
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  [block]
+    2                                    :: Integer
+
+julia> not_infix_op = parsestmt(SyntaxNode, "in(x, y)")
+SyntaxNode:
+[call]
+  in                                     :: Identifier
+  x                                      :: Identifier
+  y                                      :: Identifier
+
+
+julia> Argus._normalise!(not_infix_op)
+SyntaxNode:
+[call-i]
+  x                                      :: Identifier
+  in                                     :: Identifier
+  y                                      :: Identifier
+```
+"""
+function _normalise!(node::JS.SyntaxNode)
     k = kind(node)
     if k == K"var"
         new_node = node.children[1]
@@ -703,7 +745,7 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
                 node.children[1].children[2], node.children[1].children[1]
             remove_flag!(node.children[1], JS.INFIX_FLAG)
             # Don't recurse on args.
-            return _make_Expr_compatible!(node.children[2])
+            return _normalise!(node.children[2])
         end
     # elseif k == K"quote"  # TODO: a.:b
     elseif k in JS.KSet"global local" && length(children(node)) == 1
@@ -732,7 +774,7 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
 
     # Recurse on children.
     is_leaf(node) && return node
-    [_make_Expr_compatible!(c) for c in children(node)]
+    [_normalise!(c) for c in children(node)]
     return node
 end
 
@@ -833,20 +875,6 @@ is_anon_function_with_block(node::JS.SyntaxNode) =
 is_anon_function_without_block(node::JS.SyntaxNode) =
     kind(node) === K"->" &&
     kind(node.children[2]) !== K"block"
-# SyntaxNode:
-# [$]
-#   [call]
-#     Expr             :: Identifier
-#     [quote-:]
-#       ...            :: Identifier
-#     [quote-:]
-#       ...
-is_dollar_expr_call(node::JS.SyntaxNode) =
-    kind(node) === K"$" &&
-    length(children(node)) == 1 &&
-    kind(children(node)[1]) === K"call" &&
-    length(children(children(node)[1])) == 3 &&
-    node.children[1].children[1].data.val == :Expr
 is_var_symbol(node::JS.SyntaxNode) =
     kind(node) === K"call" &&
     node.children[1].data.val === :Symbol &&
