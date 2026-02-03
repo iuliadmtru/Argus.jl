@@ -495,7 +495,7 @@ function _normalise!(node::JS.SyntaxNode)
             # TODO: `do` lambda errors.
         end
     elseif k == K"doc"
-        new_node = _wrap_node(node, "Code.@doc")
+        new_node = _wrap_node(node, "Core.@doc")
         new_node.children = [new_node.children[1], node.children...]
         node = _replace_node!(node, new_node)
     elseif (k == K"dotcall" || k == K"call") && !isempty(children(node))
