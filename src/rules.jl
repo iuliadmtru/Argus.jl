@@ -853,35 +853,6 @@ function update_position_and_span(old_data::JS.SyntaxData, new_pos, new_span)
     return new_data
 end
 
-# function _expr_to_syntax_node(ex::Expr; file_name::AbstractString="", rule_name::String="")
-#     ex_str = string(JS.remove_linenums!(ex))
-#     src_node = JS.parseall(JS.SyntaxNode, ex_str; filename=file_name)
-#     # Remove `$` and `Expr` calls and the first argument of `Expr` (`:toplevel`).
-#     # TODO: Error handling.
-#     src_node.children = src_node.children[1].children[1].children[3:end]
-#     # Remove `quote` calls.
-#     src_node.children =
-#         map(c -> c = kind(c) === K"quote" ? c.children[1] : c, src_node.children)
-
-#     # Obtain `SyntaxData` by parsing the original code as `SyntaxNode`.
-#     src_syntax_node =
-#         JS.parseall(JS.SyntaxNode, read(file_name, String); filename=file_name)
-#     # Fix potential disagreements between `Expr` and `SyntaxNode` parsing.
-#     _fix_disagreements!(src_node, src_syntax_node; rule_name=rule_name)
-#     # Replace the `Expr`-parsed `SyntaxNode`'s data with the `SyntaxNode`-parsed data.
-#     src_node.data = _update_data_without_head!(src_node, src_syntax_node; rule_name=rule_name)
-
-#     return src_node
-# end
-
-function _replace_node!(old::JS.SyntaxNode, new::JS.SyntaxNode)
-    isnothing(old.parent) && return new
-    idx = findfirst(c -> c == old, children(old.parent))
-    old.parent.children[idx] = new
-    new.parent = old.parent
-    return new
-end
-
 function _wrap_node(node::JS.SyntaxNode, wrap_str::String)
     # Parse wrapper node.
     new_node = JS.parsestmt(JS.SyntaxNode, wrap_str)

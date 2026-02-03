@@ -869,6 +869,14 @@ Create a new `SyntaxData` using `old_data` with the value replaced by `new_val`.
 update_data_val(old_data::JS.SyntaxData, new_val) =
     JS.SyntaxData(old_data.source, old_data.raw, old_data.position, new_val)
 
+function _replace_node!(old::JS.TreeNode, new::JS.TreeNode)
+    isnothing(old.parent) && return new
+    idx = findfirst(c -> c == old, children(old.parent))
+    old.parent.children[idx] = new
+    new.parent = old.parent
+    return new
+end
+
 ## Pattern form utils
 
 ### Predicates
