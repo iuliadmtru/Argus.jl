@@ -492,6 +492,8 @@ function _normalise!(node::JS.SyntaxNode)
                     node.children[3] = string_node
                 end
             end
+            # Check for `parameters` children.
+            node = reorder_parameters_macrocall!(node)
             # TODO: `do` lambda errors.
         end
     elseif k == K"doc"
@@ -567,6 +569,8 @@ function _normalise!(node::JS.SyntaxNode)
         end
         JS.has_flags(node, JS.TRAILING_COMMA_FLAG) &&
             remove_flag!(node, JS.TRAILING_COMMA_FLAG)
+        # Check for `parameters` children.
+        node = reorder_parameters!(node)
     elseif k == K"tuple" && !isempty(children(node))
         num_children = length(children(node))
         if num_children == 1
@@ -608,8 +612,13 @@ function _normalise!(node::JS.SyntaxNode)
             #     2                                    :: Integer
             add_flag!(node, JS.PARENS_FLAG)
         end
-    elseif k == K"vect" && JS.has_flags(node, JS.TRAILING_COMMA_FLAG)
-        remove_flag!(node, JS.TRAILING_COMMA_FLAG)
+        node = reorder_parameters!(node)
+    elseif k in JS.KSet"ref curly"
+        node = reorder_parameters!(node)
+    elseif k == K"vect"
+        JS.has_flags(node, JS.TRAILING_COMMA_FLAG) &&
+            remove_flag!(node, JS.TRAILING_COMMA_FLAG)
+        node = reorder_parameters_vect!(node)
     elseif k == K"braces"
         if length(children(node)) == 1
             if kind(node.parent) != K"macrocall"  # TODO: Is this correct?
@@ -618,8 +627,10 @@ function _normalise!(node::JS.SyntaxNode)
                                                                  node.data.raw.span)
                 node = _replace_node!(node, node.children[1])
             end
-        elseif JS.has_flags(node, JS.TRAILING_COMMA_FLAG)
-            remove_flag!(node, JS.TRAILING_COMMA_FLAG)
+        else
+            JS.has_flags(node, JS.TRAILING_COMMA_FLAG) &&
+                remove_flag!(node, JS.TRAILING_COMMA_FLAG)
+            node = reorder_parameters_vect!(node)
         end
     elseif k == K"->"
         args = node.children[1]
@@ -676,6 +687,7 @@ function _normalise!(node::JS.SyntaxNode)
                                        node.children[1].children[2].children[1]]
                 node.children[1].children = [block_args]
             end
+            node.children[1] = reorder_parameters!(node.children[1])
         end
         if kind(node.children[2]) != K"block"
             new_body = _wrap_node(node.children[2], "begin end")
@@ -874,6 +886,59 @@ function _wrap_node(node::JS.SyntaxNode, wrap_str::String)
     new_node.data = new_data
 
     return new_node
+end
+
+function reorder_parameters!(node::JS.SyntaxNode)
+    params_idx = findfirst(c -> kind(c) == K"parameters", children(node))
+    if !isnothing(params_idx)
+        params_num = length(children(node)) - params_idx + 1
+        new_children = node.children[1:(params_idx - 1)]
+        push!(new_children, squash_parameters!(node.children[params_idx:end]))
+        node.children = new_children
+    end
+
+    return node
+end
+function reorder_parameters_macrocall!(node::JS.SyntaxNode)
+    params_idx = findfirst(c -> kind(c) == K"parameters", children(node))
+    if !isnothing(params_idx)
+        params_num = length(children(node)) - params_idx + 1
+        new_children =
+            [node.children[1], squash_parameters!(node.children[params_idx:end])]
+        for idx in 2:(1 + params_num)
+            push!(new_children, node.children[idx])
+        end
+        node.children = new_children
+    end
+
+    return node
+end
+function reorder_parameters_vect!(node::JS.SyntaxNode)
+    params_idx = findfirst(c -> kind(c) == K"parameters", children(node))
+    if !isnothing(params_idx)
+        params_num = length(children(node)) - params_idx + 1
+        new_children =
+            [squash_parameters!(node.children[params_idx:end])]
+        for idx in 1:(params_idx - 1)
+            push!(new_children, node.children[idx])
+        end
+        node.children = new_children
+    end
+
+    return node
+end
+
+function squash_parameters!(nodes::Vector{JS.SyntaxNode})
+    isempty(nodes) && error("Invalid input?")
+    length(nodes) == 1 && return nodes[1]
+    # Squash the `parameters` nodes into one node.
+    node = nodes[1]
+    new_children = node.children
+    map!(n -> n.parent = node, nodes[2:end])
+    pushfirst!(new_children, squash_parameters!(nodes[2:end]))
+    node.children = new_children
+
+    return node
 end
 
 is_short_function_definition(node::JS.SyntaxNode) =

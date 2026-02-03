@@ -271,6 +271,15 @@
             end
             @test is_match(rule, "@foo_cmd `x`")
         end
+        let
+            rule = @rule "macrocall params" begin
+                description = ""
+                pattern = @pattern @m({_}...; {_}...; {_}...; {_}...)
+            end
+            @test is_match(rule, "@m(x; a; b; c, c2)")
+            @test is_match(rule, "@m(x, y; a, a2; b; c)")
+            @test is_match(rule, "@m(x=1; a=2; b; c)")
+        end
         # let
         #     rule = @rule "macro with do" begin
         #         description = ""
@@ -294,6 +303,20 @@
                 \"""
                 x
                 """)
+        end
+        let
+            rule = @rule "call params" begin
+                description = ""
+                pattern = @pattern {_}({_}...; {_}...; {_}...)
+            end
+            @test is_match(rule, "f(a; b; c)")
+        end
+        let
+            rule = @rule "dotcall params" begin
+                description = ""
+                pattern = @pattern {_}.({_}...; {_}...; {_}...)
+            end
+            @test is_match(rule, "f.(a; b; c)")
         end
         let
             rule = @rule "infix" begin
@@ -361,12 +384,47 @@
             @test is_match(rule, "x, y, = 1, 2")
         end
         let
+            rule = @rule "tuple params" begin
+                description = ""
+                pattern = @pattern ({_}...; {_}...; {_}...)
+            end
+            @test is_match(rule, "(a=1,; b=2; c=3)")
+        end
+        let
+            rule = @rule "ref params" begin
+                description = ""
+                pattern = @pattern {_}[a, b; {_}...; {_}...]
+            end
+            @test is_match(rule, "x[a, b; i=j; i2=j2]")
+        end
+        let
+            rule = @rule "curly params" begin
+                description = ""
+                pattern = @pattern {_}{a, b; {_}...; {_}...}
+            end
+            @test is_match(rule, "x{a, b; i=j; i2=j2}")
+        end
+        let
             rule = @rule "vect trailing comma" begin
                 description = ""
                 pattern = @pattern [x,]
             end
             @test is_match(rule, "[x,]")
             @test is_match(rule, "[x]")
+        end
+        let
+            rule = @rule "vect params" begin
+                description = ""
+                pattern = @pattern [{_}...,; {_}...]
+            end
+            @test is_match(rule, "[a=1, b=2; c=3; d=4]")
+        end
+        let
+            rule = @rule "braces params" begin
+                description = ""
+                pattern = @pattern {{_}, {_}; {_}...}
+            end
+            @test is_match(rule, "{a=1, b=2; c=3; d=4}")
         end
         let
             rule = @rule "braces one elem" begin
@@ -443,6 +501,13 @@
                 pattern = @pattern (x where T) -> {_}
             end
             @test is_match(rule, "(x where T) -> y")
+        end
+        let
+            rule = @rule "-> params" begin
+                description = ""
+                pattern = @pattern ({_}; {_}; {_}...) -> {_}
+            end
+            @test is_match(rule, "(a; b; c) -> d")
         end
         let
             rule = @rule "short form function def" begin
