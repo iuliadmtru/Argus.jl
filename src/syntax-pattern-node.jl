@@ -317,6 +317,9 @@ SyntaxPatternNode:
 ```
 """
 function parse_pattern_forms(node::JS.SyntaxNode)::SyntaxPatternNode
+    if is_malformed_pattern_form(node)
+        node = _restructure_node!(node)
+    end
     is_pattern_form(node) && return _parse_pattern_form(node)
     # Reparse `~var` module names correctly.
     node = is_var_module_name(node) ? reparse_module_name(node) : node
@@ -773,6 +776,15 @@ function is_pattern_form(node::JS.SyntaxNode)
     isnothing(pattern_form_name)                    && return false
     return pattern_form_name in PATTERN_FORMS
 end
+is_malformed_pattern_form(node::JS.SyntaxNode) =
+    kind(node) == K"call" &&
+    length(node.children) == 2 &&
+    node.children[1].data.val == :~ &&
+    kind(node.children[2]) == K"->" &&
+    kind(node.children[2].children[1]) == K"tuple" &&
+    length(node.children[2].children[1].children) == 1 &&
+    kind(node.children[2].children[1].children[1]) == K"call" &&
+    node.children[2].children[1].children[1].children[1].data.val == :var
 
 get_pattern_form_name(node::JS.SyntaxNode)::Symbol = node.children[2].children[1].val
 function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
@@ -842,6 +854,81 @@ function reparse_module_name(node::JS.SyntaxNode)
     module_body = JS.SyntaxNode(node, block_node_children, module_body_data)
 
     return JS.SyntaxNode(node.parent, [module_name, module_body], node.data)
+end
+
+"""
+    _restructure_node!(node::JS.SyntaxNode)::SyntaxPatternNode
+
+Restructure a malformed pattern form node.
+
+# Examples
+
+julia> syntax_node = Argus.desugar_expr(:( {_} -> {_} ))
+SyntaxNode:
+[call-pre]
+  ~                                      :: Identifier
+  [->]
+    [tuple]
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+    [block]
+      [call-pre]
+        ~                                :: Identifier
+        [call]
+          var                            :: Identifier
+          [quote-:]
+            _                            :: Identifier
+          [quote-:]
+            expr                         :: Identifier
+
+
+julia> Argus._restructure_node!(syntax_node)
+SyntaxNode:
+[->]
+  [tuple]
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+  [block]
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+"""
+function _restructure_node!(node::JS.SyntaxNode)
+    # Save the index of the node in the parent's children list.
+    idx_in_parent = isnothing(node.parent) ?
+        nothing :
+        findfirst(c -> c == node, children(node.parent))
+    # Make `->` the new node.
+    new_node = node.children[2]
+    new_node.parent = node.parent
+    # Relink `call` node here: `[call-pre] ~ _`.
+    call_node = node.children[2].children[1].children[1]
+    call_node.parent = node
+    node.children = [node.children[1], call_node]
+    # Relink `call-pre` node here: `[tuple] _`
+    node.parent = new_node.children[1]
+    new_node.children[1].children = [node]
+    # Replace the node in the parent's children list
+    if !isnothing(idx_in_parent)
+        new_node.parent.children[idx_in_parent] = new_node
+    end
+
+    return new_node
 end
 
 ### Pass 3 (misparse fix)

@@ -390,6 +390,12 @@
                 match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
                 @test length(match_result[:args].src) == 1
             end
+            let
+                pattern = @pattern {_} -> {_}
+                src = "x -> begin y end"
+                match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
+                @test is_successful(match_result)
+            end
             ## Templates.
             let
                 p = @pattern {x}
