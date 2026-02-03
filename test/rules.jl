@@ -475,6 +475,37 @@
             end
             @test is_match(rule, "function (x*y) end")
         end
+        # TODO: Fix parsing for pattern.
+        let
+            rule = @rule "local/global const" begin
+                description = ""
+                pattern = @pattern ~or(
+                    ~or(local const {_} = {_}),
+                    global const {_} = {_}
+                )
+            end
+            @test is_match(rule, "local const x = 1")
+            @test is_match(rule, "const global x = 1")
+        end
+        let
+            rule = @rule "local/global tuple" begin
+                description = ""
+                pattern = @pattern ~or(
+                    ~or(local ({_}...)),
+                    global ({_}...)
+                )
+            end
+            @test is_match(rule, "local (x, y)")
+            @test is_match(rule, "global (x,)")
+        end
+        let
+            rule = @rule "juxtapose" begin
+                description = ""
+                pattern = @pattern {_}'y
+            end
+            @test is_match(rule, "x'y")
+            @test is_match(rule, "x' * y")
+        end
 
         # (x for a in as, b in bs if z)     --- error
         # [@foo]                            --- macrocall-p vs macrocall

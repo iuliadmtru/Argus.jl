@@ -479,7 +479,7 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
                     # Swap children.
                     node.children[1], node.children[2] = node.children[2], node.children[1]
                 end
-            elseif length(children(node)) > 1 &&
+            elseif length(children(node)) > 2 &&
                 is_operator(node.children[2]) &&
                 JS.has_flags(node, JS.INFIX_FLAG) &&
                 kind(node.children[3]) == K"..."
@@ -705,79 +705,30 @@ function _make_Expr_compatible!(node::JS.SyntaxNode)
             # Don't recurse on args.
             return _make_Expr_compatible!(node.children[2])
         end
+    # elseif k == K"quote"  # TODO: a.:b
+    elseif k in JS.KSet"global local" && length(children(node)) == 1
+        k_child = kind(node.children[1])
+        if k_child == K"const"
+            # Swap `local`/`global` head with `const`.
+            flags_node = JS.flags(node)
+            flags_child = JS.flags(node.children[1])
+            node.children[1].data =
+                update_data_head(node.children[1].data, JS.SyntaxHead(k, flags_node))
+            node.data = update_data_head(node.data, JS.SyntaxHead(K"const", flags_child))
+        elseif k_child == K"tuple"
+            # Remove the `tuple` node.
+            node.children = node.children[1].children
+        end
+    elseif k == K"juxtapose" && !all(c -> JS.is_number(c) || JS.is_identifier(c),
+                                     children(node))
+        # Change head to `call-i`.
+        node.data = update_data_head(node.data, JS.SyntaxHead(K"call", JS.INFIX_FLAG))
+        # Add `*` node.
+        star_node = JS.parsestmt(JS.SyntaxNode, "*")
+        star_node.parent = node
+        node.children = [node.children[1], star_node, node.children[2:end]...]
+        # TODO: juxtapose: :+'y' ???
     end
-    # # Multi-line string.
-    # # Keep information on line break.
-    # if kind_syntax_node === K"string" && (kind_expr in JS.KSet"string String")
-    #     node_expr.children = node_syntax_node.children
-    # end
-    # # Ternary operator.
-    # # Replace `if` with `?`.
-    # if kind_syntax_node === K"?" && kind_expr !== K"?"
-    #       kind_expr === K"if" && length(children(node_expr)) == 3 ||
-    #         throw(RuleMatchError(error_msg,
-    #                              rule_name,
-    #                              JS.filename(node_syntax_node),
-    #                              JS.source_location(node_syntax_node)))
-    #     node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
-    #     # Remove `block`s.
-    #     node_expr.children[2] = node_expr.children[2].children[1]
-    #     node_expr.children[3] = node_expr.children[3].children[1]
-    # end
-    # # `$(Expr(:head, :body))` wraps.
-    # # Check if `head` is correct. Replace the node's head and body.
-    # #
-    # # Example: `:( :($x) )`
-    # #
-    # # SyntaxNode:
-    # # [toplevel]
-    # #   [$]
-    # #     [call]
-    # #       Expr             :: Identifier
-    # #       [quote-:]
-    # #         quote          :: Identifier     --> The head is `quote` -- it is correct.
-    # #       [quote-:]
-    # #         [$]                              --> The body starts here. Recursive call:
-    # #           [call]
-    # #             Expr       :: Identifier
-    # #             [quote-:]
-    # #               $        :: Identifier         --> The head is `$` -- it is correct.
-    # #             [quote-:]
-    # #               pid      :: Identifier         --> The body starts here.
-    # #
-    # # Result:
-    # # SyntaxNode:
-    # # [toplevel]
-    # #   [quote-:]
-    # #     [$]
-    # #       pid               :: Identifier
-    # if is_dollar_expr_call(node_expr)
-    #     # Check the head.
-    #     node_expr_head = node_expr.children[1].children[2].children[1].data.val
-    #     kind_from_head = JS.Kind(string(node_expr_head))
-    #     kind_syntax_node == kind_from_head ||
-    #         throw(RuleMatchError(error_msg,
-    #                              rule_name,
-    #                              JS.filename(node_syntax_node),
-    #                              JS.source_location(node_syntax_node)))
-    #     # Replace the head.
-    #     node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
-    #     # Replace the body.
-    #     node_expr.children[1] =
-    #         _replace_node!(node_expr.children[1],
-    #                        node_expr.children[1].children[3].children[1])
-    #     # Recurse (there might be other `$(Expr(...))` calls left).
-    #     _fix_disagreements!(node_expr.children[1], node_syntax_node.children[1])
-    # end
-    # # `juxtapose`.
-    # # Replace the `juxtapose` node with `call-i`.
-    # #
-    # # I don't know why this happens:
-    # # :( const a = 2 * b ) -> :( const a = 2b )
-    # if kind_expr === K"juxtapose" && kind_syntax_node === K"call"
-    #     node_expr.data = update_data_head(node_expr.data, head(node_syntax_node))
-    #     node_expr.children = [node_syntax_node.children[1], node_expr.children...]
-    # end
 
     # Recurse on children.
     is_leaf(node) && return node
