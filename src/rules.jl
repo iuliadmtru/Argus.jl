@@ -574,8 +574,6 @@ function _normalise!(node::JS.SyntaxNode)
     elseif k == K"tuple" && !isempty(children(node))
         num_children = length(children(node))
         if num_children == 1
-            JS.has_flags(node, JS.PARENS_FLAG) &&
-            !JS.has_flags(node, JS.TRAILING_COMMA_FLAG)
             # x, = 1
             #
             # Through `Expr`:
@@ -586,10 +584,13 @@ function _normalise!(node::JS.SyntaxNode)
             #
             # Through `SyntaxNode`:
             # [=]
-            #   [tuple-p]
+            #   [tuple]
             #     x                                    :: Identifier
             #   1                                      :: Integer
-            add_flag!(node, JS.TRAILING_COMMA_FLAG)
+            !JS.has_flags(node, JS.PARENS_FLAG) &&
+                add_flag!(node, JS.PARENS_FLAG)
+            !JS.has_flags(node, JS.TRAILING_COMMA_FLAG) &&
+                add_flag!(node, JS.TRAILING_COMMA_FLAG)
         elseif num_children > 1 && !JS.has_flags(node, JS.PARENS_FLAG)
             # x,y = 1,2
             #
