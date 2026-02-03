@@ -217,48 +217,7 @@ SyntaxNode:
 """
 function desugar_expr(ex)::JS.SyntaxNode
     desugared_ex = _desugar_expr(ex)
-    # TODO: Remove this horrible hack!
-    #       I did this because I don't understand expression interpolation well enough.
-    #       Example problem:
-    #
-    #       ```
-    #       julia> assign_ex = :( b = e );
-    #
-    #       julia> call_ex = :( f(a, $assign_ex) )
-    #       :(f(a, $(Expr(:(=), :b, :e))))
-    #
-    #       julia> call_ex.args
-    #       3-element Vector{Any}:
-    #        :f
-    #        :a
-    #        :(b = e)
-    #
-    #       julia> JuliaSyntax.parsestmt(SyntaxNode, string(call_ex))
-    #       SyntaxNode:
-    #       [call]
-    #         f                                      :: Identifier
-    #         a                                      :: Identifier
-    #         [$]
-    #           [call]
-    #             Expr                               :: Identifier
-    #             [quote-:]
-    #               =                                :: =
-    #             [quote-:]
-    #               b                                :: Identifier
-    #             [quote-:]
-    #               e                                :: Identifier
-    #       ```
-    #
-    #       This is not a very useful example but it shows the problem -- extra nodes!
-    #       This could surely be avoided by finding a nicer way to go from `Expr` to
-    #       `SyntaxNode`...
-    desugared_ex_str = string(desugared_ex)
-    regex = r"\$\((?<ex>Expr(?<parens>\(([^()]|(?&parens))*\)))\)"
-    for m in eachmatch(regex, desugared_ex_str)
-        desugared_ex_str =
-            replace(desugared_ex_str, regex => string(eval(Meta.parse(m[:ex]))); count=1)
-    end
-    return JS.parsestmt(JS.SyntaxNode, desugared_ex_str)
+    return JS.parsestmt(JS.SyntaxNode, string(desugared_ex))
 end
 function _desugar_expr(ex; esc=false, esc_depth=:all, inside_fail=false)
     # Check for escaping.
@@ -610,6 +569,86 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         funcall_alternative.parent = new_node
         # Return the `~or` node.
         return new_node
+    elseif is_dollar_expr_call(node)
+        # Example:
+        # @pattern begin
+        #     ({f}({args}...) = {_})...
+        # end
+        #
+        # SyntaxPatternNode:
+        # [$]
+        #   [call]
+        #     Expr                                 :: Identifier
+        #     [quote-:]
+        #       =                                  :: =
+        #     [quote-:]
+        #       [call]
+        #         [~var]
+        #           [quote-:]
+        #             f                            :: Identifier
+        #           [quote-:]
+        #             expr                         :: Identifier
+        #         [~rep]
+        #           [~var]
+        #             [quote-:]
+        #               args                       :: Identifier
+        #             [quote-:]
+        #               expr                       :: Identifier
+        #     [quote]
+        #       [block]
+        #         [~var]
+        #           [quote-:]
+        #             _                            :: Identifier
+        #           [quote-:]
+        #             expr                         :: Identifier
+        #
+        # Result:
+        # SyntaxPatternNode:
+        # [function-=]
+        #   [call]
+        #     [~var]
+        #       [quote-:]
+        #         f                                :: Identifier
+        #       [quote-:]
+        #         expr                             :: Identifier
+        #     [~rep]
+        #       [~var]
+        #         [quote-:]
+        #           args                           :: Identifier
+        #         [quote-:]
+        #           expr                           :: Identifier
+        #   [block]
+        #     [~var]
+        #       [quote-:]
+        #         _                                :: Identifier
+        #       [quote-:]
+        #         expr                             :: Identifier
+        #
+        # Check the head.
+        node_head = node.children[1].children[2].children[1].data.val
+        kind_from_head = JS.Kind(string(node_head))  # TODO: Error handling.
+        new_flags::JS.RawFlags = 0
+        # Change the kind for short form function definition.
+        first_arg = node.children[1].children[3].children[1]
+        if kind_from_head == K"=" && kind(first_arg) == K"call"
+            kind_from_head = K"function"
+            new_flags = JS.SHORT_FORM_FUNCTION_FLAG
+        end
+        # Replace the head.
+        node.data = update_data_head(node.data, JS.SyntaxHead(kind_from_head, new_flags))
+        # Replace the body.
+        if length(node.children[1].children) > 3
+            for c in node.children[1].children[4:end]
+                c.children[1].parent = node
+                # Remove the `quote` node and add it to the children list.
+                push!(node.children, c.children[1])
+            end
+        end
+        node.children[1] = _replace_node!(node.children[1],
+                                          node.children[1].children[3].children[1])
+        # Recurse (there might be other `$(Expr(...))` calls left).
+        new_children = [fix_misparsed!(c) for c in children(node)]
+        return SyntaxPatternNode(node.parent, new_children, node.data)
     end
 
     error("no misparse fix for [$(JS.untokenize(head(node)))] node")
@@ -650,6 +689,21 @@ is_toplevel(node::SyntaxPatternNode) =
 
 _is_leaf(node::SyntaxPatternNode) =
     is_var(node) || isnothing(node.children)
+
+# SyntaxNode:
+# [$]
+#   [call]
+#     Expr             :: Identifier
+#     [quote-:]
+#       ...            :: Identifier
+#     [quote-:]
+#       ...
+is_dollar_expr_call(node::SyntaxPatternNode) =
+    kind(node) == K"$" &&
+    length(children(node)) == 1 &&
+    kind(children(node)[1]) == K"call" &&
+    length(children(children(node)[1])) > 2 &&
+    node.children[1].children[1].data.val == :Expr
 
 ### Pass 1 (`Expr` desugaring)
 
@@ -810,6 +864,8 @@ function is_misparsed(node::SyntaxPatternNode)
         # definition.
         syntax_class_name === :funcall && return false
         # Any other constraint on the lhs causes makes the `=` node ambiguous.
+        return true
+    elseif is_dollar_expr_call(node)
         return true
     end
     # Add other ambiguous cases here.
