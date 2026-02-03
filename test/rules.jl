@@ -278,23 +278,23 @@
         #     end
         #     @test is_match(rule, "@f(x) do y body end")
         # end
-        # let
-        #     rule = @rule "doc" begin
-        #         description = ""
-        #         pattern = @pattern begin
-        #             """
-        #             docs
-        #             """
-        #             {_}
-        #         end
-        #     end
-        #     @test is_match(rule, """
-        #         \"""
-        #         docs
-        #         \"""
-        #         x
-        #         """)
-        # end
+        let
+            rule = @rule "doc" begin
+                description = ""
+                pattern = @pattern begin
+                    """
+                    docs
+                    """
+                    {_}
+                end
+            end
+            @test is_match(rule, """
+                \"""
+                docs
+                \"""
+                x
+                """)
+        end
         let
             rule = @rule "infix" begin
                 description = ""
@@ -505,6 +505,25 @@
             end
             @test is_match(rule, "x'y")
             @test is_match(rule, "x' * y")
+        end
+        let
+            rule = @rule "multi-line string" begin
+                description = ""
+                pattern = @pattern """
+                a
+                $x
+                b
+                c
+                """
+            end
+            @test is_match(rule, """
+                  \"""
+                  a
+                  \$x
+                  b\nc
+                  \"""
+                  """)
+            @test is_match(rule, "\"a\n\$x\nb\nc\n\"")
         end
 
         # (x for a in as, b in bs if z)     --- error

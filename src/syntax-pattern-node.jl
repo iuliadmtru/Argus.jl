@@ -861,6 +861,14 @@ function update_data_head(old_data::JS.SyntaxData, new_head::JS.SyntaxHead)
     )
 end
 
+"""
+    update_data_val(old_data::JuliaSyntax.SyntaxData, new_val)
+
+Create a new `SyntaxData` using `old_data` with the value replaced by `new_val`.
+"""
+update_data_val(old_data::JS.SyntaxData, new_val) =
+    JS.SyntaxData(old_data.source, old_data.raw, old_data.position, new_val)
+
 ## Pattern form utils
 
 ### Predicates

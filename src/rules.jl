@@ -770,6 +770,47 @@ function _normalise!(node::JS.SyntaxNode)
         star_node.parent = node
         node.children = [node.children[1], star_node, node.children[2:end]...]
         # TODO: juxtapose: :+'y' ???
+    elseif k in JS.KSet"string cmdstring" && JS.has_flags(node, JS.TRIPLE_STRING_FLAG)
+        # """
+        # a
+        # $x
+        # b
+        # c
+        # """
+        #
+        # Through `Expr`:
+        # SyntaxNode:
+        #  [string]
+        #    "a\n"                                  :: String
+        #    x                                      :: Identifier
+        #    "\nb\nc"                               :: String
+        #
+        # Through `SyntaxNode`:
+        # SyntaxNode:
+        #  [string-s]
+        #    "a\n"                                  :: String
+        #    x                                      :: Identifier
+        #    "\n"                                   :: String
+        #    "b\n"                                  :: String
+        #    "c"                                    :: String
+        remove_flag!(node, JS.TRIPLE_STRING_FLAG)
+        if length(children(node)) > 1
+            new_children = [node.children[1]]
+            for c in children(node)[2:end]
+                if kind(c) == K"String"
+                    last_c = new_children[end]
+                    if kind(last_c) == K"String"
+                        new_val = last_c.data.val * c.data.val
+                        new_children[end].data = update_data_val(last_c.data, new_val)
+                    else
+                        push!(new_children, c)
+                    end
+                else
+                    push!(new_children, c)
+                end
+            end
+            node.children = new_children
+        end
     end
 
     # Recurse on children.
