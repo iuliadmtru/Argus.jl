@@ -525,6 +525,14 @@
                   """)
             @test is_match(rule, "\"a\n\$x\nb\nc\n\"")
         end
+        let
+            rule = @rule "@." begin
+                description = ""
+                pattern = @pattern A.@.x
+            end
+            @test is_match(rule, "A.@.x")
+            @test is_match(rule, "A.@__dot__(x)")
+        end
 
         # (x for a in as, b in bs if z)     --- error
         # [@foo]                            --- macrocall-p vs macrocall

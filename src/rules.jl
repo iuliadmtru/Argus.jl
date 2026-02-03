@@ -811,6 +811,8 @@ function _normalise!(node::JS.SyntaxNode)
             end
             node.children = new_children
         end
+    elseif k == K"MacroName" && node.data.val == Symbol("@.")
+        node.data = update_data_val(node.data, Symbol("@__dot__"))
     end
 
     # Recurse on children.
