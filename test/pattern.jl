@@ -417,5 +417,12 @@
                 @test flags(substitute) == JuliaSyntax.SHORT_FORM_FUNCTION_FLAG
             end
         end
+
+        @testset "`Expr`-parsing compatibility" begin
+            let
+                p = @pattern f.$x
+                @test is_successful(syntax_match(p, parsestmt(SyntaxNode, "f.\$x")))
+            end
+        end
     end
 end

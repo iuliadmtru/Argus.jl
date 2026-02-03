@@ -626,7 +626,9 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         #
         # Check the head.
         node_head = node.children[1].children[2].children[1].data.val
-        kind_from_head = JS.Kind(string(node_head))  # TODO: Error handling.
+        kind_from_head = node_head == :kw ?
+            K"=" :
+            JS.Kind(string(node_head))  # TODO: Error handling.
         new_flags::JS.RawFlags = 0
         # Change the kind for short form function definition.
         first_arg = node.children[1].children[3].children[1]
@@ -639,9 +641,14 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         # Replace the body.
         if length(node.children[1].children) > 3
             for c in node.children[1].children[4:end]
-                c.children[1].parent = node
-                # Remove the `quote` node and add it to the children list.
-                push!(node.children, c.children[1])
+                if is_leaf(c)
+                    c.parent = node
+                    push!(node.children, c)
+                else
+                    c.children[1].parent = node
+                    # Remove the `quote` node and add it to the children list.
+                    push!(node.children, c.children[1])
+                end
             end
         end
         node.children[1] = _replace_node!(node.children[1],
@@ -649,6 +656,8 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         # Recurse (there might be other `$(Expr(...))` calls left).
         new_children = [fix_misparsed!(c) for c in children(node)]
         return SyntaxPatternNode(node.parent, new_children, node.data)
+    elseif is_quoted_dollar(node)
+        return _replace_node!(node, node.children[1])
     end
 
     error("no misparse fix for [$(JS.untokenize(head(node)))] node")
@@ -689,21 +698,6 @@ is_toplevel(node::SyntaxPatternNode) =
 
 _is_leaf(node::SyntaxPatternNode) =
     is_var(node) || isnothing(node.children)
-
-# SyntaxNode:
-# [$]
-#   [call]
-#     Expr             :: Identifier
-#     [quote-:]
-#       ...            :: Identifier
-#     [quote-:]
-#       ...
-is_dollar_expr_call(node::SyntaxPatternNode) =
-    kind(node) == K"$" &&
-    length(children(node)) == 1 &&
-    kind(children(node)[1]) == K"call" &&
-    length(children(children(node)[1])) > 2 &&
-    node.children[1].children[1].data.val == :Expr
 
 ### Pass 1 (`Expr` desugaring)
 
@@ -853,7 +847,8 @@ end
 ### Pass 3 (misparse fix)
 
 function is_misparsed(node::SyntaxPatternNode)
-    if kind(node) === K"function"
+    k = kind(node)
+    if k == K"function"
         lhs = node.children[1]
         is_var(lhs) || return false
         syntax_class_name = get_var_syntax_class_name(lhs)
@@ -867,11 +862,33 @@ function is_misparsed(node::SyntaxPatternNode)
         return true
     elseif is_dollar_expr_call(node)
         return true
+    elseif is_quoted_dollar(node)
+        return true
     end
     # Add other ambiguous cases here.
 
     return false
 end
+
+# SyntaxNode:
+# [$]
+#   [call]
+#     Expr             :: Identifier
+#     [quote-:]
+#       ...            :: Identifier
+#     [quote-:]
+#       ...
+is_dollar_expr_call(node::SyntaxPatternNode) =
+    kind(node) == K"$" &&
+    length(children(node)) == 1 &&
+    kind(children(node)[1]) == K"call" &&
+    length(children(children(node)[1])) > 2 &&
+    node.children[1].children[1].data.val == :Expr
+
+is_quoted_dollar(node::SyntaxPatternNode) =
+    kind(node) == K"quote" &&
+    length(children(node)) == 1 &&
+    kind(node.children[1]) == K"$"
 
 """
     fundef_to_assign(lhs::SyntaxPatternNode,
