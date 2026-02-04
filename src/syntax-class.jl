@@ -308,4 +308,9 @@ function _register_syntax_classes()
             end ""
         end
     end
+
+    # `dotcall`: match a dotted function call.
+    @define_syntax_class :dotcall "dot call" begin
+        @pattern ({fun_name}).({args}...)
+    end
 end

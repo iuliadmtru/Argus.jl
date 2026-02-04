@@ -73,6 +73,27 @@
             @test match3[:_mcall].name == "@r_str"
             @test length(match3[:_mcall].args) == 1
         end
+        let
+            dotcall = Argus.SYNTAX_CLASS_REGISTRY[:dotcall]
+
+            match_simple = syntax_match(dotcall, parsestmt(SyntaxNode, "f.(x, y)"))
+            @test length(match_simple) == 2
+            @test match_simple[:fun_name].name == "f"
+            @test length(match_simple[:args].bindings) == 2
+            @test [s.val for s in match_simple[:args].src] == [:x, :y]
+
+            match_qualified = syntax_match(dotcall, parsestmt(SyntaxNode, "M.f.()"))
+            @test length(match_qualified) == 2
+            @test kind(match_qualified[:fun_name].src) == K"."
+            @test isempty(match_qualified[:args].bindings)
+
+            match_anonymous = syntax_match(dotcall, parsestmt(SyntaxNode, "().()"))
+            @test length(match_anonymous) == 2
+            @test kind(match_anonymous[:fun_name].src) == K"tuple"
+
+            no_match = syntax_match(dotcall, parsestmt(SyntaxNode, "x"))
+            @test no_match == MatchFail("expected dot call")
+        end
     end
 
     @testset "General" begin
