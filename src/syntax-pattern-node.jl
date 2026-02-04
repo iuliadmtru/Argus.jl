@@ -470,8 +470,8 @@ Re-parse ambigous nodes or nodes that are misinterpreted in the transformation f
 Ambiguous cases:
   - `=`: Pass 2 parses assignments to pattern variables as short form function definitions.
          This happens because `:( <pattern_var> = <ex> )` is desugared into a `~var` call.
-         However, `<pattern_var>` could either be a short form function definition or a
-         variable assignment. This pass replaces ambigous `=` nodes with `~or` pattern forms
+         However, `<pattern_var>` could either be a short form function definition or an
+         assignment. This pass replaces ambigous `=` nodes with `~or` pattern forms
          containing both alternatives.
 
 Misparsed cases:
@@ -500,7 +500,7 @@ SyntaxPatternNode:
       [quote-:]
         x                                :: Identifier
       [quote-:]
-        identifier                       :: Identifier
+        expr                             :: Identifier
     2                                    :: Integer
   [function-=]
     [~var]
@@ -550,13 +550,10 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         new_node_data = OrSyntaxData()
         # Use the original pattern form variable name.
         id = get_var_name(lhs)
-        # Create alternative for `id:::identifier`.
-        id_syntax_pattern_node =
-            parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
-                                             "~var(:$id, :identifier)"))
+        # Update the head for the assignment alternative.
         assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
         assignment_alternative =
-            SyntaxPatternNode(nothing, [id_syntax_pattern_node, rhs], assignment_data)
+            SyntaxPatternNode(nothing, [lhs, rhs], assignment_data)
         # Create alternative for `id:::funcall`.
         funcall_syntax_pattern_node =
             parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
@@ -564,7 +561,6 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         funcall_alternative =
             SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
         # Link the alternatives to the new `~or` pattern form node.
-        cs = [assignment_alternative, funcall_alternative]
         new_node = SyntaxPatternNode(node.parent,
                                      [assignment_alternative, funcall_alternative],
                                      new_node_data)
