@@ -530,7 +530,27 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
     if is_toplevel(pattern_node) && (kind(src) == K"block" || kind(src) == K"toplevel")
         # Both the pattern and the source are series of expressions. Match the pattern's
         # expressions sequence with all the sub-sequences in the source.
-        if has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
+        if is_and(pattern_node)
+            # The pattern is a series of expressions with fail conditions attached. Match
+            # through all expressions in the source until there are none left.
+            #
+            # Match the pattern with the initial source expressions.
+            match_and_recover!(match_result_all,
+                               pattern_node,
+                               src,
+                               bindings;
+                               greedy,
+                               only_matches)
+            # Match the pattern with all source expressions except the first one.
+            (isempty(src.children) || length(src.children) == 1) && return match_result_all
+            next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
+            match_result =
+                syntax_match_all(pattern_node, next_src, bindings; greedy, only_matches)
+            append!(match_result_all.failures, match_result.failures)
+            append!(match_result_all.matches, match_result.matches)
+            # Return all accumulated match results.
+            return match_result_all
+        elseif has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
             srcs = children(src)
             while !isempty(srcs)
                 recovery_stack = []
@@ -1344,7 +1364,7 @@ Return `true` if the pattern has any `~rep` nodes among its children and `false`
 """
 function has_reps(pattern::SyntaxPatternNode)
     kind(pattern) === K"~and" && kind(pattern.children[1]) === K"toplevel" &&
-        return has_reps(pattern.children)
+        return has_reps(pattern.children[1])
     is_leaf(pattern) && return false
     for p in children(pattern)
         is_rep(p) && return true

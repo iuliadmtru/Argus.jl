@@ -211,6 +211,31 @@
             @test readline(read_pipe) == "Function name: f"
         end
         let
+            rule = @rule "test" begin
+                description = ""
+
+                pattern = @pattern begin
+                    {a:::identifier} = {_}
+                    {rest}...
+                    @fail a.name == "x" "is x"
+                end
+            end
+            let
+                src = parseall(SyntaxNode, """
+                    x = 2
+                    x = 3
+                    """)
+                @test length(rule_match(rule, src).matches) == 0
+            end
+            let
+                src = parseall(SyntaxNode, """
+                    a = 2
+                    x = 3
+                    """)
+                @test length(rule_match(rule, src).matches) == 1
+            end
+        end
+        let
             rule = @rule "expr vs syntaxnode mismatch" begin
                 description = ""
                 pattern = @pattern in({_}, {_})
