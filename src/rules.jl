@@ -332,10 +332,6 @@ function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=t
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _normalise!(src_node)
 
-
-        # src_expr = JS.parseall(Expr, src_txt)
-        # src_node = _expr_to_syntax_node(src_expr; file_name=src, rule_name=rule.name)
-
         return rule_match(rule, src_node; greedy, only_matches)
     end
     if isdir(src)
