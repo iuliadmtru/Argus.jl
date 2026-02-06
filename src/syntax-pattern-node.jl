@@ -360,6 +360,10 @@ function _parse_pattern_form(node::JS.SyntaxNode)::SyntaxPatternNode
         nothing
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
+    # `block` children inside `~or` patterns should be interpreted as `toplevel`.
+    pattern_form_name == :or &&
+        [c.data = update_data_head(c.data, JS.SyntaxHead(K"toplevel", 0))
+         for c in cs if kind(c) == K"block"]
     pattern_node = SyntaxPatternNode(nothing,
                                      cs,
                                      pattern_data)
@@ -773,8 +777,21 @@ is_symbol_node(node::JS.SyntaxNode) =
 
 is_toplevel(node::SyntaxPatternNode) = kind(node) === K"toplevel"
 is_toplevel_and(node::SyntaxPatternNode) =
-    kind(node) === K"~and" &&
-    kind(children(node)[1]) == K"toplevel"
+    kind(node) == K"~and" &&
+    (kind(node.children[1]) == K"toplevel" || is_toplevel_or(node.children[1])) &&
+    kind(node.children[2]) == K"~fail"
+is_toplevel_or(node::SyntaxPatternNode) =
+    kind(node) == K"~or" &&
+    all(c -> kind(c) == K"toplevel", children(node))
+is_or_with_toplevel_branches(node::SyntaxPatternNode) =
+    kind(node) == K"~or" &&
+    any(c -> kind(c) == K"toplevel", children(node))
+
+function keep_toplevel_branches_only(node::SyntaxPatternNode)
+    kind(node) == K"~or" || return node
+    new_children = [copy(c) for c in children(node) if kind(c) == K"toplevel"]
+    return SyntaxPatternNode(node.parent, new_children, node.data)
+end
 
 _is_leaf(node::SyntaxPatternNode) =
     is_var(node) || isnothing(node.children)

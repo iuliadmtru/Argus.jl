@@ -259,6 +259,9 @@
                 pattern = @pattern ~or(
                     function ({_})({_}..., {x:::identifier}, {_}...)
                         {body}...
+                    end,
+                    begin
+                        bla
                     end
                 )
             end
