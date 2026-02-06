@@ -318,8 +318,12 @@ Matching is greedy by default.
 
 See [`syntax_match_all`](@ref).
 """
-function rule_match(rule::Rule, src::JS.SyntaxNode; greedy=true, only_matches=true)
-    match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
+function rule_match(rule::Rule,
+                    src::JS.SyntaxNode,
+                    bindings::BindingSet=BindingSet();
+                    greedy=true,
+                    only_matches=true)
+    match_results = syntax_match_all(rule.pattern, src, bindings; greedy, only_matches)
     binding_sets = match_results.matches
     matches_with_refactorings = isnothing(rule.template) ?
         [(bs, nothing) for bs in binding_sets] :
