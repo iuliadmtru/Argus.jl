@@ -220,6 +220,25 @@
                 end
             end
             let
+                assign_with_type = @pattern {x:::identifier}::{T} = {_}
+                @test is_successful(syntax_match(assign_with_type,
+                                                 parsestmt(SyntaxNode, "x::T = 2")))
+                @test !is_successful(syntax_match(assign_with_type,
+                                                  parsestmt(SyntaxNode, "x = 2")))
+
+                assign_tuple = @pattern ({x:::identifier}, {_}...) = {_}
+                @test is_successful(syntax_match(assign_tuple,
+                                                 parsestmt(SyntaxNode, "(x, y) = 2, 3")))
+                @test !is_successful(syntax_match(assign_tuple,
+                                                  parsestmt(SyntaxNode, "x = 2")))
+
+                assign_vec = @pattern {x:::identifier}[{_}] = {_}
+                @test is_successful(syntax_match(assign_vec,
+                                                 parsestmt(SyntaxNode, "x[1] = 2")))
+                @test !is_successful(syntax_match(assign_vec,
+                                                  parsestmt(SyntaxNode, "x = 2")))
+            end
+            let
                 even = @pattern begin
                     {x}
                     @fail !iseven(x.value) "not even"

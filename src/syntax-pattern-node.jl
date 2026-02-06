@@ -475,9 +475,16 @@ Ambiguous cases:
          containing both alternatives.
 
 Misparsed cases:
-  - `=`: Assignments to pattern variables constrained with `:::identifier` are parsed as
-         short form function definitions, but they should be parsed as assignments. This
-         pass removes the short form function definition flag from the assignment head node.
+  - `=`: Assignments to expressions other than `call`s or pattern variables constrained
+         with `:::identifier` are parsed as short form function definitions, but they
+         should be parsed as assignments. This pass removes the short form function
+         definition flag from the assignment head node.
+  - `\$(Expr, ...)`: Some expressions are represented by an interpolated `Expr` call, which
+                     is inconsistent with the `SyntaxNode` representation. This pass
+                     replaces this call with the appropriate node.
+  - `:\$`: The `\$` operator is sometimes quoted in the `Expr` representation, which is
+           inconsistent with the `SyntaxNode` representation. This pass removes the `quote`
+           node.
 
 # Examples
 
@@ -510,7 +517,7 @@ SyntaxPatternNode:
         funcall                          :: Identifier
     2                                    :: Integer
 
-julia> misparsed = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x:::identifier} = 2 )))
+julia> misparsed1 = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x:::identifier} = 2 )))
 SyntaxPatternNode:
 [function-=]
   [~var]
@@ -520,7 +527,7 @@ SyntaxPatternNode:
       identifier                         :: Identifier
   2                                      :: Integer
 
-julia> Argus.fix_misparsed!(misparsed)
+julia> Argus.fix_misparsed!(misparsed1)
 SyntaxPatternNode:
 [=]
   [~var]
@@ -529,6 +536,75 @@ SyntaxPatternNode:
     [quote-:]
       identifier                         :: Identifier
   2                                      :: Integer
+
+julia> misparsed2 = Argus.parse_pattern_forms(Argus.desugar_expr(:( ({f}({args}...) = {_})... )))
+SyntaxPatternNode:
+[~rep]
+  [\$]
+    [call]
+      Expr                               :: Identifier
+      [quote-:]
+        =                                :: =
+      [quote-:]
+        [call]
+          [~var]
+            [quote-:]
+              f                          :: Identifier
+            [quote-:]
+              expr                       :: Identifier
+          [~rep]
+            [~var]
+              [quote-:]
+                args                     :: Identifier
+              [quote-:]
+                expr                     :: Identifier
+      [quote]
+        [block]
+          [~var]
+            [quote-:]
+              _                          :: Identifier
+            [quote-:]
+              expr                       :: Identifier
+
+julia> Argus.fix_misparsed!(misparsed2)
+SyntaxPatternNode:
+[~rep]
+  [function-=]
+    [call]
+      [~var]
+        [quote-:]
+          f                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+      [~rep]
+        [~var]
+          [quote-:]
+            args                         :: Identifier
+          [quote-:]
+            expr                         :: Identifier
+    [block]
+      [~var]
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
+
+julia> misparsed3 = Argus.parse_pattern_forms(Argus.desugar_expr(:(:( f.\$x ))))
+SyntaxPatternNode:
+[quote-:]
+  [.]
+    f                                    :: Identifier
+    [quote-:]
+      [\$]
+        x                                :: Identifier
+
+julia> Argus.fix_misparsed!(misparsed3)
+SyntaxPatternNode:
+[quote-:]
+  [.]
+    f                                    :: Identifier
+    [\$]
+      x                                  :: Identifier
 ```
 """
 function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
@@ -543,31 +619,35 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
     if k === K"function"
         lhs = fix_misparsed!(node.children[1])
         rhs = fix_misparsed!(node.children[2])
-        # If the lhs is constrained to `:identifier` the node should be an assignment,
-        # not a function definition.
-        get_var_syntax_class_name(lhs) === :identifier &&
+        if is_var(lhs)
+            # If the lhs is constrained to `:identifier` the node should be an assignment,
+            # not a function definition.
+            get_var_syntax_class_name(lhs) === :identifier &&
+                return fundef_to_assign(lhs, rhs, node)
+            new_node_data = OrSyntaxData()
+            # Use the original pattern form variable name.
+            id = get_var_name(lhs)
+            # Update the head for the assignment alternative.
+            assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
+            assignment_alternative =
+                SyntaxPatternNode(nothing, [lhs, rhs], assignment_data)
+            # Create alternative for `id:::funcall`.
+            funcall_syntax_pattern_node =
+                parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
+                                                 "~var(:$id, :funcall)"))
+            funcall_alternative =
+                SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
+            # Link the alternatives to the new `~or` pattern form node.
+            new_node = SyntaxPatternNode(node.parent,
+                                         [assignment_alternative, funcall_alternative],
+                                         new_node_data)
+            assignment_alternative.parent = new_node
+            funcall_alternative.parent = new_node
+            # Return the `~or` node.
+            return new_node
+        else
             return fundef_to_assign(lhs, rhs, node)
-        new_node_data = OrSyntaxData()
-        # Use the original pattern form variable name.
-        id = get_var_name(lhs)
-        # Update the head for the assignment alternative.
-        assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
-        assignment_alternative =
-            SyntaxPatternNode(nothing, [lhs, rhs], assignment_data)
-        # Create alternative for `id:::funcall`.
-        funcall_syntax_pattern_node =
-            parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
-                                             "~var(:$id, :funcall)"))
-        funcall_alternative =
-            SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
-        # Link the alternatives to the new `~or` pattern form node.
-        new_node = SyntaxPatternNode(node.parent,
-                                     [assignment_alternative, funcall_alternative],
-                                     new_node_data)
-        assignment_alternative.parent = new_node
-        funcall_alternative.parent = new_node
-        # Return the `~or` node.
-        return new_node
+        end
     elseif is_dollar_expr_call(node)
         # Example:
         # @pattern begin
@@ -932,18 +1012,26 @@ end
 
 function is_misparsed(node::SyntaxPatternNode)
     k = kind(node)
-    if k == K"function"
+    if k == K"function" && JS.has_flags(node, JS.SHORT_FORM_FUNCTION_FLAG)
         lhs = node.children[1]
-        is_var(lhs) || return false
-        syntax_class_name = get_var_syntax_class_name(lhs)
-        # An `=` node constrained to `:identifier` should be interpreted as an assignment,
-        # not a function definition.
-        syntax_class_name === :identifier && return true
-        # An `=` node constrained to `:funcall` should indeed be interpreted as a function
-        # definition.
-        syntax_class_name === :funcall && return false
-        # Any other constraint on the lhs causes makes the `=` node ambiguous.
-        return true
+        k_lhs = kind(lhs)
+        if is_var(lhs)
+            syntax_class_name = get_var_syntax_class_name(lhs)
+            # An `=` node constrained to `:identifier` should be interpreted as an assignment,
+            # not a function definition.
+            syntax_class_name === :identifier && return true
+            # An `=` node constrained to `:funcall` should indeed be interpreted as a function
+            # definition.
+            syntax_class_name === :funcall && return false
+            # Any other constraint on the lhs causes makes the `=` node ambiguous.
+            return true
+        elseif k_lhs == K"call"
+            # This is really a function call.
+            return false
+        else
+            # This should be an assignment.
+            return true
+        end
     elseif is_dollar_expr_call(node)
         return true
     elseif is_quoted_dollar(node)
