@@ -691,9 +691,10 @@ is_symbol_node(node::JS.SyntaxNode) =
     length(children(node)) == 1 &&
     is_identifier(children(node)[1])
 
-is_toplevel(node::SyntaxPatternNode) =
-    kind(node) === K"toplevel" ||
-    kind(node) === K"~and" && kind(children(node)[1]) === K"toplevel"
+is_toplevel(node::SyntaxPatternNode) = kind(node) === K"toplevel"
+is_toplevel_and(node::SyntaxPatternNode) =
+    kind(node) === K"~and" &&
+    kind(children(node)[1]) == K"toplevel"
 
 _is_leaf(node::SyntaxPatternNode) =
     is_var(node) || isnothing(node.children)

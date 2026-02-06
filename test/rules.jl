@@ -211,7 +211,7 @@
             @test readline(read_pipe) == "Function name: f"
         end
         let
-            rule = @rule "test" begin
+            rule = @rule "toplevel `~and` pattern with reps" begin
                 description = ""
 
                 pattern = @pattern begin
@@ -234,6 +234,42 @@
                     """)
                 @test length(rule_match(rule, src).matches) == 1
             end
+        end
+        let
+            rule = @rule "multiple bindings for one match" begin
+                description = ""
+
+                pattern = @pattern function ({_})({_}..., {x:::identifier}, {_}...)
+                    {body}...
+                end
+            end
+            src = parseall(SyntaxNode, """
+                a = 1
+                function f(x, y)
+                    body
+                end
+                a + 2
+                """)
+            @test length(rule_match(rule, src).matches) == 2
+        end
+        let
+            rule = @rule "multiple bindings for one match ~or" begin
+                description = ""
+
+                pattern = @pattern ~or(
+                    function ({_})({_}..., {x:::identifier}, {_}...)
+                        {body}...
+                    end
+                )
+            end
+            src = parseall(SyntaxNode, """
+                a = 1
+                function f(x, y)
+                    body
+                end
+                a + 2
+                """)
+            @test length(rule_match(rule, src).matches) == 2
         end
         let
             rule = @rule "expr vs syntaxnode mismatch" begin

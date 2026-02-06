@@ -427,10 +427,18 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                                         greedy,
                                                         tmp,
                                                         rep_sequence)
-            if isempty(rest(pattern_nodes))
-                recovery_stack_rest = [([rec[1]], [rec[2]], rec[3]) for rec in recovery_stack_current_p]
-            elseif isempty(recovery_stack_current_p)
+            if isempty(recovery_stack_current_p)
                 recovery_stack_rest = resolve_conflicts_and_combine([([p], [s], bindings)], recovery_stack_rest)
+            else
+                if isempty(rest(pattern_nodes))
+                    recovery_stack_rest =
+                        [([rec[1]], [rec[2]], rec[3]) for rec in recovery_stack_current_p]
+                else
+                    recovery_stack_rest =
+                        [([rec[1], rest(pattern_nodes)...],
+                          [rec[2], rest(srcs)...],
+                          rec[3]) for rec in recovery_stack_current_p]
+                end
             end
             # Add the combined recovery states to the sequence's recovery stack.
             while !isempty(recovery_stack_rest)
@@ -451,7 +459,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     end
     # If we're here, the first pattern node in the list is a repetition.
     if greedy
-        match_result = _syntax_match(p, s, bindings; greedy, tmp)
+        match_result = _syntax_match(p, s, bindings; recovery_stack, greedy, tmp)
         if isa(match_result, MatchFail)
             # No match for a repetition node means the repetition consumed all the source
             # nodes it could. We can continue matching with the next pattern in the list.
@@ -514,43 +522,23 @@ Try to match a pattern node against a source node. Return all successful matches
 `only_matches` is `false` return the non-trivial failures as well.
 """
 function syntax_match_all(pattern::Pattern,
-                          src::JS.SyntaxNode;
+                          src::JS.SyntaxNode,
+                          bindings::BindingSet=BindingSet();
                           greedy=true,
                           only_matches=true)
-    return syntax_match_all(pattern.src, src; greedy, only_matches)
+    return syntax_match_all(pattern.src, src, bindings; greedy, only_matches)
 end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet=BindingSet();
                           greedy=true,
                           only_matches=true)::MatchResults
-    bindings = BindingSet()
     match_result_all = MatchResults()
     # TODO: Rewrite this in a more generalised way, if possible.
     if is_toplevel(pattern_node) && (kind(src) == K"block" || kind(src) == K"toplevel")
         # Both the pattern and the source are series of expressions. Match the pattern's
         # expressions sequence with all the sub-sequences in the source.
-        if is_and(pattern_node)
-            # The pattern is a series of expressions with fail conditions attached. Match
-            # through all expressions in the source until there are none left.
-            #
-            # Match the pattern with the initial source expressions.
-            match_and_recover!(match_result_all,
-                               pattern_node,
-                               src,
-                               bindings;
-                               greedy,
-                               only_matches)
-            # Match the pattern with all source expressions except the first one.
-            (isempty(src.children) || length(src.children) == 1) && return match_result_all
-            next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
-            match_result =
-                syntax_match_all(pattern_node, next_src, bindings; greedy, only_matches)
-            append!(match_result_all.failures, match_result.failures)
-            append!(match_result_all.matches, match_result.matches)
-            # Return all accumulated match results.
-            return match_result_all
-        elseif has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
+        if has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
             srcs = children(src)
             while !isempty(srcs)
                 recovery_stack = []
@@ -595,6 +583,28 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                       greedy,
                                       only_matches)
         end
+    elseif is_toplevel_and(pattern_node)
+        # The pattern is a series of expressions (grouped in a `toplevel`, `~or` or `~and`
+        # node) with fail conditions attached. Match through all expressions in the source
+        # until there are none left.
+        #
+        # Match the pattern with the initial source expressions.
+        match_and_recover!(match_result_all,
+                           pattern_node,
+                           src,
+                           bindings;
+                           greedy,
+                           only_matches)
+        # Match the pattern with all source expressions except the first one.
+        (isnothing(src.children) || isempty(src.children) || length(src.children) == 1) &&
+            return match_result_all
+        next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
+        match_result =
+            syntax_match_all(pattern_node, next_src, bindings; greedy, only_matches)
+        append!(match_result_all.failures, match_result.failures)
+        append!(match_result_all.matches, match_result.matches)
+        # Return all accumulated match results.
+        return match_result_all
     else
         # The pattern and the source are simple expressions. Exhaust all the possibly
         # matching paths.
@@ -629,7 +639,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    greedy=true,
                                    tmp=false)::MatchResult
     args = (pattern_node, src, bindings)
-    kwargs_or = (recovery_stack=recovery_stack, recover=recover, greedy=greedy, tmp=tmp)
+    kwargs_or = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     kwargs_and = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     node_data = pattern_node.data
     # Dispatch on form type.
@@ -728,7 +738,7 @@ end
                     src::JS.SyntaxNode,
                     bindings=BindingSet;
                     recovery_stack=[],
-                    recover=true,
+                    greedy=true,
                     tmp=false)::MatchResult
 
 Try to match an `~or` pattern form. Return the bindings for the first successful matching
@@ -741,21 +751,28 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          src::JS.SyntaxNode,
                          bindings=BindingSet;
                          recovery_stack=[],
-                         recover=true,
                          greedy=true,
                          tmp=false)::MatchResult
     bindings_alt::BindingSet = copy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
+        # Replace the wrapping `block` node with a `toplevel` node.
+        if kind(p) == K"block"
+            p.data = update_data_head(p.data, JS.SyntaxHead(K"toplevel", 0))
+        end
         # Each `~or` alternative is independent: it has its own recovery stack and should
         # recover from failures.
+        recovery_stack_branch = []
         match_result = _syntax_match(p,
                                      src,
                                      bindings_alt;
-                                     recovery_stack=[],
+                                     recovery_stack=recovery_stack_branch,
                                      recover=true,
                                      greedy,
                                      tmp)
+        # Keep track of the branches' recovery states.
+        !isempty(recovery_stack_branch) &&
+            append!(recovery_stack, recovery_stack_branch)
         if isa(match_result, BindingSet)
             # If this is not the last branch, we might be able to recover from one of the
             # next branches if the encompassing pattern fails.
