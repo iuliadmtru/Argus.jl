@@ -259,10 +259,9 @@ function _syntax_match(pattern::SyntaxPatternNode,
         _pattern = copy(pattern)
         [c.parent = _pattern for c in rec_ps]
         _pattern.children = rec_ps
-        _src = copy(src)
-        [c.parent = _src for c in rec_srcs]
-        _src.children = rec_srcs
-        push!(recovery_stack, (_pattern, _src, rec_bs))
+        [c.parent = src for c in rec_srcs]
+        src.children = rec_srcs
+        push!(recovery_stack, (_pattern, src, rec_bs))
     end
 
     return match_result
@@ -491,8 +490,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                     tmp,
                                     rep_sequence)
     else  # Not greedy.
-        bindings_copy = copy(bindings)
-        match_result = _syntax_match(p, s, bindings_copy; recovery_stack, greedy, tmp)
+        match_result = _syntax_match(p, s, bindings; recovery_stack, greedy, tmp)
         # The opposite of the greedy algorithm. The recovery state continues the current
         # repetition.
         if isa(match_result, BindingSet)
@@ -822,7 +820,6 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           recovery_stack=[],
                           greedy=true,
                           tmp=false)
-    and_node = copy(and_node)
     bindings::BindingSet = copy(bindings)
     for (i, p) in enumerate(children(and_node))
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
@@ -1375,7 +1372,7 @@ function resolve_conflicts_and_combine(st1::AbstractVector, st2::AbstractVector)
                 end
             end
             if !conflicting
-                push!(final_st, (union(ps1, ps2), union(ss1, ss2), copy(final_bs)))
+                push!(final_st, (union(ps1, ps2), union(ss1, ss2), final_bs))
             end
         end
     end

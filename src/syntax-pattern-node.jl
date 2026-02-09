@@ -789,8 +789,8 @@ is_or_with_toplevel_branches(node::SyntaxPatternNode) =
 
 function keep_toplevel_branches_only(node::SyntaxPatternNode)
     kind(node) == K"~or" || return node
-    new_children = [copy(c) for c in children(node) if kind(c) == K"toplevel"]
-    return SyntaxPatternNode(node.parent, new_children, node.data)
+    toplevel_branches = filter(c -> kind(c) == K"toplevel", children(node))
+    return SyntaxPatternNode(node.parent, toplevel_branches, node.data)
 end
 
 _is_leaf(node::SyntaxPatternNode) =
