@@ -853,7 +853,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
         while !isempty(branch_recovery_stack)
             _and_node = copy(and_node)
             rec_p, rec_s, rec_bs = pop!(branch_recovery_stack)
-            _and_node.children = SyntaxPatternNode[rec_p, _and_node.children[i+1:end]...]
+            _and_node.children = SyntaxPatternNode[rec_p, @views(_and_node.children[i+1:end])...]
             push!(recovery_stack, (_and_node, rec_s, rec_bs))
         end
         bindings = make_permanent(match_result)
@@ -1083,7 +1083,7 @@ Return the remaning vector if the first element is removed from `v`. If `v` is e
 an empty vector of the same type.
 """
 (rest(v::Vector{JS.TreeNode{T}})::Vector{JS.TreeNode{T}}) where T =
-    isempty(v) || length(v) == 1 ? [] : v[2:end]
+    isempty(v) || length(v) == 1 ? [] : @views(v[2:end])
 
 """
     remove_invalid_bindings(bs::BindingSet)

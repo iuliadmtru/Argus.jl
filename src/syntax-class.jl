@@ -133,7 +133,8 @@ macro syntax_class(description, body)
     @isexpr(body, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     pattern_exprs = body.args
-    for (line_number_idx, expr) in zip(Iterators.countfrom(1, 2), pattern_exprs[2:2:end])
+    for (line_number_idx, expr) in zip(Iterators.countfrom(1, 2),
+                                       @views pattern_exprs[2:2:end])
         expr_line_number = pattern_exprs[line_number_idx]
         # Each expression in a syntax class should evaluate to a `Pattern`:
         #   - `@pattern ...`

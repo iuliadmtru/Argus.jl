@@ -223,7 +223,7 @@ macro pattern(expr)
             # Skip `LineNumberNode`s when iterating but include them in the error message.
             fail_exprs = Expr[]
             for (line_number_idx, fail_macro) in zip(Iterators.countfrom(idx - 1, 2),
-                                                     expr.args[idx:2:end])
+                                                     @views expr.args[idx:2:end])
                 fail_macro_line_number = expr.args[line_number_idx]
                 # Pattern expressions and fail conditions cannot be interspersed.
                 is_fail_macro(fail_macro) ||

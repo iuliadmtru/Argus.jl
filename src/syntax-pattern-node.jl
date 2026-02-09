@@ -265,7 +265,7 @@ function _desugar_expr(ex; esc=false, esc_depth=:all, inside_fail=false)
         # `function (_f:::funcall) _body end`, but not for `function (_f) _body end`.
         fun_ex = ex.args[1].args[1]
         if !is_pattern_variable(fun_ex) && (is_sugared_var(fun_ex) || is_var(fun_ex))
-            args = [fun_ex, ex.args[2:end]...]
+            args = [fun_ex, @views(ex.args[2:end])...]
             return Expr(ex.head, _desugar_expr.(args; inside_fail)...)
         end
     elseif is_fail(ex)
@@ -442,7 +442,7 @@ function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatter
         vec_expr = children(node)[1]
         new_children = [
             parse_multiple_exprs_as_toplevel(vec_expr),
-            children(node)[2:end]...
+            @views(children(node)[2:end])...
         ]
         return SyntaxPatternNode(nothing, new_children, node.data)
     elseif kind(node) === K"vect"            &&
@@ -457,7 +457,7 @@ function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatter
         #   ]
         #  )
         toplevel_data = update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0))
-        new_children = [children(c)[1] for c in children(node)[2:end]]
+        new_children = [children(c)[1] for c in @views children(node)[2:end]]
         return SyntaxPatternNode(nothing, new_children, toplevel_data)
     end
     return node
@@ -723,7 +723,7 @@ function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
         node.data = update_data_head(node.data, JS.SyntaxHead(kind_from_head, new_flags))
         # Replace the body.
         if length(node.children[1].children) > 3
-            for c in node.children[1].children[4:end]
+            for c in @views node.children[1].children[4:end]
                 if is_leaf(c)
                     c.parent = node
                     push!(node.children, c)
@@ -833,7 +833,7 @@ function get_esc_args(ex)
     if isa(esc_depth, QuoteNode)
         esc_depth = esc_depth.value
     end
-    remaining = length(ex.args) > 4 ? ex.args[5:end] : []
+    remaining = length(ex.args) > 4 ? @views(ex.args[5:end]) : []
     return [ex.args[3], esc_depth, remaining...]
 end
 
@@ -883,7 +883,7 @@ is_malformed_pattern_form(node::JS.SyntaxNode) =
 get_pattern_form_name(node::JS.SyntaxNode)::Symbol = node.children[2].children[1].val
 function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
-    args = node.children[2].children[2:end]
+    args = @views node.children[2].children[2:end]
     name === :var  && return args
     name === :fail && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
     name === :or   && return _strip_quote_node.(args)
@@ -893,7 +893,7 @@ function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
 end
 function _get_pattern_form_args(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
-    arg_nodes = node.children[2].children[2:end]
+    arg_nodes = @views node.children[2].children[2:end]
     name === :var  && return _get_var_arg_names(arg_nodes)
     name === :fail && return [JS.to_expr(arg_nodes[1]),
                               _strip_string_node(arg_nodes[2]).data.val]
@@ -1161,7 +1161,7 @@ get_var_name(node::JS.SyntaxNode) =
     is_var(node) ? node.children[2].children[2].children[1].val : nothing
 get_var_syntax_class_name(node::SyntaxPatternNode) =
     is_var(node) ? node.data.syntax_class_name : nothing
-function _get_var_arg_names(args::Vector{JS.SyntaxNode})
+function _get_var_arg_names(args::T) where T <: AbstractVector{JS.SyntaxNode}
     arg_names = Symbol[]
     for c in args
         cs = children(c)

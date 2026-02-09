@@ -781,7 +781,7 @@ function _normalise!(node::JS.SyntaxNode)
         # Add `*` node.
         star_node = JS.parsestmt(JS.SyntaxNode, "*")
         star_node.parent = node
-        node.children = [node.children[1], star_node, node.children[2:end]...]
+        node.children = [node.children[1], star_node, @views(node.children[2:end])...]
         # TODO: juxtapose: :+'y' ???
     elseif k in JS.KSet"string cmdstring" && JS.has_flags(node, JS.TRIPLE_STRING_FLAG)
         # """
@@ -809,7 +809,7 @@ function _normalise!(node::JS.SyntaxNode)
         remove_flag!(node, JS.TRIPLE_STRING_FLAG)
         if length(children(node)) > 1
             new_children = [node.children[1]]
-            for c in children(node)[2:end]
+            for c in @views(children(node)[2:end])
                 if kind(c) == K"String"
                     last_c = new_children[end]
                     if kind(last_c) == K"String"
@@ -892,9 +892,8 @@ end
 function reorder_parameters!(node::JS.SyntaxNode)
     params_idx = findfirst(c -> kind(c) == K"parameters", children(node))
     if !isnothing(params_idx)
-        params_num = length(children(node)) - params_idx + 1
         new_children = node.children[1:(params_idx - 1)]
-        push!(new_children, squash_parameters!(node.children[params_idx:end]))
+        push!(new_children, squash_parameters!(@views node.children[params_idx:end]))
         node.children = new_children
     end
 
@@ -905,7 +904,7 @@ function reorder_parameters_macrocall!(node::JS.SyntaxNode)
     if !isnothing(params_idx)
         params_num = length(children(node)) - params_idx + 1
         new_children =
-            [node.children[1], squash_parameters!(node.children[params_idx:end])]
+            [node.children[1], squash_parameters!(@views node.children[params_idx:end])]
         for idx in 2:(1 + params_num)
             push!(new_children, node.children[idx])
         end
@@ -917,9 +916,8 @@ end
 function reorder_parameters_vect!(node::JS.SyntaxNode)
     params_idx = findfirst(c -> kind(c) == K"parameters", children(node))
     if !isnothing(params_idx)
-        params_num = length(children(node)) - params_idx + 1
         new_children =
-            [squash_parameters!(node.children[params_idx:end])]
+            [squash_parameters!(@views node.children[params_idx:end])]
         for idx in 1:(params_idx - 1)
             push!(new_children, node.children[idx])
         end
@@ -929,14 +927,14 @@ function reorder_parameters_vect!(node::JS.SyntaxNode)
     return node
 end
 
-function squash_parameters!(nodes::Vector{JS.SyntaxNode})
+function squash_parameters!(nodes::T) where T <: AbstractVector{JS.SyntaxNode}
     isempty(nodes) && error("Invalid input?")
     length(nodes) == 1 && return nodes[1]
     # Squash the `parameters` nodes into one node.
     node = nodes[1]
     new_children = node.children
     map!(n -> n.parent = node, nodes[2:end])
-    pushfirst!(new_children, squash_parameters!(nodes[2:end]))
+    pushfirst!(new_children, squash_parameters!(@views nodes[2:end]))
     node.children = new_children
 
     return node
