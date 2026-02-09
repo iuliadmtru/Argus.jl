@@ -17,12 +17,12 @@ values if resulted from a successful and complete syntax match. May contain
 but incomplete syntax match.
 """
 mutable struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-    bindings::OrderedDict{Symbol, T}  # TODO: Order by appearance in the source code?
+    bindings::Dict{Symbol, T}  # TODO: Order by appearance in the source code?
     source_location::Tuple{Int64, Int64}
     file_name::String
 end
-BindingSet() = BindingSet(OrderedDict{Symbol, AbstractBinding}(), (0, 0), "")
-BindingSet(kvs...) = BindingSet(OrderedDict{Symbol, AbstractBinding}(kvs...), (0, 0), "")
+BindingSet() = BindingSet(Dict{Symbol, AbstractBinding}(), (0, 0), "")
+BindingSet(kvs...) = BindingSet(Dict{Symbol, AbstractBinding}(kvs...), (0, 0), "")
 
 # Dict interface
 # --------------
