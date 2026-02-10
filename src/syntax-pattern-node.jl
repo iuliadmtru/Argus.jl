@@ -326,7 +326,7 @@ function parse_pattern_forms(node::JS.SyntaxNode)
     # Parse regular syntax node.
     pattern_data = node.data
     is_leaf(node) && return SyntaxPatternNode(nothing, nothing, pattern_data)
-    cs = [parse_pattern_forms(c) for c in children(node)]
+    cs = SyntaxPatternNode[parse_pattern_forms(c) for c in children(node)]
     # Link the node with its children.
     pattern_node = SyntaxPatternNode(nothing, cs, pattern_data)
     [c.parent = pattern_node for c in cs]
@@ -737,7 +737,7 @@ function fix_misparsed!(node::SyntaxPatternNode)
         node.children[1] = _replace_node!(node.children[1],
                                           node.children[1].children[3].children[1])
         # Recurse (there might be other `$(Expr(...))` calls left).
-        new_children = [fix_misparsed!(c) for c in children(node)]
+        new_children = SyntaxPatternNode[fix_misparsed!(c) for c in children(node)]
         return SyntaxPatternNode(node.parent, new_children, node.data)
     elseif is_quoted_dollar(node)
         return _replace_node!(node, node.children[1])

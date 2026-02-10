@@ -32,7 +32,7 @@ struct MatchResults
     matches::Vector{BindingSet}
     failures::Vector{MatchFail}
 end
-MatchResults() = MatchResults([], [])
+MatchResults() = MatchResults(BindingSet[], MatchFail[])
 
 is_successful(result::MatchResult) = isa(result, BindingSet)
 
