@@ -349,6 +349,8 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                               greedy=true,
                               tmp=false,
                               rep_sequence=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+    # No pattern nodes left marks the end of the partial match.
+    isempty(pattern_nodes) && return (bindings, srcs)
     if isempty(srcs)
         # Reasons to be here:
         #
@@ -366,7 +368,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         #    2.a. This path results in a match, so there's no need to try other states.
         #    2.b. There is no possible match on this path. We need to try another state
         #         (the last one stored in the `recovery_stack`.)
-        isempty(pattern_nodes) && return (bindings, srcs)                          # 1.a,2.a
+        #
         # Try the first pattern. There can only be a match if it's a repetition.
         p = pattern_nodes[1]
         if is_rep(p)
@@ -391,8 +393,6 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     end
     # If we're here, there still are unmatched source nodes.
     #
-    # No pattern nodes left marks the end of the partial match.
-    isempty(pattern_nodes) && return (bindings, srcs)
     # Here we know we have at least one pattern node and at least one source node.
     p = pattern_nodes[1]
     s = srcs[1]
