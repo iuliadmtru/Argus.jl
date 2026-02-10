@@ -68,7 +68,7 @@ SyntaxNode:
     a                                    :: Identifier
 ```
 """
-function expand(template::Template, bindings::BindingSet)::JS.SyntaxNode
+function expand(template::Template, bindings::BindingSet)
     if is_rep(template)
         cs = expand_rep(template, bindings)
         # TODO: Better way to do this!!
@@ -81,13 +81,13 @@ end
 """
     expand_rep(template::Template,
                bindings::BindingSet,
-               discarded_vars::Vector{Symbol}=[])::Vector{JS.SyntaxNode}
+               discarded_vars::Vector{Symbol}=[])
 
 Expand a `~rep` template into the corresponding vector of `SyntaxNode`s.
 """
 function expand_rep(template::Template,
                     bindings::BindingSet,
-                    discarded_vars::Vector{Symbol}=Symbol[])::Vector{JS.SyntaxNode}
+                    discarded_vars::Vector{Symbol}=Symbol[])
     # If the template is a leaf, return it as a vector.
     is_leaf(template) && return [JS.SyntaxNode(nothing, nothing, template.data)]
     # If the template is a `~var`, return the corresponding bound source node.
@@ -145,14 +145,14 @@ end
 # Utils
 
 """
-    remove_simple_bindings(bs::BindingSet)::Tuple{BindingSet, Vector{Symbol}}
+    remove_simple_bindings(bs::BindingSet)
 
 Remove all bindings bound to `SyntaxNode`s from a [`BindingSet`](@ref). Keep track of the
 names of the discarded binding names.
 """
-function remove_simple_bindings(bs::BindingSet)::Tuple{BindingSet, Vector{Symbol}}
+function remove_simple_bindings(bs::BindingSet)
     new_bs = BindingSet()
-    discarded_vars = []
+    discarded_vars = Symbol[]
     for (bname, b) in bs
         if isa(b.src, JS.SyntaxNode)
             push!(discarded_vars, bname)

@@ -53,12 +53,12 @@ In case of `~rep` nodes, greedily "consume" all matching children of the source 
 the match fails, try to backtrack up to a matching state. The default matching algorithm is
 greedy.
 """
-function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult
+function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
     return syntax_match(pattern.src, src; greedy)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
-                      greedy=true)::MatchResult
+                      greedy=true)
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
         match_result = _syntax_match(pattern, src; greedy)
@@ -72,7 +72,7 @@ function syntax_match(syntax_class::SyntaxClass,
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JS.SyntaxNode;
-                      greedy=true)::MatchResult
+                      greedy=true)
     match_result = _syntax_match(pattern_node, src; greedy)
     isa(match_result, MatchFail) && return match_result
     # Remove invalid bindings and permanentise temporary bindings (there can be one
@@ -82,11 +82,11 @@ function syntax_match(pattern_node::SyntaxPatternNode,
 end
 
 """
-    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult
+    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
 
 Pattern syntax matching without template filling.
 """
-_syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
+_syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true) =
     syntax_match(pattern.src, src; greedy)
 
 """
@@ -95,7 +95,7 @@ _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)::MatchResult =
                   bindings::BindingSet=BindingSet();
                   recovery_stack=[],
                   recover=true,
-                  tmp=false)::MatchResult
+                  tmp=false)
 
 Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s or
 `TemporaryBinding`s. Keep track of all the possibly matching states in `recovery_stack`.
@@ -209,7 +209,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
                        recovery_stack=[],
                        recover=true,
                        greedy=true,
-                       tmp=false)::MatchResult
+                       tmp=false)
     # Special syntax.
     if is_pattern_form(pattern)
         match_result = syntax_match_pattern_form(pattern,
@@ -273,7 +273,7 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                        recover=true,
                        greedy=true,
                        tmp=false,
-                       rep_sequence=false)::MatchResult
+                       rep_sequence=false)
     match_result, srcs = partial_syntax_match(pattern_nodes,
                                               srcs,
                                               bindings;
@@ -303,7 +303,7 @@ end
                          recovery_stack=[],
                          greedy=true,
                          tmp=false,
-                         rep_sequence=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+                         rep_sequence=false)
 
 Try to match a sequence of pattern nodes with a sequence of source nodes exactly once. If
 the sequences can't match, return a tuple containing [`MatchFail`](@ref) with the
@@ -348,7 +348,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                               recovery_stack=[],
                               greedy=true,
                               tmp=false,
-                              rep_sequence=false)::Tuple{MatchResult, Vector{JS.SyntaxNode}}
+                              rep_sequence=false)
     # No pattern nodes left marks the end of the partial match.
     isempty(pattern_nodes) && return (bindings, srcs)
     if isempty(srcs)
@@ -530,7 +530,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet=BindingSet();
                           greedy=true,
-                          only_matches=true)::MatchResults
+                          only_matches=true)
     match_result_all = MatchResults()
     # TODO: Rewrite this in a more generalised way, if possible.
     if (kind(src) == K"block" || kind(src) == K"toplevel")
@@ -637,7 +637,7 @@ end
                               bindings::BindingSet;
                               recovery_stack=[],
                               recover=true,
-                              tmp=false)::MatchResult
+                              tmp=false)
 
 Try to match a pattern form node. Dispatch the matching to the specific pattern form
 match function.
@@ -648,7 +648,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    recovery_stack,
                                    recover=true,
                                    greedy=true,
-                                   tmp=false)::MatchResult
+                                   tmp=false)
     args = (pattern_node, src, bindings)
     kwargs_or = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     kwargs_and = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
@@ -666,7 +666,7 @@ end
     syntax_match_var(var_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
                      bindings::BindingSet;
-                     tmp=false)::MatchResult
+                     tmp=false)
 
 Try to match a `~var` pattern form. If there's a match, bind the pattern variable to `src`
 and add the binding to `bindings`.
@@ -675,7 +675,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet;
                           greedy=true,
-                          tmp=false)::MatchResult
+                          tmp=false)
     pattern_var_name = var_node.data.var_name
     syntax_class_name = var_node.data.syntax_class_name
     syntax_class =
@@ -720,14 +720,14 @@ end
 """
     syntax_match_fail(fail_node::SyntaxPatternNode,
                       src::JS.SyntaxNode,
-                      bindings::BindingSet)::MatchResult
+                      bindings::BindingSet)
 
 Try to match a `~fail` pattern form. If the fail condition is satisfied return a
 [`MatchFail`](@ref) with an informative fail message. Otherwise, return `bindings`.
 """
 function syntax_match_fail(fail_node::SyntaxPatternNode,
                            src::JS.SyntaxNode,
-                           bindings::BindingSet)::MatchResult
+                           bindings::BindingSet)
     condition = get_fail_condition(fail_node)
     message = get_fail_message(fail_node)
     # Evaluate the fail condition.
@@ -750,7 +750,7 @@ end
                     bindings=BindingSet;
                     recovery_stack=[],
                     greedy=true,
-                    tmp=false)::MatchResult
+                    tmp=false)
 
 Try to match an `~or` pattern form. Return the bindings for the first successful matching
 alternative. Return a [`MatchFail`](@ref) if no alternative matches.
@@ -763,7 +763,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          bindings=BindingSet;
                          recovery_stack=[],
                          greedy=true,
-                         tmp=false)::MatchResult
+                         tmp=false)
     bindings_alt::BindingSet = copy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
@@ -871,10 +871,10 @@ end
 """
     syntax_match_rep(rep_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
-                     bindings::BindingSet)::MatchResult
+                     bindings::BindingSet)
     syntax_match_rep(rep_node::SyntaxPatternNode,
                      src::Vector{JS.SyntaxNode},
-                     bindings::BindingSet)::MatchResult
+                     bindings::BindingSet)
 
 Try to match a `~rep` pattern form (ellipsis). An ellipsis of depth 1 matches a sequence of
 nodes. An ellipsis of depth 2 matches a sequence of sequences of nodes. Ellipses can have
@@ -934,7 +934,7 @@ BindingSet with 1 entry:
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet;
-                          greedy=true)::MatchResult
+                          greedy=true)
     kind(src) === K"toplevel" &&
         return syntax_match_rep(rep_node, children(src), bindings; greedy)
 
@@ -972,7 +972,7 @@ end
 function syntax_match_rep(rep_node::SyntaxPatternNode,
                           srcs::Vector{JS.SyntaxNode},
                           bindings::BindingSet;
-                          greedy=true)::MatchResult
+                          greedy=true)
     bindings::BindingSet = copy(bindings)
     if isempty(srcs)
         # If there are no source nodes, the repetition pattern variables bind to empty
@@ -1082,15 +1082,15 @@ end
 Return the remaning vector if the first element is removed from `v`. If `v` is empty, return
 an empty vector of the same type.
 """
-(rest(v::Vector{JS.TreeNode{T}})::Vector{JS.TreeNode{T}}) where T =
-    isempty(v) || length(v) == 1 ? [] : @views(v[2:end])
+rest(v::V) where V <: AbstractVector{JS.TreeNode{T}} where T =
+    isempty(v) || length(v) == 1 ? JS.TreeNode{T}[] : v[2:end]
 
 """
     remove_invalid_bindings(bs::BindingSet)
 
 Filter out all elements of type [`InvalidBinding`](@ref) from a [`BindingSet`](@ref).
 """
-remove_invalid_bindings(bs::BindingSet)::BindingSet =
+remove_invalid_bindings(bs::BindingSet) =
     filter(p -> !isa(p.second, InvalidBinding), bs)
 
 """

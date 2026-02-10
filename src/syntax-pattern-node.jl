@@ -215,7 +215,7 @@ SyntaxNode:
   [block]
 ```
 """
-function desugar_expr(ex)::JS.SyntaxNode
+function desugar_expr(ex)
     desugared_ex = _desugar_expr(ex)
     return JS.parsestmt(JS.SyntaxNode, string(desugared_ex))
 end
@@ -316,7 +316,7 @@ SyntaxPatternNode:
     "not two"                            :: String
 ```
 """
-function parse_pattern_forms(node::JS.SyntaxNode)::SyntaxPatternNode
+function parse_pattern_forms(node::JS.SyntaxNode)
     if is_malformed_pattern_form(node)
         node = _restructure_node!(node)
     end
@@ -345,7 +345,7 @@ which has the following structure:
     <pattern_form_name>
     <pattern_form_arg>*
 """
-function _parse_pattern_form(node::JS.SyntaxNode)::SyntaxPatternNode
+function _parse_pattern_form(node::JS.SyntaxNode)
     # Extract the name and arguments.
     pattern_form_name = get_pattern_form_name(node)
     pattern_form_arg_nodes = _get_pattern_form_arg_nodes(node)
@@ -426,7 +426,7 @@ SyntaxPatternNode:
         expr                             :: Identifier
 ```
 """
-function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)::SyntaxPatternNode
+function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)
     if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
         # The expression has the following form:
         #
@@ -611,11 +611,11 @@ SyntaxPatternNode:
       x                                  :: Identifier
 ```
 """
-function fix_misparsed!(node::SyntaxPatternNode)::SyntaxPatternNode
+function fix_misparsed!(node::SyntaxPatternNode)
     if !is_misparsed(node)
         # Recurse on children, if any.
         is_leaf(node) && return node
-        new_children = [fix_misparsed!(c) for c in children(node)]
+        new_children = SyntaxPatternNode[fix_misparsed!(c) for c in children(node)]
         return SyntaxPatternNode(node.parent, new_children, node.data)
     end
 
@@ -880,7 +880,7 @@ is_malformed_pattern_form(node::JS.SyntaxNode) =
     kind(node.children[2].children[1].children[1]) == K"call" &&
     node.children[2].children[1].children[1].children[1].data.val == :var
 
-get_pattern_form_name(node::JS.SyntaxNode)::Symbol = node.children[2].children[1].val
+get_pattern_form_name(node::JS.SyntaxNode) = node.children[2].children[1].val
 function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
     args = @views node.children[2].children[2:end]
@@ -897,8 +897,8 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     name === :var  && return _get_var_arg_names(arg_nodes)
     name === :fail && return [JS.to_expr(arg_nodes[1]),
                               _strip_string_node(arg_nodes[2]).data.val]
-    name === :or   && return []
-    name === :and  && return []
+    name === :or   && return JS.SyntaxNode[]
+    name === :and  && return JS.SyntaxNode[]
     name === :rep  && return arg_nodes
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
@@ -951,7 +951,7 @@ function reparse_module_name(node::JS.SyntaxNode)
 end
 
 """
-    _restructure_node!(node::JS.SyntaxNode)::SyntaxPatternNode
+    _restructure_node!(node::JS.SyntaxNode)
 
 Restructure a malformed pattern form node.
 
