@@ -457,7 +457,7 @@ function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)
         #   ]
         #  )
         toplevel_data = update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0))
-        new_children = [children(c)[1] for c in @views children(node)[2:end]]
+        new_children = [children(c)[1] for c in @views(children(node)[2:end])]
         return SyntaxPatternNode(nothing, new_children, toplevel_data)
     end
     return node

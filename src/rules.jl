@@ -498,7 +498,8 @@ function _normalise!(node::JS.SyntaxNode)
         end
     elseif k == K"doc"
         new_node = _wrap_node(node, "Core.@doc")
-        new_node.children = [new_node.children[1], node.children...]
+        pushfirst!(node.children, new_node.children[1])
+        new_node.children = node.children
         node = _replace_node!(node, new_node)
     elseif (k == K"dotcall" || k == K"call") && !isempty(children(node))
         if k == K"call"
@@ -781,7 +782,7 @@ function _normalise!(node::JS.SyntaxNode)
         # Add `*` node.
         star_node = JS.parsestmt(JS.SyntaxNode, "*")
         star_node.parent = node
-        node.children = [node.children[1], star_node, @views(node.children[2:end])...]
+        insert!(node.children, 2, star_node)
         # TODO: juxtapose: :+'y' ???
     elseif k in JS.KSet"string cmdstring" && JS.has_flags(node, JS.TRIPLE_STRING_FLAG)
         # """

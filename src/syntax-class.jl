@@ -146,7 +146,7 @@ macro syntax_class(description, body)
                                    expr_line_number.line))
     end
     # Skip the `LineNumberNode`.
-    pattern_exprs = pattern_exprs[2:2:end]
+    pattern_exprs = @views pattern_exprs[2:2:end]
 
     return :( SyntaxClass($description, [$(esc.(pattern_exprs)...)]) )
 end
