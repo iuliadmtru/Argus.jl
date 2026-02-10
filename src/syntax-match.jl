@@ -256,7 +256,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
             # Don't add obviously failing states.
             continue
         end
-        _pattern = copy(pattern)
+        _pattern = SyntaxPatternNode(pattern.parent, nothing, pattern.data)
         [c.parent = _pattern for c in rec_ps]
         _pattern.children = rec_ps
         [c.parent = src for c in rec_srcs]
