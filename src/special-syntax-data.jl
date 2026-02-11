@@ -148,11 +148,11 @@ _register_kinds() = JS.register_kinds!(Argus,
                                        ])
 _register_kinds()
 
-JS.head(data::VarSyntaxData)  = JS.SyntaxHead(K"~var",  0)
-JS.head(data::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
-JS.head(data::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
-JS.head(data::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
-JS.head(data::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
+JS.head(_::VarSyntaxData)  = JS.SyntaxHead(K"~var",  0)
+JS.head(_::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
+JS.head(_::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
+JS.head(_::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
+JS.head(_::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
 
 # Base overwrites
 # ---------------
