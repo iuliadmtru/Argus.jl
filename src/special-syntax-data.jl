@@ -188,6 +188,18 @@ Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 
+Base.:(==)(d1::VarSyntaxData, d2::VarSyntaxData) =
+    d1.var_name == d2.var_name && d1.syntax_class_name == d2.syntax_class_name
+Base.:(==)(d1::FailSyntaxData, d2::FailSyntaxData) =
+    d1.condition == d2.condition && d1.message == d2.message
+Base.:(==)(d1::OrSyntaxData, d2::OrSyntaxData) = true
+Base.:(==)(d1::AndSyntaxData, d2::AndSyntaxData) = true
+Base.:(==)(d1::RepSyntaxData, d2::RepSyntaxData) =
+    d1.rep_vars == d2.rep_vars
+
+Base.:(==)(rv1::RepVar, rv2::RepVar) =
+    rv1.name == rv2.name && rv1.ellipsis_depth == rv2.ellipsis_depth
+
 # Utils
 # -----
 

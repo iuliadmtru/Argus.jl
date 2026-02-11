@@ -39,6 +39,20 @@ is_successful(result::MatchResult) = isa(result, BindingSet)
 # Syntax matching
 # ===============
 
+# Cached matches
+# --------------
+
+struct MatchCacheKey
+    pattern_hash::UInt64
+    src_hash::UInt64
+    bindings_hash::UInt64
+end
+
+const MATCH_CACHE = Dict{MatchCacheKey, MatchResult}()
+
+# Matching
+# --------
+
 """
     syntax_match(pattern::Pattern, src::JuliaSyntax.SyntaxNode; greedy=true)
     syntax_match(syntax_class::SyntaxClass, src::JuliaSyntax.SyntaxNode; greedy=true)
@@ -210,6 +224,10 @@ function _syntax_match(pattern::SyntaxPatternNode,
                        recover=true,
                        greedy=true,
                        tmp=false)
+    key = MatchCacheKey(hash(pattern), hash(src), hash(bindings))
+    cached_match_result = get(MATCH_CACHE, key, nothing)
+    # If there is a cached result, return it.
+    isnothing(cached_match_result) || return cached_match_result
     # Special syntax.
     if is_pattern_form(pattern)
         match_result = syntax_match_pattern_form(pattern,
@@ -219,27 +237,34 @@ function _syntax_match(pattern::SyntaxPatternNode,
                                                  recover,
                                                  greedy,
                                                  tmp)
-        isa(match_result, MatchFail) &&
+        if isa(match_result, MatchFail)
             # Try another path if possible.
-            return recover!(recovery_stack,
-                            _syntax_match;
-                            recover,
-                            fail_ret=match_result,
-                            greedy,
-                            tmp)
-        # If there is a match, return it.
+            match_result = recover!(recovery_stack,
+                                    _syntax_match;
+                                    recover,
+                                    fail_ret=match_result,
+                                    greedy,
+                                    tmp)
+        end
+        # Cache and return the result.
+        MATCH_CACHE[key] = match_result
         return match_result
     end
     if !compatible(pattern, src; recurse=false)
-        return recover!(recovery_stack,
-                        _syntax_match;
-                        recover,
-                        fail_ret=MatchFail(),
-                        greedy,
-                        tmp)
+        match_result = recover!(recovery_stack,
+                                _syntax_match;
+                                recover,
+                                fail_ret=MatchFail(),
+                                greedy,
+                                tmp)
+        MATCH_CACHE[key] = match_result
+        return match_result
     end
     # Recurse on children if there are any.
-    is_leaf(src) && return bindings
+    if is_leaf(src)
+        MATCH_CACHE[key] = bindings
+        return bindings
+    end
     recovery_stack_cs = []
     match_result = _syntax_match(children(pattern),
                                  children(src),
@@ -264,6 +289,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
         push!(recovery_stack, (_pattern, src, rec_bs))
     end
 
+    MATCH_CACHE[key] = match_result
     return match_result
 end
 function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
