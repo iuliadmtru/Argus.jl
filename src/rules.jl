@@ -296,7 +296,7 @@ associated code refactoring, if any, and the list of all non-trivial match failu
 if matching with `only_matches=false`.
 """
 struct RuleMatchResult
-    matches::Vector{Tuple{BindingSet, Union{Nothing, JS.SyntaxNode}}}
+    matches::Vector{Tuple{BindingSet, Union{Nothing, HashSyntaxNode}}}
     failures::Vector{MatchFail}
 end
 RuleMatchResult() = RuleMatchResult([], [])
@@ -320,6 +320,13 @@ See [`syntax_match_all`](@ref).
 """
 function rule_match(rule::Rule,
                     src::JS.SyntaxNode,
+                    bindings::BindingSet=BindingSet();
+                    greedy=true,
+                    only_matches=true)
+    return rule_match(rule, HashSyntaxNode(src), bindings; greedy, only_matches)
+end
+function rule_match(rule::Rule,
+                    src::HashSyntaxNode,
                     bindings::BindingSet=BindingSet();
                     greedy=true,
                     only_matches=true)
@@ -372,6 +379,12 @@ Match all the rules in a given group against a source node. Return a
 """
 function rule_group_match(group::RuleGroup,
                           src::JS.SyntaxNode;
+                          greedy=true,
+                          only_matches=true)
+    return rule_group_match(group, HashSyntaxNode(src); greedy, only_matches)
+end
+function rule_group_match(group::RuleGroup,
+                          src::HashSyntaxNode;
                           greedy=true,
                           only_matches=true)
     match_result = RuleGroupMatchResult()

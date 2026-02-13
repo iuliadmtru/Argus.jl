@@ -47,7 +47,8 @@ include("special-syntax-data.jl")
 Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 [`AbstractPatternFormSyntaxData`](@ref).
 """
-const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData, AbstractPatternFormSyntaxData}}
+const SyntaxPatternNode =
+    JS.TreeNode{Union{HashSyntaxData, AbstractPatternFormSyntaxData}}
 
 """
     SyntaxPatternNode(ex)
@@ -56,7 +57,8 @@ Construct a `SyntaxPatternNode` from an `Expr`.
 
 Passes:
 1.   Desugar expressions with special syntax: `::Expr -> ::JuliaSyntax.SyntaxNode`.
-2.   Parse pattern form nodes: `::JuliaSyntax.SyntaxNode -> ::SyntaxPatternNode`.
+2.0. Hash nodes: `::JuliaSyntax.SyntaxNode -> ::HashSyntaxNode`.
+2.1. Parse pattern form nodes: `::HashSyntaxNode -> ::SyntaxPatternNode`.
 3.0. If the pattern contains multiple expressions, wrap them in a `[toplevel]` node.
 3.1. Add alternatives for ambiguous nodes (e.g. `=` could be either an assignment or a short
      form function definition) and fix misparsed nodes (e.g. `_x:::identifier = 2` is parsed
@@ -64,7 +66,8 @@ Passes:
 """
 function SyntaxPatternNode(ex)
     syntax_node = desugar_expr(ex)
-    syntax_pattern_node = parse_pattern_forms(syntax_node)
+    hash_node = HashSyntaxNode(syntax_node)
+    syntax_pattern_node = parse_pattern_forms(hash_node)
     # Parse multiple pattern expressions as toplevel expressions. If the pattern only
     # contains one pattern expression, leave it as it is.
     syntax_pattern_node = parse_multiple_exprs_as_toplevel(syntax_pattern_node)
@@ -316,7 +319,7 @@ SyntaxPatternNode:
     "not two"                            :: String
 ```
 """
-function parse_pattern_forms(node::JS.SyntaxNode)
+function parse_pattern_forms(node::HashSyntaxNode)
     if is_malformed_pattern_form(node)
         node = _restructure_node!(node)
     end
@@ -345,25 +348,26 @@ which has the following structure:
     <pattern_form_name>
     <pattern_form_arg>*
 """
-function _parse_pattern_form(node::JS.SyntaxNode)
+function _parse_pattern_form(node::HashSyntaxNode)
     # Extract the name and arguments.
     pattern_form_name = get_pattern_form_name(node)
     pattern_form_arg_nodes = _get_pattern_form_arg_nodes(node)
     pattern_form_args = _get_pattern_form_args(node)
-    # Construct a node with the specific special data.
-    pattern_data =
-        pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
-        pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
-        pattern_form_name === :or   ? OrSyntaxData()                       :
-        pattern_form_name === :and  ? AndSyntaxData()                      :
-        pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
-        nothing
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
     # `block` children inside `~or` patterns should be interpreted as `toplevel`.
     pattern_form_name == :or &&
         [c.data = update_data_head(c.data, JS.SyntaxHead(K"toplevel", 0))
          for c in cs if kind(c) == K"block"]
+    # Construct a node with the specific special data.
+    h = node.data.hash
+    pattern_data =
+        pattern_form_name === :fail ? FailSyntaxData(pattern_form_args..., h) :
+        pattern_form_name === :var  ? VarSyntaxData(pattern_form_args..., h)  :
+        pattern_form_name === :or   ? OrSyntaxData(h)                         :
+        pattern_form_name === :and  ? AndSyntaxData(h)                        :
+        pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args..., h)  :
+        nothing
     pattern_node = SyntaxPatternNode(nothing,
                                      cs,
                                      pattern_data)
@@ -456,8 +460,10 @@ function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)
         #    <pattern_expr>+
         #   ]
         #  )
-        toplevel_data = update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0))
         new_children = [children(c)[1] for c in @views(children(node)[2:end])]
+        toplevel_hash = foldr((c1, c2) -> hash(c1, hash(c2)), new_children)
+        toplevel_data =
+            update_data_head(node.data, JS.SyntaxHead(K"toplevel", 0); h = toplevel_hash)
         return SyntaxPatternNode(nothing, new_children, toplevel_data)
     end
     return node
@@ -628,20 +634,30 @@ function fix_misparsed!(node::SyntaxPatternNode)
             # not a function definition.
             get_var_syntax_class_name(lhs) === :identifier &&
                 return fundef_to_assign(lhs, rhs, node)
-            new_node_data = OrSyntaxData()
             # Use the original pattern form variable name.
             id = get_var_name(lhs)
             # Update the head for the assignment alternative.
-            assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
+            assignment_hash = hash(lhs, hash(rhs, node.data.hash))
+            assignment_data =
+                update_data_head(node.data, JS.SyntaxHead(K"=", 0); h = assignment_hash)
             assignment_alternative =
                 SyntaxPatternNode(nothing, [lhs, rhs], assignment_data)
             # Create alternative for `id:::funcall`.
+            funcall_syntax_node = JS.parsestmt(JS.SyntaxNode, "~var(:$id, :funcall)")
             funcall_syntax_pattern_node =
-                parse_pattern_forms(JS.parsestmt(JS.SyntaxNode,
-                                                 "~var(:$id, :funcall)"))
-            funcall_alternative =
-                SyntaxPatternNode(nothing, [funcall_syntax_pattern_node, rhs], node.data)
+                parse_pattern_forms(HashSyntaxNode(funcall_syntax_node))
+            funcall_hash = hash(funcall_syntax_pattern_node, hash(rhs, node.data.hash))
+            funcall_data = HashSyntaxData(node.data.source,
+                                          node.data.raw,
+                                          node.data.position,
+                                          node.data.val,
+                                          funcall_hash)
+            funcall_alternative = SyntaxPatternNode(nothing,
+                                                    [funcall_syntax_pattern_node, rhs],
+                                                    funcall_data)
             # Link the alternatives to the new `~or` pattern form node.
+            h = hash(assignment_hash, hash(funcall_hash, node.data.hash))
+            new_node_data = OrSyntaxData(h)
             new_node = SyntaxPatternNode(node.parent,
                                          [assignment_alternative, funcall_alternative],
                                          new_node_data)
@@ -719,8 +735,6 @@ function fix_misparsed!(node::SyntaxPatternNode)
             kind_from_head = K"function"
             new_flags = JS.SHORT_FORM_FUNCTION_FLAG
         end
-        # Replace the head.
-        node.data = update_data_head(node.data, JS.SyntaxHead(kind_from_head, new_flags))
         # Replace the body.
         if length(node.children[1].children) > 3
             for c in @views node.children[1].children[4:end]
@@ -738,6 +752,9 @@ function fix_misparsed!(node::SyntaxPatternNode)
                                           node.children[1].children[3].children[1])
         # Recurse (there might be other `$(Expr(...))` calls left).
         new_children = SyntaxPatternNode[fix_misparsed!(c) for c in children(node)]
+        # Replace the head.
+        h = foldr((c1, c2) -> hash(c1, hash(c2)), new_children; init=convert(UInt64, 0))
+        node.data = update_data_head(node.data, JS.SyntaxHead(kind_from_head, new_flags); h)
         return SyntaxPatternNode(node.parent, new_children, node.data)
     elseif is_quoted_dollar(node)
         return _replace_node!(node, node.children[1])
@@ -756,6 +773,8 @@ JS.kind(node::SyntaxPatternNode) = head(node).kind
 # Base overwrites
 # ---------------
 
+Base.hash(node::SyntaxPatternNode) = node.data.hash
+
 function Base.push!(node::SyntaxPatternNode, child::SyntaxPatternNode)
     if is_leaf(node)
         error("Cannot add children")
@@ -769,7 +788,7 @@ end
 
 ## AST utils
 
-is_symbol_node(node::JS.SyntaxNode) =
+is_symbol_node(node::HashSyntaxNode) =
     !is_leaf(node)              &&
     kind(node) === K"quote"     &&
     length(children(node)) == 1 &&
@@ -795,6 +814,62 @@ end
 
 _is_leaf(node::SyntaxPatternNode) =
     is_var(node) || isnothing(node.children)
+
+function rehash!(node::HashSyntaxNode)
+    if is_leaf(node)
+        node.data = HashSyntaxData(node.data, hash(node.data.hash))
+    else
+        h = node.data.hash
+        for c in children(node)
+            h = hash(c, h)
+        end
+        node.data = HashSyntaxData(node.data, h)
+    end
+
+    return node
+end
+function rehash!(node::SyntaxPatternNode)
+    data = node.data
+    if isa(data, HashSyntaxData)
+        if is_leaf(node)
+            node.data = HashSyntaxData(node.data, hash(node.data.hash))
+        else
+            h = node.data.hash
+            for c in children(node)
+                h = hash(c, h)
+            end
+            node.data = HashSyntaxData(node.data, h)
+        end
+    elseif isa(data, VarSyntaxData)
+        h = hash(data.var_name, hash(data.syntax_class_name, data.hash))
+        node.data = VarSyntaxData(data.var_name, data.syntax_class_name, h)
+    elseif isa(data, FailSyntaxData)
+        h = hash(data.condition, hash(data.message, data.hash))
+        node.data = FailSyntaxData(data.condition, data.message, h)
+    elseif isa(data, OrSyntaxData)
+        h = data.hash
+        for c in children(node)
+            h = hash(c, h)
+        end
+        node.data = OrSyntaxData(h)
+    elseif isa(data, AndSyntaxData)
+        h = data.hash
+        for c in children(node)
+            h = hash(c, h)
+        end
+        node.data = AndSyntaxData(h)
+    elseif isa(data, RepSyntaxData)
+        h = hash(data.rep_vars, data.hash)
+        if !is_leaf(node)
+            for c in children(node)
+                h = hash(c, h)
+            end
+        end
+        node.data = RepSyntaxData(data.rep_vars, h)
+    end
+
+    return node
+end
 
 ### Pass 1 (`Expr` desugaring)
 
@@ -854,7 +929,7 @@ _get_sugared_rep_arg(ex) = ex.args[1]
 ### Pass 2 (pattern form parsing)
 
 is_pattern_form(node::SyntaxPatternNode) = isa(node.data, AbstractPatternFormSyntaxData)
-function is_pattern_form(node::JS.SyntaxNode)
+function is_pattern_form(node::HashSyntaxNode)
     # General checks.
     is_leaf(node)                                   && return false
     kind(node) !== K"call"                          && return false
@@ -870,7 +945,7 @@ function is_pattern_form(node::JS.SyntaxNode)
     isnothing(pattern_form_name)                    && return false
     return pattern_form_name in PATTERN_FORMS
 end
-is_malformed_pattern_form(node::JS.SyntaxNode) =
+is_malformed_pattern_form(node::HashSyntaxNode) =
     kind(node) == K"call" &&
     length(node.children) == 2 &&
     node.children[1].data.val == :~ &&
@@ -880,8 +955,8 @@ is_malformed_pattern_form(node::JS.SyntaxNode) =
     kind(node.children[2].children[1].children[1]) == K"call" &&
     node.children[2].children[1].children[1].children[1].data.val == :var
 
-get_pattern_form_name(node::JS.SyntaxNode) = node.children[2].children[1].val
-function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
+get_pattern_form_name(node::HashSyntaxNode) = node.children[2].children[1].val
+function _get_pattern_form_arg_nodes(node::HashSyntaxNode)
     name = get_pattern_form_name(node)
     args = @views node.children[2].children[2:end]
     name === :var  && return args
@@ -891,7 +966,7 @@ function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name === :rep  && return args
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
-function _get_pattern_form_args(node::JS.SyntaxNode)
+function _get_pattern_form_args(node::HashSyntaxNode)
     name = get_pattern_form_name(node)
     arg_nodes = @views node.children[2].children[2:end]
     name === :var  && return _get_var_arg_names(arg_nodes)
@@ -903,19 +978,30 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
-_strip_quote_node(node::JS.SyntaxNode) =
+_strip_quote_node(node::HashSyntaxNode) =
     kind(node) === K"quote" ? node.children[1] : node
-_strip_string_node(node::JS.SyntaxNode) =
+_strip_string_node(node::HashSyntaxNode) =
     kind(node) === K"string" ? node.children[1] : node
 
-is_var_module_name(node::JS.SyntaxNode) =
+is_var_module_name(node::HashSyntaxNode) =
     kind(node) === K"module"                       &&
     node.children[1].val === :~                    &&
     kind(node.children[2].children[1]) === K"call" &&
     node.children[2].children[1].children[1].val === :var
-function reparse_module_name(node::JS.SyntaxNode)
+function reparse_module_name(node::HashSyntaxNode)
+    function hash_data(source::JS.SourceFile,
+                       raw::JS.GreenNode{JS.SyntaxHead},
+                       position::Int,
+                       val::Any,
+                       h::UInt64)
+        # Hash according to `Base.hash(::JuliaSyntax.SyntaxData)`.
+        # https://github.com/JuliaLang/JuliaSyntax.jl/blob/20fde7451edd6d0e37c5fb66e3a0a9f17c158a6c/src/porcelain/syntax_tree.jl#L74-L79
+        return hash(source,
+                    hash(raw, hash(position,
+                                   Core.invoke(hash, Tuple{Any,UInt}, val, h))))
+    end
+
     tilda_node = node.children[1]
-    tilda_raw = tilda_node.raw
     var_node = node.children[2].children[1]
     var_raw = node.raw.children[4].children[1]
     module_name_raw = JS.GreenNode(
@@ -923,35 +1009,58 @@ function reparse_module_name(node::JS.SyntaxNode)
         var_raw.span,
         [var_raw]
     )
-    module_name_data = JS.SyntaxData(
+    module_name_h = hash_data(tilda_node.source,
+                              module_name_raw,
+                              tilda_node.position,
+                              nothing,
+                              hash(tilda_node, hash(var_node)))
+    module_name_data = HashSyntaxData(
         tilda_node.source,
         module_name_raw,
         tilda_node.position,
-        nothing
+        nothing,
+        module_name_h
     )
-    module_name = JS.SyntaxNode(nothing, [tilda_node, var_node], module_name_data)
+    module_name = HashSyntaxNode(nothing, [tilda_node, var_node], module_name_data)
 
     block_node = node.children[2]
     block_node_children =
-        length(block_node.children) == 1 ? JS.SyntaxNode[] : block_node.children[2:end]
+        length(block_node.children) == 1 ? HashSyntaxNode[] : block_node.children[2:end]
     module_body_raw = JS.GreenNode(
         head(block_node),
         block_node.raw.span - var_node.raw.span - 2,
         block_node.raw.children[2:end]
     )
-    module_body_data = JS.SyntaxData(
+    module_body_pos = block_node.position + var_raw.span
+    module_body_h = foldr((c1, c2) -> hash(c1, hash(c2)),
+                          block_node_children;
+                          init=convert(UInt64, 0))
+    module_body_h = hash_data(block_node.source,
+                              module_body_raw,
+                              module_body_pos,
+                              nothing,
+                              module_body_h)
+    module_body_data = HashSyntaxData(
         block_node.source,
         module_body_raw,
-        block_node.position + var_raw.span,
-        nothing
+        module_body_pos,
+        nothing,
+        module_body_h
     )
-    module_body = JS.SyntaxNode(node, block_node_children, module_body_data)
+    module_body = HashSyntaxNode(node, block_node_children, module_body_data)
 
-    return JS.SyntaxNode(node.parent, [module_name, module_body], node.data)
+    module_node_hash = hash(module_name, hash(module_body, node.data.hash))
+    module_node_data = HashSyntaxData(node.data.source,
+                                      node.data.raw,
+                                      node.data.position,
+                                      node.data.val,
+                                      module_node_hash)
+
+    return HashSyntaxNode(node.parent, [module_name, module_body], module_node_data)
 end
 
 """
-    _restructure_node!(node::JS.SyntaxNode)
+    _restructure_node!(node::Argus.HashSyntaxNode)
 
 Restructure a malformed pattern form node.
 
@@ -980,7 +1089,7 @@ SyntaxNode:
             expr                         :: Identifier
 
 
-julia> Argus._restructure_node!(syntax_node)
+julia> Argus._restructure_node!(Argus.HashSyntaxNode(syntax_node))
 SyntaxNode:
 [->]
   [tuple]
@@ -1002,7 +1111,7 @@ SyntaxNode:
         [quote-:]
           expr                           :: Identifier
 """
-function _restructure_node!(node::JS.SyntaxNode)
+function _restructure_node!(node::HashSyntaxNode)
     # Save the index of the node in the parent's children list.
     idx_in_parent = isnothing(node.parent) ?
         nothing :
@@ -1091,7 +1200,8 @@ function fundef_to_assign(lhs::SyntaxPatternNode,
                           rhs::SyntaxPatternNode,
                           old_node::SyntaxPatternNode)
     old_data = old_node.data
-    new_node_data = update_data_head(old_data, JS.SyntaxHead(K"=", 0))
+    h = hash(lhs, hash(rhs, old_data.hash))
+    new_node_data = update_data_head(old_data, JS.SyntaxHead(K"=", 0); h)
 
     return SyntaxPatternNode(old_node.parent, [lhs, rhs], new_node_data)
 end
@@ -1122,6 +1232,23 @@ function update_data_head(old_data::JS.SyntaxData, new_head::JS.SyntaxHead)
         old_data.val
     )
 end
+function update_data_head(old_data::HashSyntaxData, new_head::JS.SyntaxHead; h=nothing)
+    old_raw = old_data.raw
+    new_raw = JS.GreenNode(
+        new_head,
+        old_raw.span,
+        old_raw.children
+    )
+
+    h = isnothing(h) ? old_data.hash : h
+    return HashSyntaxData(
+        old_data.source,
+        new_raw,
+        old_data.position,
+        old_data.val,
+        h
+    )
+end
 
 """
     update_data_val(old_data::JuliaSyntax.SyntaxData, new_val)
@@ -1143,9 +1270,9 @@ end
 
 ### Predicates
 
-is_var(node::JS.SyntaxNode) =
+is_var(node::HashSyntaxNode) =
     is_pattern_form(node) && get_pattern_form_name(node) === :var
-is_rep(node::JS.SyntaxNode) =
+is_rep(node::HashSyntaxNode) =
     is_pattern_form(node) && get_pattern_form_name(node) === :rep
 
 is_var(node::SyntaxPatternNode)  = isa(node.data, VarSyntaxData)
@@ -1157,11 +1284,11 @@ is_rep(node::SyntaxPatternNode)  = isa(node.data, RepSyntaxData)
 ### Getters
 
 get_var_name(node::SyntaxPatternNode) = is_var(node) ? node.data.var_name : nothing
-get_var_name(node::JS.SyntaxNode) =
+get_var_name(node::HashSyntaxNode) =
     is_var(node) ? node.children[2].children[2].children[1].val : nothing
 get_var_syntax_class_name(node::SyntaxPatternNode) =
     is_var(node) ? node.data.syntax_class_name : nothing
-function _get_var_arg_names(args::T) where T <: AbstractVector{JS.SyntaxNode}
+function _get_var_arg_names(args::T) where T <: AbstractVector{HashSyntaxNode}
     arg_names = Symbol[]
     for c in args
         cs = children(c)

@@ -67,6 +67,8 @@ function Base.copy(bs::BindingSet)
     return new_bs
 end
 
+Base.hash(bs::BindingSet) = foldl((b1, b2) -> hash(b1, hash(b2)), values(bs); init=0)
+
 # Display
 # -------
 
@@ -396,6 +398,14 @@ Base.copy(b::InvalidBinding) = InvalidBinding(b.msg)
 Base.copy(b::TemporaryBinding) =
     TemporaryBinding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
 
+Base.hash(b::Binding{HashSyntaxNode, B}) where B = hash(b.bname, b.src.hash)
+Base.hash(b::Binding{S, B}) where {S, B} =
+    hash(b.bname, hash(b.ellipsis_depth, hash(length(b.src))))
+Base.hash(b::InvalidBinding) = hash(b.msg)
+Base.hash(b::TemporaryBinding{HashSyntaxNode, B}) where B = hash(b.bname, b.src.hash)
+Base.hash(b::TemporaryBinding{S, B}) where {S, B} =
+    hash(b.bname, hash(b.ellipsis_depth, hash(length(b.src))))
+
 # Display
 # -------
 
@@ -442,7 +452,7 @@ function _repr_source_nodes(src)
 end
 
 function _src_with_location_str(src)
-    if isa(src, JS.SyntaxNode)
+    if isa(src, HashSyntaxNode)
         (line, col) = JS.source_location(src)
         return string(src, " @ ", line, ":", col)
     end

@@ -67,12 +67,16 @@ In case of `~rep` nodes, greedily "consume" all matching children of the source 
 the match fails, try to backtrack up to a matching state. The default matching algorithm is
 greedy.
 """
-function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
-    return syntax_match(pattern.src, src; greedy)
-end
-function syntax_match(syntax_class::SyntaxClass,
-                      src::JS.SyntaxNode;
-                      greedy=true)
+syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true) =
+    syntax_match(pattern.src, HashSyntaxNode(src); greedy)
+syntax_match(syntax_class::SyntaxClass, src::JS.SyntaxNode; greedy=true) =
+    syntax_match(syntax_class, HashSyntaxNode(src); greedy)
+syntax_match(pattern_node::SyntaxPatternNode, src::JS.SyntaxNode; greedy=true) =
+    syntax_match(pattern_node, HashSyntaxNode(src); greedy)
+# Actual matching.
+syntax_match(pattern::Pattern, src::HashSyntaxNode; greedy=true) =
+    syntax_match(pattern.src, src; greedy)
+function syntax_match(syntax_class::SyntaxClass, src::HashSyntaxNode; greedy=true)
     failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
         match_result = _syntax_match(pattern, src; greedy)
@@ -85,7 +89,7 @@ function syntax_match(syntax_class::SyntaxClass,
     return MatchFail("expected " * syntax_class.description)
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
-                      src::JS.SyntaxNode;
+                      src::HashSyntaxNode;
                       greedy=true)
     match_result = _syntax_match(pattern_node, src; greedy)
     isa(match_result, MatchFail) && return match_result
@@ -96,16 +100,16 @@ function syntax_match(pattern_node::SyntaxPatternNode,
 end
 
 """
-    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
+    _syntax_match(pattern::Pattern, src::HashSyntaxNode; greedy=true)
 
 Pattern syntax matching without template filling.
 """
-_syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true) =
+_syntax_match(pattern::Pattern, src::HashSyntaxNode; greedy=true) =
     syntax_match(pattern.src, src; greedy)
 
 """
     _syntax_match(pattern::SyntaxPatternNode,
-                  src::JuliaSyntax.SyntaxNode,
+                  src::HashSyntaxNode,
                   bindings::BindingSet=BindingSet();
                   recovery_stack=[],
                   recover=true,
@@ -218,16 +222,18 @@ states. We directly go back to the parent `~and`.
 20. Done.
 """
 function _syntax_match(pattern::SyntaxPatternNode,
-                       src::JS.SyntaxNode,
+                       src::HashSyntaxNode,
                        bindings::BindingSet=BindingSet();
                        recovery_stack=[],
                        recover=true,
                        greedy=true,
                        tmp=false)
-    key = MatchCacheKey(hash(pattern), hash(src), hash(bindings))
+    key = MatchCacheKey(pattern.data.hash, src.data.hash, hash(bindings))
     cached_match_result = get(MATCH_CACHE, key, nothing)
     # If there is a cached result, return it.
-    isnothing(cached_match_result) || return cached_match_result
+    if !isnothing(cached_match_result)
+        return cached_match_result
+    end
     # Special syntax.
     if is_pattern_form(pattern)
         match_result = syntax_match_pattern_form(pattern,
@@ -281,11 +287,15 @@ function _syntax_match(pattern::SyntaxPatternNode,
             # Don't add obviously failing states.
             continue
         end
+        # Rehash and relink pattern nodes.
         _pattern = SyntaxPatternNode(pattern.parent, nothing, pattern.data)
         [c.parent = _pattern for c in rec_ps]
         _pattern.children = rec_ps
+        rehash!(_pattern)
+        # Relink source nodes.
         [c.parent = src for c in rec_srcs]
         src.children = rec_srcs
+        rehash!(src)
         push!(recovery_stack, (_pattern, src, rec_bs))
     end
 
@@ -293,7 +303,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
     return match_result
 end
 function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                       srcs::Vector{JS.SyntaxNode},
+                       srcs::Vector{HashSyntaxNode},
                        bindings::BindingSet=BindingSet();
                        recovery_stack=[],
                        recover=true,
@@ -324,7 +334,7 @@ end
 
 """
     partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                         srcs::Vector{JS.SyntaxNode},
+                         srcs::Vector{HashSyntaxNode},
                          bindings::BindingSet=BindingSet();
                          recovery_stack=[],
                          greedy=true,
@@ -369,7 +379,7 @@ julia> partial_result, srcs = partial_syntax_match(children(@pattern (({x} + 1).
 ```
 """
 function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
-                              srcs::Vector{JS.SyntaxNode},
+                              srcs::Vector{HashSyntaxNode},
                               bindings::BindingSet=BindingSet();
                               recovery_stack=[],
                               greedy=true,
@@ -504,7 +514,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         end
         # In the recovery state of a greedy algortihm, the repetition is finished and the
         # repetition node did not match the current source node.
-        bindings = syntax_match_rep(p, JS.SyntaxNode[], bindings; greedy)
+        bindings = syntax_match_rep(p, HashSyntaxNode[], bindings; greedy)
         push!(recovery_stack, (rest(pattern_nodes), srcs, make_permanent(bindings)))
         # Continue on the preferred path. For a greedy algorithm this means that a
         # repetition node consumes as many source nodes as possible.
@@ -524,7 +534,7 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
         end
         # Continue on the preferred path. For a non-greedy algorithm this means that a
         # repetition stops before consuming any source nodes.
-        bindings = syntax_match_rep(p, JS.SyntaxNode[], bindings; greedy)
+        bindings = syntax_match_rep(p, HashSyntaxNode[], bindings; greedy)
         return partial_syntax_match(rest(pattern_nodes),
                                     srcs,
                                     bindings;
@@ -537,7 +547,7 @@ end
 
 """
     syntax_match_all(pattern_node::SyntaxPatternNode,
-                     src::JS.SyntaxNode,
+                     src::HashSyntaxNode,
                      bindings::BindingSet=BindingSet();
                      greedy=true,
                      only_matches=true)
@@ -546,14 +556,14 @@ Try to match a pattern node against a source node. Return all successful matches
 `only_matches` is `false` return the non-trivial failures as well.
 """
 function syntax_match_all(pattern::Pattern,
-                          src::JS.SyntaxNode,
+                          src::HashSyntaxNode,
                           bindings::BindingSet=BindingSet();
                           greedy=true,
                           only_matches=true)
     return syntax_match_all(pattern.src, src, bindings; greedy, only_matches)
 end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
-                          src::JS.SyntaxNode,
+                          src::HashSyntaxNode,
                           bindings::BindingSet=BindingSet();
                           greedy=true,
                           only_matches=true)
@@ -626,7 +636,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             # Match the pattern with all source expressions except the first one.
             (isnothing(src.children) || isempty(src.children) || length(src.children) == 1) &&
                 return match_result_all
-            next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
+            next_src = _HashSyntaxNode(src.parent, src.children[2:end], src.data)
             match_result =
                 syntax_match_all(pattern_node, next_src, bindings; greedy, only_matches)
             append!(match_result_all.failures, match_result.failures)
@@ -659,7 +669,7 @@ end
 
 """
     syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
-                              src::JS.SyntaxNode,
+                              src::HashSyntaxNode,
                               bindings::BindingSet;
                               recovery_stack=[],
                               recover=true,
@@ -669,7 +679,7 @@ Try to match a pattern form node. Dispatch the matching to the specific pattern 
 match function.
 """
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
-                                   src::JS.SyntaxNode,
+                                   src::HashSyntaxNode,
                                    bindings::BindingSet;
                                    recovery_stack,
                                    recover=true,
@@ -690,7 +700,7 @@ end
 
 """
     syntax_match_var(var_node::SyntaxPatternNode,
-                     src::JS.SyntaxNode,
+                     src::HashSyntaxNode,
                      bindings::BindingSet;
                      tmp=false)
 
@@ -698,7 +708,7 @@ Try to match a `~var` pattern form. If there's a match, bind the pattern variabl
 and add the binding to `bindings`.
 """
 function syntax_match_var(var_node::SyntaxPatternNode,
-                          src::JS.SyntaxNode,
+                          src::HashSyntaxNode,
                           bindings::BindingSet;
                           greedy=true,
                           tmp=false)
@@ -745,14 +755,14 @@ end
 
 """
     syntax_match_fail(fail_node::SyntaxPatternNode,
-                      src::JS.SyntaxNode,
+                      src::HashSyntaxNode,
                       bindings::BindingSet)
 
 Try to match a `~fail` pattern form. If the fail condition is satisfied return a
 [`MatchFail`](@ref) with an informative fail message. Otherwise, return `bindings`.
 """
 function syntax_match_fail(fail_node::SyntaxPatternNode,
-                           src::JS.SyntaxNode,
+                           src::HashSyntaxNode,
                            bindings::BindingSet)
     condition = get_fail_condition(fail_node)
     message = get_fail_message(fail_node)
@@ -772,7 +782,7 @@ end
 
 """
     syntax_match_or(or_node::SyntaxPatternNode,
-                    src::JS.SyntaxNode,
+                    src::HashSyntaxNode,
                     bindings=BindingSet;
                     recovery_stack=[],
                     greedy=true,
@@ -785,7 +795,7 @@ If an alternative fails to match, try to backtrack up to a successful state. Sto
 possible matching paths in `recovery_stack`.
 """
 function syntax_match_or(or_node::SyntaxPatternNode,
-                         src::JS.SyntaxNode,
+                         src::HashSyntaxNode,
                          bindings=BindingSet;
                          recovery_stack=[],
                          greedy=true,
@@ -811,8 +821,12 @@ function syntax_match_or(or_node::SyntaxPatternNode,
             # next branches if the encompassing pattern fails.
             if i < length(children(or_node))
                 next_try_children = children(or_node)[i+1:end]
+                h = or_node.data.hash
+                for c in next_try_children
+                    h = hash(c, h)
+                end
                 next_try =
-                    SyntaxPatternNode(or_node.parent, next_try_children, OrSyntaxData())
+                    SyntaxPatternNode(or_node.parent, next_try_children, OrSyntaxData(h))
                 [c.parent = next_try for c in next_try_children]
                 push!(recovery_stack, (next_try, src, bindings))
             end
@@ -830,7 +844,7 @@ end
 
 """
     syntax_match_and(and_node::SyntaxPatternNode,
-                     src::JS.SyntaxNode,
+                     src::HashSyntaxNode,
                      bindings::BindingSet;
                      tmp=false)
 
@@ -841,7 +855,7 @@ If a branch fails to match, try to match the entire `~and` node again with the f
 branch replaced with one of its other matching paths, if possible.
 """
 function syntax_match_and(and_node::SyntaxPatternNode,
-                          src::JS.SyntaxNode,
+                          src::HashSyntaxNode,
                           bindings::BindingSet;
                           recovery_stack=[],
                           greedy=true,
@@ -863,6 +877,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
             while !isempty(branch_recovery_stack) && isa(match_result, MatchFail)
                 rec_p, rec_s, rec_bs = pop!(branch_recovery_stack)
                 and_node.children[i - 1] = rec_p
+                rehash!(and_node)
                 match_result = syntax_match_and(and_node, rec_s, rec_bs; greedy, tmp)
             end
             # If we have no more paths to try and the match still failed, try to recover
@@ -880,6 +895,7 @@ function syntax_match_and(and_node::SyntaxPatternNode,
             _and_node = copy(and_node)
             rec_p, rec_s, rec_bs = pop!(branch_recovery_stack)
             _and_node.children = SyntaxPatternNode[rec_p, @views(_and_node.children[i+1:end])...]
+            rehash!(_and_node)
             push!(recovery_stack, (_and_node, rec_s, rec_bs))
         end
         bindings = make_permanent(match_result)
@@ -896,10 +912,10 @@ end
 
 """
     syntax_match_rep(rep_node::SyntaxPatternNode,
-                     src::JS.SyntaxNode,
+                     src::HashSyntaxNode,
                      bindings::BindingSet)
     syntax_match_rep(rep_node::SyntaxPatternNode,
-                     src::Vector{JS.SyntaxNode},
+                     src::Vector{HashSyntaxNode},
                      bindings::BindingSet)
 
 Try to match a `~rep` pattern form (ellipsis). An ellipsis of depth 1 matches a sequence of
@@ -958,7 +974,7 @@ BindingSet with 1 entry:
 ```
 """
 function syntax_match_rep(rep_node::SyntaxPatternNode,
-                          src::JS.SyntaxNode,
+                          src::HashSyntaxNode,
                           bindings::BindingSet;
                           greedy=true)
     kind(src) === K"toplevel" &&
@@ -996,7 +1012,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     return bindings
 end
 function syntax_match_rep(rep_node::SyntaxPatternNode,
-                          srcs::Vector{JS.SyntaxNode},
+                          srcs::Vector{HashSyntaxNode},
                           bindings::BindingSet;
                           greedy=true)
     bindings::BindingSet = copy(bindings)
@@ -1009,7 +1025,7 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
             if !haskey(bindings, var_name)
                 bindings[var_name] =
                     TemporaryBinding(var_name,
-                                     empty_vec(JS.SyntaxNode, var_depth),
+                                     empty_vec(HashSyntaxNode, var_depth),
                                      empty_vec(BindingSet, var_depth),
                                      var_depth)
             end
@@ -1061,8 +1077,8 @@ function recover!(recovery_stack::AbstractVector,
 end
 
 """
-    compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
-               ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+    compatible(ex1::Union{HashSyntaxNode, SyntaxPatternNode},
+               ex2::Union{HashSyntaxNode, SyntaxPatternNode})
     compatible(exs1::AbstractVector, exs2::AbstractVector)
 
 Determine whether two bound sources are compatible with each other.
@@ -1073,8 +1089,8 @@ are compatible with each other one by one.
 Compatible source arrays have the same number of elements and all their elements are
 compatible with each other one by one.
 """
-function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
-                    ex2::Union{JS.SyntaxNode, SyntaxPatternNode};
+function compatible(ex1::Union{HashSyntaxNode, SyntaxPatternNode},
+                    ex2::Union{HashSyntaxNode, SyntaxPatternNode};
                     recurse=true)
     head(ex1) == head(ex2) ||
         # If the nodes differ only by `PARENS_FLAG`, they are compatible.
@@ -1095,8 +1111,8 @@ function compatible(exs1::AbstractVector, exs2::AbstractVector)
     return compatible(exs1[1], exs2[1])
 end
 
-function _differ_by_parens(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
-                           ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+function _differ_by_parens(ex1::Union{HashSyntaxNode, SyntaxPatternNode},
+                           ex2::Union{HashSyntaxNode, SyntaxPatternNode})
     kind(ex1) == kind(ex2) || return false
     kind(ex1) in JS.KSet"macrocall" || return false
     return xor(JS.flags(ex1), JS.flags(ex2)) == JS.PARENS_FLAG
@@ -1308,7 +1324,7 @@ Add a match result to a list of match results. If `only_matches` is `true`, don'
 """
 function push_match_result!(match_all_result::MatchResults,
                             match_result::MatchResult,
-                            src::JS.SyntaxNode;
+                            src::HashSyntaxNode;
                             only_matches=true)
     if isa(match_result, MatchFail)
         !only_matches && match_result != MatchFail() &&
@@ -1323,7 +1339,7 @@ end
 """
     match_and_recover!(match_all_result::MatchResults,
                        pattern_node::SyntaxPatternNode,
-                       src::JS.SyntaxNode,
+                       src::HashSyntaxNode,
                        bindings::BindingSet=BindingSet();
                        greedy,
                        only_matches,
@@ -1333,7 +1349,7 @@ Try to match a pattern node with a source node. Recover in case of failure.
 """
 function match_and_recover!(match_all_result::MatchResults,
                             pattern_node::SyntaxPatternNode,
-                            src::JS.SyntaxNode,
+                            src::HashSyntaxNode,
                             bindings::BindingSet=BindingSet();
                             greedy,
                             only_matches)

@@ -61,6 +61,10 @@ The latter is a name expected to be found in the [`SYNTAX_CLASS_REGISTRY`](@ref)
 struct VarSyntaxData <: AbstractPatternFormSyntaxData
     var_name::Symbol
     syntax_class_name::Symbol
+    hash::UInt64
+
+    VarSyntaxData(var_name::Symbol, syntax_class_name::Symbol, h::UInt64) =
+        new(var_name, syntax_class_name, hash(var_name, hash(syntax_class_name, h)))
 end
 
 """
@@ -83,9 +87,11 @@ Exceptions caught and returned as a [`MatchFail`] message:
 struct FailSyntaxData <: AbstractPatternFormSyntaxData
     condition::Function
     message::String
+    hash::UInt64
 
-    FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
-    FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
+    FailSyntaxData(cond::Function, msg::String, h::UInt64) =
+        new(cond, msg, hash(cond, hash(msg, h)))
+    FailSyntaxData(cond, msg::String, h::UInt64) = new(fail_condition(cond), msg, h)
 end
 
 """
@@ -93,14 +99,18 @@ end
 
 Data for an `~or` pattern form.
 """
-struct OrSyntaxData <: AbstractPatternFormSyntaxData end
+struct OrSyntaxData <: AbstractPatternFormSyntaxData
+    hash::UInt64
+end
 
 """
     AndSyntaxData <: AbstractPatternFormSyntaxData
 
 Data for an `~and` pattern form.
 """
-struct AndSyntaxData <: AbstractPatternFormSyntaxData end
+struct AndSyntaxData <: AbstractPatternFormSyntaxData
+    hash::UInt64
+end
 
 """
     RepVar
@@ -121,10 +131,11 @@ cannot appear outside of it.
 """
 struct RepSyntaxData <: AbstractPatternFormSyntaxData
     rep_vars::Vector{RepVar}
+    hash::UInt64
 end
-function RepSyntaxData(node::JS.SyntaxNode)
+function RepSyntaxData(node::HashSyntaxNode, h::UInt64)
     rep_vars = [RepVar(p[1], p[2] + 1) for p in get_pattern_vars_with_depth(node)]
-    return RepSyntaxData(rep_vars)
+    return RepSyntaxData(rep_vars, hash(rep_vars, h))
 end
 
 const PATTERN_FORMS = [:var, :fail, :or, :and, :rep]
@@ -163,42 +174,60 @@ JS.head(_::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
 Base.getproperty(data::VarSyntaxData, name::Symbol) =
     name === :id                ? getfield(data, :id)                :
     name === :syntax_class_name ? getfield(data, :syntax_class_name) :
+    name === :hash              ? getfield(data, :hash)              :
     name === :val               ? nothing                            :
     getfield(data, name)
 
 Base.getproperty(data::FailSyntaxData, name::Symbol) =
     name === :message ? getfield(data, :message) :
+    name === :hash    ? getfield(data, :hash)    :
     name === :val     ? nothing                  :
     getfield(data, name)
 
 Base.getproperty(data::OrSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
+    name === :hash ? getfield(data, :hash) :
+    name === :val  ? nothing               :
+    getfield(data, name)
 
 Base.getproperty(data::AndSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
+    name === :hash ? getfield(data, :hash) :
+    name === :val  ? nothing               :
+    getfield(data, name)
 
 Base.getproperty(data::RepSyntaxData, name::Symbol) =
     name === :rep_vars ? getfield(data, :rep_vars) :
+    name === :hash     ? getfield(data, :hash)     :
     name === :val      ? nothing                   :
     getfield(data, name)
 
-Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
-Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
-Base.copy(::OrSyntaxData) = OrSyntaxData()
-Base.copy(::AndSyntaxData) = AndSyntaxData()
-Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
+Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name,
+                                               data.syntax_class_name,
+                                               data.hash)
+Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message, data.hash)
+Base.copy(data::OrSyntaxData) = OrSyntaxData(data.hash)
+Base.copy(data::AndSyntaxData) = AndSyntaxData(data.hash)
+Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars, data.hash)
 
-Base.:(==)(d1::VarSyntaxData, d2::VarSyntaxData) =
-    d1.var_name == d2.var_name && d1.syntax_class_name == d2.syntax_class_name
-Base.:(==)(d1::FailSyntaxData, d2::FailSyntaxData) =
-    d1.condition == d2.condition && d1.message == d2.message
-Base.:(==)(d1::OrSyntaxData, d2::OrSyntaxData) = true
-Base.:(==)(d1::AndSyntaxData, d2::AndSyntaxData) = true
-Base.:(==)(d1::RepSyntaxData, d2::RepSyntaxData) =
-    d1.rep_vars == d2.rep_vars
+# Base.:(==)(d1::VarSyntaxData, d2::VarSyntaxData) =
+#     d1.var_name == d2.var_name && d1.syntax_class_name == d2.syntax_class_name
+# Base.:(==)(d1::FailSyntaxData, d2::FailSyntaxData) =
+#     d1.condition == d2.condition && d1.message == d2.message
+# Base.:(==)(d1::OrSyntaxData, d2::OrSyntaxData) = true
+# Base.:(==)(d1::AndSyntaxData, d2::AndSyntaxData) = true
+# Base.:(==)(d1::RepSyntaxData, d2::RepSyntaxData) =
+#     d1.rep_vars == d2.rep_vars
 
-Base.:(==)(rv1::RepVar, rv2::RepVar) =
-    rv1.name == rv2.name && rv1.ellipsis_depth == rv2.ellipsis_depth
+# Base.:(==)(rv1::RepVar, rv2::RepVar) =
+#     rv1.name == rv2.name && rv1.ellipsis_depth == rv2.ellipsis_depth
+
+Base.hash(data::VarSyntaxData) = hash(data.var_name,
+                                      hash(data.syntax_class_name, data.hash))
+Base.hash(data::FailSyntaxData) = hash(data.condition, hash(data.message, data.hash))
+Base.hash(data::OrSyntaxData) = data.hash
+Base.hash(data::AndSyntaxData) = data.hash
+Base.hash(data::RepSyntaxData) = hash(data.rep_vars, data.hash)
+
+Base.hash(rv::RepVar) = hash(rv.name, hash(rv.ellipsis_depth))
 
 # Utils
 # -----
@@ -247,7 +276,7 @@ fail_condition(condition) =
 Get all the pattern variables in the given source node, from all ellipsis depths. Return
 and array of tuples containing the pattern variable names and their ellipsis depths.
 """
-function get_pattern_vars_with_depth(node::JS.SyntaxNode)
+function get_pattern_vars_with_depth(node::HashSyntaxNode)
     is_leaf(node) && return []
     is_var(node) && return [(get_var_name(node), 0)]
     vs = []

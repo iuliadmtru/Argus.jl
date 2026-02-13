@@ -272,7 +272,10 @@
                 end
                 a + 2
                 """)
-            @test length(rule_match(rule, src).matches) == 2
+            matches = rule_match(rule, src).matches
+            @test length(matches) == 2
+            @test matches[1][1][:x].name == "y"
+            @test matches[2][1][:x].name == "x"
         end
         let
             rule = @rule "expr vs syntaxnode mismatch" begin

@@ -60,7 +60,7 @@
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
             @test isa(match_result, BindingSet)
             @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{JuliaSyntax.SyntaxNode})
+            @test isa(match_result[:x].src, Vector{Argus.HashSyntaxNode})
             @test length(match_result[:x].src) == 1
             @test isa(match_result[:x].bindings, Vector{BindingSet{Argus.AbstractBinding}})
             @test length(match_result[:x].bindings) == 1
@@ -70,7 +70,7 @@
             match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
             @test isa(match_result, BindingSet)
             @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
+            @test isa(match_result[:x].src, Vector{Vector{Argus.HashSyntaxNode}})
             @test isa(match_result[:x].bindings,
                       Vector{Vector{BindingSet{Argus.AbstractBinding}}})
         end

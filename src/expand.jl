@@ -89,7 +89,7 @@ function expand_rep(template::Template,
                     bindings::BindingSet,
                     discarded_vars::Vector{Symbol}=Symbol[])
     # If the template is a leaf, return it as a vector.
-    is_leaf(template) && return [JS.SyntaxNode(nothing, nothing, template.data)]
+    is_leaf(template) && return [HashSyntaxNode(nothing, nothing, template.data)]
     # If the template is a `~var`, return the corresponding bound source node.
     if is_var(template)
         vname = template.var_name
@@ -107,7 +107,7 @@ function expand_rep(template::Template,
             end
         end
         src = b.src
-        isa(src, JS.SyntaxNode) ||
+        isa(src, JS.TreeNode) ||
             error("""
                   template variable $vname has inconsistent ellipsis depth
                   Template variables should have the same depth as the corresponding pattern variables.
@@ -135,7 +135,7 @@ function expand_rep(template::Template,
                         1:reps_no)
     end
     # The template is a regular node (inside a `~rep`).
-    expanded = JS.SyntaxNode(nothing, nothing, template.data)
+    expanded = HashSyntaxNode(nothing, nothing, template.data)
     cs = reduce(vcat, [expand_rep(c, bindings, discarded_vars) for c in children(template)])
     [c.parent = expanded for c in cs]
     expanded.children = cs

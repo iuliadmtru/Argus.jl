@@ -21,6 +21,7 @@ export syntax_match, partial_syntax_match, syntax_match_all, is_successful,
     MatchFail, MatchError, MatchResults
 export expand
 
+include("hash-syntax-node.jl")
 include("syntax-pattern-node.jl")
 include("pattern.jl")
 include("template.jl")
