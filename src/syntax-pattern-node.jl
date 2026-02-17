@@ -1,3 +1,5 @@
+using InteractiveUtils: subtypes
+
 # Syntax pattern tree interface
 # =============================
 
@@ -47,7 +49,8 @@ include("special-syntax-data.jl")
 Internal type for pattern ASTs. It can hold either `JuliaSyntax.SyntaxData` or
 [`AbstractPatternFormSyntaxData`](@ref).
 """
-const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData, AbstractPatternFormSyntaxData}}
+const SyntaxPatternNode = JS.TreeNode{Union{JS.SyntaxData,
+                                            subtypes(AbstractPatternFormSyntaxData)...}}
 
 """
     SyntaxPatternNode(ex)
