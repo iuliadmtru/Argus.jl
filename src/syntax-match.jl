@@ -699,18 +699,18 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     # old one.
     if haskey(bindings, pattern_var_name)
         b = bindings[pattern_var_name]
-        isa(b, InvalidBinding) && return MatchFail(b.msg)
+        is_invalid(b) && return MatchFail(b._msg)
         # If the bindings are not compatible, mark the binding so that it won't bind
         # further.
         if !compatible(b.src, src)
             fail_msg = "conflicting bindings for pattern variable $pattern_var_name"
-            bindings[pattern_var_name] = InvalidBinding(fail_msg)
+            bindings[pattern_var_name] = Binding(pattern_var_name, fail_msg)
             return MatchFail(fail_msg)
         end
     end
     if tmp
         bindings[pattern_var_name] =
-            TemporaryBinding(pattern_var_name, src, match_result, 0)
+            Binding(pattern_var_name, src, match_result, 0, TEMPORARY_BINDING, "")
     else
         bindings[pattern_var_name] = Binding(pattern_var_name, src, match_result, 0)
     end
@@ -953,18 +953,24 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
             b = bindings[var_name]
             # The pattern variable may have already been bound, for example during an `~and`
             # match.
-            !isa(b, TemporaryBinding) && return bindings
+            !is_temporary(b) && return bindings
             b_src = b.src
             push!(b_src, var_binding.src)
             b_bindings = b.bindings
             push!(b_bindings, var_binding.bindings)
-            bindings[var_name] =
-                TemporaryBinding(var_name, b_src, b_bindings, var.ellipsis_depth)
+            bindings[var_name] = Binding(var_name,
+                                         b_src,
+                                         b_bindings,
+                                         var.ellipsis_depth,
+                                         TEMPORARY_BINDING,
+                                         "")
         else
-            bindings[var_name] = TemporaryBinding(var_name,
-                                                  [var_binding.src],
-                                                  [var_binding.bindings],
-                                                  var.ellipsis_depth)
+            bindings[var_name] = Binding(var_name,
+                                         [var_binding.src],
+                                         [var_binding.bindings],
+                                         var.ellipsis_depth,
+                                         TEMPORARY_BINDING,
+                                         "")
         end
     end
     return bindings
@@ -982,10 +988,12 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
             var_depth = var.ellipsis_depth
             if !haskey(bindings, var_name)
                 bindings[var_name] =
-                    TemporaryBinding(var_name,
-                                     empty_vec(JS.SyntaxNode, var_depth),
-                                     empty_vec(BindingSet, var_depth),
-                                     var_depth)
+                    Binding(var_name,
+                            empty_vec(JS.SyntaxNode, var_depth),
+                            empty_vec(BindingSet, var_depth),
+                            var_depth,
+                            TEMPORARY_BINDING,
+                            "")
             end
         end
         return bindings
@@ -1091,7 +1099,7 @@ rest(v::V) where V <: AbstractVector{JS.TreeNode{T}} where T =
 Filter out all elements of type [`InvalidBinding`](@ref) from a [`BindingSet`](@ref).
 """
 remove_invalid_bindings(bs::BindingSet) =
-    filter(p -> !isa(p.second, InvalidBinding), bs)
+    filter(p -> !is_invalid(p.second), bs)
 
 """
     make_permanent(bs::BindingSet)
@@ -1121,7 +1129,7 @@ BindingSet with 1 entry:
 function make_permanent(bs::BindingSet)
     without_temp = empty(bs)
     for (k, v) in bs
-        if isa(v, TemporaryBinding)
+        if is_temporary(v)
             # Only permanentise non-anonymous bindings.
             if !is_anonymous_pattern_variable(k)
                 without_temp[k] = Binding(v)
@@ -1357,10 +1365,10 @@ function resolve_conflicts_and_combine(st1::AbstractVector, st2::AbstractVector)
             conflicting && break
             for (bname1, b1) in bs1
                 conflicting && break
-                isa(b1, TemporaryBinding) && continue
+                is_temporary(b1) && continue
                 for (bname2, b2) in bs2
                     conflicting && break
-                    isa(b2, TemporaryBinding) && continue
+                    is_temporary(b2) && continue
                     if bname1 === bname2
                         if !compatible(b1.src, b2.src)
                             conflicting = true

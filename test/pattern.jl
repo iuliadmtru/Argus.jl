@@ -62,7 +62,7 @@
             @test length(match_result) == 1
             @test isa(match_result[:x].src, Vector{JuliaSyntax.SyntaxNode})
             @test length(match_result[:x].src) == 1
-            @test isa(match_result[:x].bindings, Vector{BindingSet{Argus.AbstractBinding}})
+            @test isa(match_result[:x].bindings, Vector{BindingSet})
             @test length(match_result[:x].bindings) == 1
         end
         let
@@ -72,7 +72,7 @@
             @test length(match_result) == 1
             @test isa(match_result[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
             @test isa(match_result[:x].bindings,
-                      Vector{Vector{BindingSet{Argus.AbstractBinding}}})
+                      Vector{Vector{BindingSet}})
         end
         let
             pattern = @pattern begin

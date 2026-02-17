@@ -5,176 +5,12 @@ Sypertype for bindings.
 """
 abstract type AbstractBinding end
 
-# Binding set
-# ===========
-
-"""
-    BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-
-Set of bindings resulted from a successful syntax match. Contains only [`Binding`](@ref)
-values if resulted from a successful and complete syntax match. May contain
-[`TemporaryBinding`](@ref) and/or [`InvalidBinding`](@ref) if resulted from a successful
-but incomplete syntax match.
-"""
-mutable struct BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-    bindings::Dict{Symbol, T}  # TODO: Order by appearance in the source code?
-    source_location::Tuple{Int64, Int64}
-    file_name::String
-end
-BindingSet() = BindingSet(Dict{Symbol, AbstractBinding}(), (0, 0), "")
-BindingSet(kvs...) = BindingSet(Dict{Symbol, AbstractBinding}(kvs...), (0, 0), "")
-
-# Dict interface
-# --------------
-
-Base.isempty(bs::BindingSet) = isempty(bs.bindings)
-Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name)
-Base.empty!(bs::BindingSet) = empty!(bs.bindings)
-Base.length(bs::BindingSet) = length(bs.bindings)
-
-Base.iterate(bs::BindingSet) = iterate(bs.bindings)
-Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
-Base.setindex!(bs::BindingSet, v, k...) = setindex!(bs.bindings, v, k...)
-
-Base.haskey(bs::BindingSet, k) = haskey(bs.bindings, k)
-Base.get(bs::BindingSet, k, d) = get(bs.bindings, k, d)
-Base.get(f::Union{Function, Type}, bs::BindingSet, k) = get(f, bs.bindings, k)
-Base.get!(bs::BindingSet, k, d) = get!(bs.bindings, k, d)
-Base.get!(f::Union{Function, Type}, bs::BindingSet, k) = get!(f, bs.bindings, k)
-Base.getkey(bs::BindingSet, k, d) = getkey(bs.bindings, k, d)
-Base.delete!(bs::BindingSet, k) = delete!(bs.bindings, k)
-Base.pop!(bs::BindingSet, k) = pop!(bs.bindings, k)
-Base.pop!(bs::BindingSet, k, d) = pop!(bs.bindings, k, d)
-Base.keys(bs::BindingSet) = keys(bs.bindings)
-Base.values(bs::BindingSet) = values(bs.bindings)
-Base.pairs(bs::BindingSet) = pairs(bs.bindings)
-Base.merge(bs::BindingSet, others::BindingSet...) =
-    BindingSet(merge(bs.bindings, others...))
-Base.mergewith(c, bs::BindingSet, others::BindingSet...) =
-    BindingSet(mergewith(c, bs.bindings, others...))
-Base.merge!(bs::BindingSet, others::BindingSet...) =
-    BindingSet(merge!(bs.bindings, others...))
-Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
-    BindingSet(mergewith!(c, bs.bindings, others...))
-Base.keytype(bs::BindingSet) = keytype(bs.bindings)
-Base.valtype(bs::BindingSet) = valtype(bs.bindings)
-
-function Base.copy(bs::BindingSet)
-    new_bs = empty(bs)
-    for (k, v) in bs
-        new_bs[k] = copy(v)
-    end
-    return new_bs
-end
-
-# Display
-# -------
-
-function Base.summary(io::IO, bs::BindingSet)
-    show(io, typeof(bs))
-    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
-end
-
-Base.show(io::IO, ::Type{BindingSet{AbstractBinding}}) = print(io, "BindingSet")
-Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
-    _show_binding_set(io, bs, "")
-
-function _show_binding_set(io::IO, bs, indent)
-    if isa(bs, AbstractVector)
-        print(io, indent * "[")
-        if isempty(bs)
-            print(io, "]")
-        else
-            for (i, el) in enumerate(bs)
-                println(io)
-                _show_binding_set(io, el, indent * " ")
-                if i < length(bs)
-                    print(io, ",")
-                end
-            end
-            println(io)
-            print(io, indent * "]")
-        end
-    else
-        print(io, indent)
-        summary(io, bs)
-        if !isempty(bs)
-            print(io, ":")
-            for (k, v) in bs
-                println(io)
-                s = indent * "  $(repr(k)) => "
-                print(io, s)
-                b_indent = repeat(' ', length(s))
-                _show_binding(io, v, b_indent)
-            end
-        end
-    end
-end
-
-function _repr_location(bs::BindingSet)
-    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
-    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
-
-    return location
-end
-
-# Errors
-# ======
-
-"""
-    BindingFieldError <: Exception
-
-A fail condition tried to access an invalid field of a binding.
-
-A binding field is valid if any one of the following is true:
-  - It is one of the corresponding struct fields (e.g. `src` for a [`Binding`](@ref) or
-    `msg` for an [`InvalidBinding`](@ref));
-  - It is the name of one of the binding's sub-bindings;
-  - The binding's `src` is an identifier and the field is `name`;
-  - The binding's `src` is a literal and the field is `value`.
-"""
-struct BindingFieldError <: Exception
-    binding::AbstractBinding
-    field::Symbol
-    available_fields::Vector{Symbol}
-    internal_fields::Vector{Symbol}
-    reason::String
-end
-
-"""
-    BindingSetKeyError <: Exception
-
-A fail condition tried to access a non-existent binding.
-"""
-struct BindingSetKeyError <: Exception
-    key
-end
-
-# Display
-# -------
-
-function Base.showerror(io::IO, err::BindingFieldError)
-    print(io, "BindingFieldError: ")
-    println(io,
-            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
-            "because ", err.reason, ".")
-    available = isempty(err.available_fields) ?
-        "none"                                :
-        join(map(s -> "`$s`", err.available_fields), ", ")
-    println(io, "Available fields: ", available)
-    println(io)
-    println(io,
-            "The following fields are internal, avoid using them in patterns: ",
-            join(map(s -> "`$s`", err.internal_fields), ", "))
-end
-
-function Base.showerror(io::IO, err::BindingSetKeyError)
-    print(io, "BindingSetKeyError: ")
-    println(io, "binding ", err.key, " not found")
-end
-
 # Bindings
 # ========
+
+const REGULAR_BINDING = UInt8(0)
+const TEMPORARY_BINDING = UInt8(1)
+const INVALID_BINDING = UInt8(2)
 
 """
     Binding <: AbstractBinding
@@ -233,6 +69,183 @@ struct Binding{S, B} <: AbstractBinding
     src::S
     bindings::B
     ellipsis_depth::Int
+    _type::UInt8
+    _msg::String
+end
+Binding(bname::Symbol, src::S, bindings::B, ellipsis_depth::Int) where {S, B} =
+    Binding(bname, src, bindings, ellipsis_depth, REGULAR_BINDING, "")
+Binding(bname::Symbol, msg::String) =
+    Binding(bname, nothing, nothing, 0, INVALID_BINDING, msg)
+Binding(b::Binding) =
+    Binding(b.bname, b.src, b.bindings, b.ellipsis_depth, REGULAR_BINDING, b._msg)
+
+is_invalid(b::Binding) = b._type == INVALID_BINDING
+is_temporary(b::Binding) = b._type == TEMPORARY_BINDING
+
+# Binding set
+# ===========
+
+"""
+    BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
+
+Set of bindings resulted from a successful syntax match. Contains only [`Binding`](@ref)
+values if resulted from a successful and complete syntax match. May contain
+[`TemporaryBinding`](@ref) and/or [`InvalidBinding`](@ref) if resulted from a successful
+but incomplete syntax match.
+"""
+mutable struct BindingSet <: AbstractDict{Symbol, Binding}
+    bindings::Dict{Symbol, Binding}  # TODO: Order by appearance in the source code?
+    source_location::Tuple{Int64, Int64}
+    file_name::String
+end
+BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "")
+BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "")
+
+# Dict interface
+# --------------
+
+Base.isempty(bs::BindingSet) = isempty(bs.bindings)
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name)
+Base.empty!(bs::BindingSet) = empty!(bs.bindings)
+Base.length(bs::BindingSet) = length(bs.bindings)
+
+Base.iterate(bs::BindingSet) = iterate(bs.bindings)
+Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
+Base.setindex!(bs::BindingSet, v, k...) = setindex!(bs.bindings, v, k...)
+
+Base.haskey(bs::BindingSet, k) = haskey(bs.bindings, k)
+Base.get(bs::BindingSet, k, d) = get(bs.bindings, k, d)
+Base.get(f::Union{Function, Type}, bs::BindingSet, k) = get(f, bs.bindings, k)
+Base.get!(bs::BindingSet, k, d) = get!(bs.bindings, k, d)
+Base.get!(f::Union{Function, Type}, bs::BindingSet, k) = get!(f, bs.bindings, k)
+Base.getkey(bs::BindingSet, k, d) = getkey(bs.bindings, k, d)
+Base.delete!(bs::BindingSet, k) = delete!(bs.bindings, k)
+Base.pop!(bs::BindingSet, k) = pop!(bs.bindings, k)
+Base.pop!(bs::BindingSet, k, d) = pop!(bs.bindings, k, d)
+Base.keys(bs::BindingSet) = keys(bs.bindings)
+Base.values(bs::BindingSet) = values(bs.bindings)
+Base.pairs(bs::BindingSet) = pairs(bs.bindings)
+Base.merge(bs::BindingSet, others::BindingSet...) =
+    BindingSet(merge(bs.bindings, others...))
+Base.mergewith(c, bs::BindingSet, others::BindingSet...) =
+    BindingSet(mergewith(c, bs.bindings, others...))
+Base.merge!(bs::BindingSet, others::BindingSet...) =
+    BindingSet(merge!(bs.bindings, others...))
+Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
+    BindingSet(mergewith!(c, bs.bindings, others...))
+Base.keytype(bs::BindingSet) = keytype(bs.bindings)
+Base.valtype(bs::BindingSet) = valtype(bs.bindings)
+
+function Base.copy(bs::BindingSet)
+    new_bs = empty(bs)
+    for (k, v) in bs
+        new_bs[k] = copy(v)
+    end
+    return new_bs
+end
+
+# Display
+# -------
+
+function Base.summary(io::IO, bs::BindingSet)
+    show(io, typeof(bs))
+    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
+end
+
+Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
+    _show_binding_set(io, bs, "")
+
+function _show_binding_set(io::IO, bs, indent)
+    if isa(bs, AbstractVector)
+        print(io, indent * "[")
+        if isempty(bs)
+            print(io, "]")
+        else
+            for (i, el) in enumerate(bs)
+                println(io)
+                _show_binding_set(io, el, indent * " ")
+                if i < length(bs)
+                    print(io, ",")
+                end
+            end
+            println(io)
+            print(io, indent * "]")
+        end
+    else
+        print(io, indent)
+        summary(io, bs)
+        if !isempty(bs)
+            print(io, ":")
+            for (k, v) in bs
+                println(io)
+                s = indent * "  $(repr(k)) => "
+                print(io, s)
+                b_indent = repeat(' ', length(s))
+                _show_binding(io, v, b_indent)
+            end
+        end
+    end
+end
+
+function _repr_location(bs::BindingSet)
+    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
+    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
+
+    return location
+end
+
+# Errors
+# ======
+
+"""
+    BindingFieldError <: Exception
+
+A fail condition tried to access an invalid field of a binding.
+
+A binding field is valid if any one of the following is true:
+  - It is one of the corresponding struct fields (e.g. `src` for a [`Binding`](@ref));
+  - It is the name of one of the binding's sub-bindings;
+  - The binding's `src` is an identifier and the field is `name`;
+  - The binding's `src` is a literal and the field is `value`.
+"""
+struct BindingFieldError <: Exception
+    binding::AbstractBinding
+    field::Symbol
+    available_fields::Vector{Symbol}
+    internal_fields::Vector{Symbol}
+    reason::String
+end
+
+"""
+    BindingSetKeyError <: Exception
+
+A fail condition tried to access a non-existent binding.
+"""
+struct BindingSetKeyError <: Exception
+    key
+end
+
+# Display
+# -------
+
+function Base.showerror(io::IO, err::BindingFieldError)
+    print(io, "BindingFieldError: ")
+    println(io,
+            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
+            "because ", err.reason, ".")
+    available = isempty(err.available_fields) ?
+        "none"                                :
+        join(map(s -> "`$s`", err.available_fields), ", ")
+    println(io, "Available fields: ", available)
+    println(io)
+    println(io,
+            "The following fields are internal, avoid using them in patterns: ",
+            join(map(s -> "`$s`", err.internal_fields), ", "))
+end
+
+function Base.showerror(io::IO, err::BindingSetKeyError)
+    print(io, "BindingSetKeyError: ")
+    println(io, "binding ", err.key, " not found")
 end
 
 """
@@ -278,9 +291,9 @@ The `syntax_match` steps are:
    "conflicting bindings for pattern variable x" to it.
 8. => Return a `MatchFail` with the same message.
 """
-struct InvalidBinding <: AbstractBinding
-    msg::String
-end
+# struct InvalidBinding <: AbstractBinding
+#     msg::String
+# end
 
 """
     TemporaryBinding <: AbstractBinding
@@ -322,26 +335,28 @@ The `syntax_match` steps are:
 8. Only anonymous pattern variables here.
    => Return an empty binding set.
 """
-struct TemporaryBinding{S, B} <: AbstractBinding
-    bname::Symbol
-    src::S
-    bindings::B
-    ellipsis_depth::Int
-end
-Binding(b::TemporaryBinding{S, B}) where {S, B} =
-    Binding{S, B}(b.bname, b.src, b.bindings, b.ellipsis_depth)
+# struct TemporaryBinding{S, B} <: AbstractBinding
+#     bname::Symbol
+#     src::S
+#     bindings::B
+#     ellipsis_depth::Int
+# end
+# Binding(b::TemporaryBinding{S, B}) where {S, B} =
+#     Binding{S, B}(b.bname, b.src, b.bindings, b.ellipsis_depth)
 
 # Base overwrites
 # ---------------
 
 # Allow accessing sub-bindings as fields.
-function Base.getproperty(b::AbstractBinding, name::Symbol)
+function Base.getproperty(b::Binding, name::Symbol)
     name === :bname && return getfield(b, :bname)
     src = getfield(b, :src)
     name === :src && return src
     bindings = getfield(b, :bindings)
     name === :bindings && return bindings
     name === :ellipsis_depth && return getfield(b, :ellipsis_depth)
+    name === :_type && return getfield(b, :_type)
+    name === :_msg && return getfield(b, :_msg)
     # Gather available fields to show in error messages.
     internal_fields = [:bname, :src, :bindings]
     available_fields = []
@@ -388,13 +403,13 @@ function Base.getproperty(b::AbstractBinding, name::Symbol)
                                 "`$name` is not a sub-binding of `$(b.bname)`"))
     end
 end
-Base.getproperty(b::InvalidBinding, name::Symbol) =
-    name === :msg ? getfield(b, :msg) : getfield(b, name)
+# Base.getproperty(b::InvalidBinding, name::Symbol) =
+#     name === :msg ? getfield(b, :msg) : getfield(b, name)
 
-Base.copy(b::Binding) = Binding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
-Base.copy(b::InvalidBinding) = InvalidBinding(b.msg)
-Base.copy(b::TemporaryBinding) =
-    TemporaryBinding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
+Base.copy(b::Binding) = Binding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth, b._type, b._msg)
+# Base.copy(b::InvalidBinding) = InvalidBinding(b.msg)
+# Base.copy(b::TemporaryBinding) =
+#     TemporaryBinding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
 
 # Display
 # -------
@@ -408,8 +423,6 @@ Base.show(io::IO, b::AbstractBinding) =
           _src_with_location_str(b.src), ", ",
           repr(b.bindings),
           ")")
-Base.show(io::IO, b::InvalidBinding) =
-    print(io, "InvalidBinding(", b.msg, ")")
 Base.show(io::IO, ::Type{Binding{S, B}}) where {S, B} = print(io, "Binding")
 
 function _show_bindings(io::IO, bs, outer_indent)
@@ -430,10 +443,6 @@ function _show_binding(io::IO, b::AbstractBinding, outer_indent)
     println(io, indent, "Ellipsis depth: ", b.ellipsis_depth)
     print(io, indent, "Sub-bindings: ")
     _show_bindings(io, b.bindings, indent)
-end
-function _show_binding(io::IO, b::InvalidBinding, outer_indent)
-    println(io, typeof(b), ":")
-    print(io, outer_indent * "  ", "Message: ", b.msg)
 end
 
 function _repr_source_nodes(src)
