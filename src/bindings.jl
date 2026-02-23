@@ -97,21 +97,30 @@ mutable struct BindingSet <: AbstractDict{Symbol, Binding}
     bindings::Dict{Symbol, Binding}  # TODO: Order by appearance in the source code?
     source_location::Tuple{Int64, Int64}
     file_name::String
+    _dirty::Bool
 end
-BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "")
-BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "")
+BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "", false)
+BindingSet(bs::BindingSet; dirty::Bool=false) =
+    BindingSet(bs.bindings, bs.source_location, bs.file_name, dirty)
+BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "", false)
 
 # Dict interface
 # --------------
 
 Base.isempty(bs::BindingSet) = isempty(bs.bindings)
-Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name)
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name, bs._dirty)
 Base.empty!(bs::BindingSet) = empty!(bs.bindings)
 Base.length(bs::BindingSet) = length(bs.bindings)
 
 Base.iterate(bs::BindingSet) = iterate(bs.bindings)
 Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
-Base.setindex!(bs::BindingSet, v, k...) = setindex!(bs.bindings, v, k...)
+function Base.setindex!(bs::BindingSet, v, k...)
+    if should_copy(bs)
+        bs.bindings = Dict(k => copy(v) for (k, v) in bs.bindings)
+        bs._dirty = false
+    end
+    setindex!(bs.bindings, v, k...)
+end
 
 Base.haskey(bs::BindingSet, k) = haskey(bs.bindings, k)
 Base.get(bs::BindingSet, k, d) = get(bs.bindings, k, d)
@@ -138,11 +147,27 @@ Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
 function Base.copy(bs::BindingSet)
     new_bs = empty(bs)
+    for (k, v) in bs.bindings
+        new_bs.bindings[k] = copy(v)
+    end
+    return new_bs
+end
+function shared_copy(bs::BindingSet)
+    bs._dirty = true
+    return BindingSet(bs; dirty=true)
+end
+function _copy(bs::Dict{Symbol, Binding})
+    new_bs = empty(bs)
     for (k, v) in bs
         new_bs[k] = copy(v)
     end
     return new_bs
 end
+
+# Utils
+# -----
+
+should_copy(bs::BindingSet) = bs._dirty
 
 # Display
 # -------

@@ -771,7 +771,9 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          recovery_stack=[],
                          greedy=true,
                          tmp=false)
-    bindings_alt::BindingSet = copy(bindings)
+    # bindings_alt::BindingSet = copy(bindings)
+    # bindings_alt = BindingSet(bindings; dirty=true)
+    bindings_alt::BindingSet = shared_copy(bindings)
     failure = MatchFail("no matching alternative")
     for (i, p) in enumerate(children(or_node))
         # Each `~or` alternative is independent: it has its own recovery stack and should
@@ -801,7 +803,9 @@ function syntax_match_or(or_node::SyntaxPatternNode,
         end
         # Reset the bindings for each alernative. The alternatives should not communicate
         # with each other.
-        bindings_alt = copy(bindings)
+        # bindings_alt = copy(bindings)
+        # bindings_alt = BindingSet(bindings; dirty=true)
+        bindings_alt = shared_copy(bindings)
         # Track the failures.
         failure = match_result
     end
@@ -827,7 +831,9 @@ function syntax_match_and(and_node::SyntaxPatternNode,
                           recovery_stack=[],
                           greedy=true,
                           tmp=false)
-    bindings::BindingSet = copy(bindings)
+    # bindings::BindingSet = copy(bindings)
+    # bindings = BindingSet(bindings; dirty=true)
+    bindings = shared_copy(bindings)
     for (i, p) in enumerate(children(and_node))
         # Try to match the `~and` branch. Don't recover internally from failures, treat all
         # branch failures inside the `~and`.
@@ -948,7 +954,9 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     match_result = _syntax_match(rep_node.children[1], src, BindingSet(); greedy, tmp=true)
     isa(match_result, MatchFail) && return match_result
 
-    bindings::BindingSet = copy(bindings)
+    # bindings::BindingSet = copy(bindings)
+    # bindings = BindingSet(bindings; dirty=true)
+    bindings = shared_copy(bindings)
     for var in get_rep_vars(rep_node)
         var_name = var.name
         var_binding = match_result[var_name]
@@ -957,7 +965,9 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
         if haskey(bindings, var_name)
             # If the pattern variable is already bound, we need to add the new binding to
             # its binding list.
-            b = bindings[var_name]
+            b = should_copy(bindings) ?
+                copy(bindings[var_name]) :
+                bindings[var_name]
             # The pattern variable may have already been bound, for example during an `~and`
             # match.
             !is_temporary(b) && return bindings
@@ -986,7 +996,9 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
                           srcs::Vector{JS.SyntaxNode},
                           bindings::BindingSet;
                           greedy=true)
-    bindings::BindingSet = copy(bindings)
+    # bindings::BindingSet = copy(bindings)
+    # bindings = BindingSet(bindings; dirty=true)
+    bindings = shared_copy(bindings)
     if isempty(srcs)
         # If there are no source nodes, the repetition pattern variables bind to empty
         # vectors.
