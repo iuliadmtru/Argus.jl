@@ -51,7 +51,7 @@ end
 
     pattern = @pattern begin
         open({x}, {_}...)
-        @fail match(r"^/tmp/.*", x.value) === nothing "path not /tmp/.*"
+        @fail [:x] match(r"^/tmp/.*", x.value) === nothing "path not /tmp/.*"
     end
 end
 
@@ -62,7 +62,7 @@ end
 
     pattern = @pattern begin
         {randf}() < 0.5
-        @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
+        @fail [:randf] match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
     end
 
     template = @template rand(Bool)
@@ -77,7 +77,7 @@ end
             {_}... && {b},
             {_}... || {b}
         )
-        @fail typeof(b.value) != Bool "not `Bool`"
+        @fail [:b] typeof(b.value) != Bool "not `Bool`"
     end
 end
 @define_syntax_class :lit_or_chain "literal or logical chain with explicit literal" begin

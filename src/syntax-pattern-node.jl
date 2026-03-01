@@ -898,14 +898,31 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
     arg_nodes = @views node.children[2].children[2:end]
     name === :var  && return _get_var_arg_names(arg_nodes)
-    name === :fail && return [JS.to_expr(arg_nodes[1]),
-                              _strip_string_node(arg_nodes[2]).data.val]
+    name === :fail && return [_get_symbols(arg_nodes[1]),
+                              JS.to_expr(arg_nodes[2]),
+                              _strip_string_node(arg_nodes[3]).data.val]
     name === :or   && return JS.SyntaxNode[]
     name === :and  && return JS.SyntaxNode[]
     name === :rep  && return arg_nodes
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
+function _get_symbols(node::JS.SyntaxNode)
+    error_msg = """
+                invalid `@fail` syntax
+                The first argument should be a vector of `Symbol`s.
+                """
+    # Empty arrays are of the form:
+    # ```
+    # [ref]
+    #   Any
+    # ```
+    kind(node) == K"ref" && return Symbol[]
+    kind(node) == K"vect" || throw(SyntaxError(error_msg))
+    all(c -> kind(c) == K"quote", node.children) || throw(SyntaxError(error_msg))
+
+    return map(n -> n.children[1].data.val, node.children)
+end
 _strip_quote_node(node::JS.SyntaxNode) =
     kind(node) === K"quote" ? node.children[1] : node
 _strip_string_node(node::JS.SyntaxNode) =

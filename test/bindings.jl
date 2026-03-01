@@ -4,7 +4,7 @@
     let
         pattern = @pattern begin
             {x}
-            @fail x.name == "a" "is a"
+            @fail [:x] x.name == "a" "is a"
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "b")), BindingSet)
         @test syntax_match(pattern, parsestmt(SyntaxNode, "a")) == MatchFail("is a")
@@ -28,7 +28,7 @@
     let
         pattern = @pattern begin
             {x:::assign}
-            @fail x.rhs.value == 2 "rhs is two"
+            @fail [:x] x.rhs.value == 2 "rhs is two"
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
         @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) ==
@@ -46,7 +46,7 @@
     let
         pattern = @pattern begin
             {x:::identifier}
-            @fail x.abc.name == "abc" "is abc"
+            @fail [:x] x.abc.name == "abc" "is abc"
         end
         field_err = syntax_match(pattern, parsestmt(SyntaxNode, "a"))
         @test isa(field_err, MatchFail)
@@ -59,7 +59,7 @@
     let
         pattern = @pattern begin
             {x}
-            @fail y.name == "y" "is y"
+            @fail [:y] y.name == "y" "is y"
         end
         dummy = parsestmt(SyntaxNode, "dummy")
         @test_throws "BindingSetKeyError: binding y not found" syntax_match(pattern, dummy)

@@ -230,9 +230,10 @@ macro pattern(expr)
                     throw(SyntaxError(err_msg_should_be_fail,
                                       fail_macro_line_number.file,
                                       fail_macro_line_number.line))
-                condition_expr = fail_macro.args[3]
-                message = fail_macro.args[4]
-                push!(fail_exprs, :( ~fail($condition_expr, $message) ))
+                pattern_vars = map(s -> s.value, fail_macro.args[3].args)
+                condition_expr = fail_macro.args[4]
+                message = fail_macro.args[5]
+                push!(fail_exprs, :( ~fail($pattern_vars, $condition_expr, $message) ))
             end
             # Create the pattern as an `~and` between the pattern expression and the
             # fail conditions.
@@ -254,7 +255,7 @@ JuliaSyntax.children(p::Pattern) = children(p.src)
 # Utils
 # -----
 
-is_fail_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@fail")
+is_fail_macro(ex) = @isexpr(ex, :macrocall, 5) && ex.args[1] === Symbol("@fail")
 is_template_macro(ex) = @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@template")
 
 """

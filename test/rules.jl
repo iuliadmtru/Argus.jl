@@ -189,7 +189,7 @@
                         a
                         {a2}...
                     end
-                    @fail begin
+                    @fail [:f] begin
                         println("Function name: ", f.name)
                         false
                     end ""
@@ -217,7 +217,7 @@
                 pattern = @pattern begin
                     {a:::identifier} = {_}
                     {rest}...
-                    @fail a.name == "x" "is x"
+                    @fail [:a] a.name == "x" "is x"
                 end
             end
             let

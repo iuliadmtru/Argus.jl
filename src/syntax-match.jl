@@ -747,6 +747,7 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
             rethrow(err)
         end
     end
+    isa(fail, Bool) || throw(MatchError(fail))
     return fail ? MatchFail(message) : bindings
 end
 

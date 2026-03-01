@@ -85,7 +85,8 @@ struct FailSyntaxData <: AbstractPatternFormSyntaxData
     message::String
 
     FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
-    FailSyntaxData(cond, msg::String) = new(fail_condition(cond), msg)
+    FailSyntaxData(pattern_vars, cond, msg::String) =
+        new(fail_condition(cond, pattern_vars), msg)
 end
 
 """
@@ -196,7 +197,7 @@ Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 
 Parse and evaluate a fail condition `Expr` as a `Function`. The resulting function takes a
 `BindingSet` as argument and returns a `Bool` (`true` if the pattern match should fail,
-`false` otherwise).
+`false` otherwise). `JuliaSyntax` is imported in the evaluation context.
 
 Pattern match time exceptions:
   - [`MatchError`](@ref)
@@ -206,28 +207,25 @@ Pattern match time exceptions:
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
 """
-fail_condition(condition) =
-    function (binding_context)
-        # Create an evaluation context with the condition binding context.
-        ConditionContext = Module()
-        for (var_name, binding) in binding_context
-            Core.eval(ConditionContext, :($var_name = $binding))
-        end
-        # Evaluate the condition within the evaluation context.
-        Core.eval(ConditionContext, :(using Argus))
-        result = try
-            Core.eval(ConditionContext, condition)
-        catch err
-            if isa(err, UndefVarError)
-                throw(BindingSetKeyError(err.var))
-            else
-                rethrow(err)
-            end
-        end
-        isa(result, Bool) ||
-            throw(MatchError(result))
-        return result
-    end
+function fail_condition(condition, pattern_vars)
+    # Import `JuliaSyntax`.
+    Core.eval(@__MODULE__, :(import JuliaSyntax))
+    # Create the `let` bindings that will be bound in the returned function.
+    bindings_sym = gensym()
+    let_bindings = [:($v = $bindings_sym[$(QuoteNode(v))]) for v in pattern_vars]
+
+    return Core.eval(@__MODULE__, :(($bindings_sym) -> try
+                                        let $(let_bindings...); $condition; end
+                                    catch err
+                                        if isa(err, KeyError)
+                                            throw(BindingSetKeyError(err.key))
+                                        elseif isa(err, UndefVarError)
+                                            throw(BindingSetKeyError(err.var))
+                                        else
+                                            rethrow(err)
+                                        end
+                                    end))
+end
 
 """
     get_pattern_vars_with_depth(node::JS.SyntaxNode)

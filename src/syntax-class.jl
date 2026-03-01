@@ -234,16 +234,15 @@ end
 function _register_syntax_classes()
     # `expr`: match any expression.
     @define_syntax_class :expr "expr" begin
-        @pattern ~fail(false, "")
+        @pattern ~fail([], false, "")
     end
 
     # `identifier`: match an identifier.
     @define_syntax_class :identifier "identifier" begin
         @pattern begin
             {_id}
-            @fail begin
-                using JuliaSyntax: is_identifier
-                !is_identifier(_id.src)
+            @fail [:_id] begin
+                !JuliaSyntax.is_identifier(_id.src)
             end ""
         end
     end
@@ -252,9 +251,8 @@ function _register_syntax_classes()
     @define_syntax_class :literal "literal" begin
         @pattern begin
             {_lit}
-            @fail begin
-                using JuliaSyntax: is_literal
-                !is_literal(_lit.src)
+            @fail [:_lit] begin
+                !JuliaSyntax.is_literal(_lit.src)
             end ""
         end
     end
@@ -263,7 +261,7 @@ function _register_syntax_classes()
     @define_syntax_class :bool_literal "`Bool` literal" begin
         @pattern begin
             {_b:::literal}
-            @fail _b.value != true && _b.value != false ""
+            @fail [:_b] _b.value != true && _b.value != false ""
         end
     end
 
@@ -292,9 +290,8 @@ function _register_syntax_classes()
     @define_syntax_class :macrocall "macro call" begin
         @pattern begin
             {_mcall}
-            @fail begin
-                using JuliaSyntax: kind, Kind
-                kind(_mcall.src) !== Kind("macrocall")
+            @fail [:_mcall] begin
+                JuliaSyntax.kind(_mcall.src) !== JuliaSyntax.K"macrocall"
             end ""
         end
     end
@@ -303,9 +300,8 @@ function _register_syntax_classes()
     @define_syntax_class :macrodef "macro definition" begin
         @pattern begin
             {_mdef}
-            @fail begin
-                using JuliaSyntax: kind, Kind
-                kind(_mdef.src) !== Kind("macro")
+            @fail [:_mdef] begin
+                JuliaSyntax.kind(_mdef.src) !== JuliaSyntax.K"macro"
             end ""
         end
     end

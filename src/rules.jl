@@ -635,6 +635,8 @@ function _normalise!(node::JS.SyntaxNode)
             node = reorder_parameters_vect!(node)
         end
     elseif k == K"->"
+        # If the node has no children, it must be a `Symbol`.
+        isnothing(node.children) && return node
         args = node.children[1]
         args_num = length(children(args))
         if kind(args) == K"tuple" && JS.has_flags(args, JS.PARENS_FLAG)

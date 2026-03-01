@@ -37,12 +37,12 @@
 
         # `~fail`.
         let
-            pattern = @pattern ~fail(x, "")
+            pattern = @pattern ~fail([], x, "")
             @test_throws BindingSetKeyError syntax_match(pattern,
                                                          parsestmt(SyntaxNode, "dummy"))
         end
         let
-            pattern = @pattern ~fail(:(x + 1), "")
+            pattern = @pattern ~fail([], :(x + 1), "")
             @test try
                 syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
             catch err
@@ -138,11 +138,11 @@
         @testset "Invalid syntax" begin
             @test_throws SyntaxError @macroexpand @pattern quote {x:::expr} = 2 end
             @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
-                @fail ex.value == 2 "is two"
+                @fail [:ex] ex.value == 2 "is two"
             end
             @test_throws "interspersed" @macroexpand @pattern begin
                 ex1
-                @fail cond ""
+                @fail [] cond ""
                 ex2
             end
         end
@@ -241,7 +241,7 @@
             let
                 even = @pattern begin
                     {x}
-                    @fail !iseven(x.value) "not even"
+                    @fail [:x] !iseven(x.value) "not even"
                 end
                 match = syntax_match(even, parsestmt(SyntaxNode, "2"))
                 @test isa(match, BindingSet)
@@ -251,7 +251,7 @@
             let
                 is_x = @pattern begin
                     ~and(({f:::identifier})(),
-                         ~fail(f._id.name != "x", "not x"))
+                         ~fail([:f], f._id.name != "x", "not x"))
                 end
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
                 @test isa(match, BindingSet)
@@ -268,7 +268,7 @@
                         {b} || {_}...,
                         {_}... || {b}
                     )
-                    @fail typeof(b.value) != Bool "not `Bool`"
+                    @fail [:b] typeof(b.value) != Bool "not `Bool`"
                 end
                 src = parsestmt(SyntaxNode, "cond || true")
                 match_result = syntax_match(pattern, src)
@@ -298,7 +298,7 @@
             let
                 pattern = @pattern begin
                     @show {x}
-                    @fail x.name != "x" "not x"
+                    @fail [:x] x.name != "x" "not x"
                 end
                 src = parsestmt(SyntaxNode, "@show x")
                 @test is_successful(syntax_match(pattern,
@@ -313,7 +313,7 @@
                 pattern = @pattern begin
                     {a:::identifier} = {_}
                     {a:::identifier} = {_}
-                    @fail a.name == "x" "is x"
+                    @fail [:a] a.name == "x" "is x"
                 end
                 let
                     src = parseall(SyntaxNode, """
@@ -353,7 +353,7 @@
                         {_}...
                         a
                     end
-                    @fail false ""
+                    @fail [] false ""
                 end
                 src = """
                       function f()
@@ -373,7 +373,7 @@
                         {_}...
                         a
                     end
-                    @fail true "fail"
+                    @fail [] true "fail"
                 end
                 src = """
                       function f()
