@@ -678,19 +678,25 @@ function syntax_match_var(var_node::SyntaxPatternNode,
                           tmp=false)
     pattern_var_name = var_node.data.var_name
     syntax_class_name = var_node.data.syntax_class_name
-    syntax_class =
-        try
-            SYNTAX_CLASS_REGISTRY[syntax_class_name]
-        catch err
-            if isa(err, KeyError)
-                throw(SyntaxClassRegistryKeyError(syntax_class_name))
-            else
-                rethrow(err)
+    # Skip matching of `expr` syntax class, since it is always successful.
+    match_result = if syntax_class_name == :expr
+        BindingSet()
+    else
+        syntax_class =
+            try
+                SYNTAX_CLASS_REGISTRY[syntax_class_name]
+            catch err
+                if isa(err, KeyError)
+                    throw(SyntaxClassRegistryKeyError(syntax_class_name))
+                else
+                    rethrow(err)
+                end
             end
-        end
-    # Try to match the pattern syntax class to the AST.
-    match_result = syntax_match(syntax_class, src; greedy)
-    isa(match_result, MatchFail) && return match_result
+        # Try to match the pattern syntax class to the AST.
+        match_result = syntax_match(syntax_class, src; greedy)
+        isa(match_result, MatchFail) && return match_result
+        match_result
+    end
     # If there's a match and the pattern variable is not anonymous or if `tmp`
     # is `true`, bind the pattern variable and add it to the `BindingSet`.
     is_anonymous_pattern_variable(pattern_var_name) && !tmp &&
