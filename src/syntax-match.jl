@@ -1274,10 +1274,13 @@ julia> Argus.empty_vec(SyntaxPatternNode, 1)
 SyntaxPatternNode[]
 ```
 """
-empty_vec(type, depth::Int) = depth == 0      ?
+empty_vec(type, depth::Int) = empty_vec(type, UInt8(depth))
+empty_vec(type, depth::UInt8) = depth == 0      ?
     error("Can't create vector with 0 depth") :
     vec_type(type, depth)()
-vec_type(type, depth::Int) = depth == 1 ? Vector{type} : Vector{vec_type(type, depth - 1)}
+
+vec_type(type, depth::Int) = vec_type(type, UInt8(depth))
+vec_type(type, depth::UInt8) = depth == 1 ? Vector{type} : Vector{vec_type(type, depth - 1)}
 vec_depth(vec_type, el_type) =
     vec_type == el_type ? 0 : 1 + depth(eltype(vec_type), el_type)
 function deep_push!(vec::Vector, el)

@@ -110,7 +110,7 @@ Pattern variable that appears in a `~rep` node, at any ellipsis depth.
 """
 struct RepVar
     name::Symbol
-    ellipsis_depth::Int
+    ellipsis_depth::UInt8
 end
 
 """
@@ -234,9 +234,9 @@ Get all the pattern variables in the given source node, from all ellipsis depths
 and array of tuples containing the pattern variable names and their ellipsis depths.
 """
 function get_pattern_vars_with_depth(node::JS.SyntaxNode)
-    is_leaf(node) && return []
-    is_var(node) && return [(get_var_name(node), 0)]
-    vs = []
+    is_leaf(node) && return Tuple{Symbol, UInt8}[]
+    is_var(node) && return [(get_var_name(node), UInt8(0))]
+    vs = Tuple{Symbol, UInt8}[]
     for c in children(node)
         append!(vs, get_pattern_vars_with_depth(c))
     end

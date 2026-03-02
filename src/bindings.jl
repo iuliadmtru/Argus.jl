@@ -68,16 +68,26 @@ struct Binding{S, B} <: AbstractBinding
     bname::Symbol
     src::S
     bindings::B
-    ellipsis_depth::Int
+    ellipsis_depth::UInt8
     _type::UInt8
     _msg::String
 end
-Binding(bname::Symbol, src::S, bindings::B, ellipsis_depth::Int) where {S, B} =
+Binding(bname::Symbol, src::S, bindings::B, ellipsis_depth::UInt8) where {S, B} =
     Binding(bname, src, bindings, ellipsis_depth, REGULAR_BINDING, "")
-Binding(bname::Symbol, msg::String) =
-    Binding(bname, nothing, nothing, 0, INVALID_BINDING, msg)
 Binding(b::Binding) =
     Binding(b.bname, b.src, b.bindings, b.ellipsis_depth, REGULAR_BINDING, b._msg)
+# `Int` to `UInt8` conversions.
+Binding(bname::Symbol,
+        src::S,
+        bindings::B,
+        ellipsis_depth::Int,
+        _type::UInt8,
+        _msg::String) where {S, B} =
+    Binding(bname, src, bindings, UInt8(ellipsis_depth), _type, _msg)
+Binding(bname::Symbol, src::S, bindings::B, ellipsis_depth::Int) where {S, B} =
+    Binding(bname, src, bindings, UInt8(ellipsis_depth), REGULAR_BINDING, "")
+Binding(bname::Symbol, msg::String) =
+    Binding(bname, nothing, nothing, UInt8(0), INVALID_BINDING, msg)
 
 is_invalid(b::Binding) = b._type == INVALID_BINDING
 is_temporary(b::Binding) = b._type == TEMPORARY_BINDING
