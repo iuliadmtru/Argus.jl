@@ -116,7 +116,7 @@ Base.iterate(bs::BindingSet) = iterate(bs.bindings)
 Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
 function Base.setindex!(bs::BindingSet, v, k...)
     if should_copy(bs)
-        bs.bindings = Dict(k => copy(v) for (k, v) in bs.bindings)
+        bs.bindings = Dict(k => shared_copy(v) for (k, v) in bs.bindings)
         bs._dirty = false
     end
     setindex!(bs.bindings, v, k...)
@@ -145,29 +145,16 @@ Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
 Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
-function Base.copy(bs::BindingSet)
-    new_bs = empty(bs)
-    for (k, v) in bs.bindings
-        new_bs.bindings[k] = copy(v)
-    end
-    return new_bs
-end
-function shared_copy(bs::BindingSet)
-    bs._dirty = true
-    return BindingSet(bs; dirty=true)
-end
-function _copy(bs::Dict{Symbol, Binding})
-    new_bs = empty(bs)
-    for (k, v) in bs
-        new_bs[k] = copy(v)
-    end
-    return new_bs
-end
-
 # Utils
 # -----
 
 should_copy(bs::BindingSet) = bs._dirty
+
+function shared_copy(bs::BindingSet)
+    bs._dirty = true
+    return BindingSet(bs; dirty=true)
+end
+shared_copy(bs::AbstractVector) = shared_copy.(bs)
 
 # Display
 # -------
@@ -428,13 +415,26 @@ function Base.getproperty(b::Binding, name::Symbol)
                                 "`$name` is not a sub-binding of `$(b.bname)`"))
     end
 end
-# Base.getproperty(b::InvalidBinding, name::Symbol) =
-#     name === :msg ? getfield(b, :msg) : getfield(b, name)
 
-Base.copy(b::Binding) = Binding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth, b._type, b._msg)
-# Base.copy(b::InvalidBinding) = InvalidBinding(b.msg)
-# Base.copy(b::TemporaryBinding) =
-#     TemporaryBinding(b.bname, copy(b.src), copy(b.bindings), b.ellipsis_depth)
+function shared_copy(b::Binding)
+    set_dirty_flag!(b.bindings)
+    Binding(b.bname, copy(b.src), shared_copy(b.bindings), b.ellipsis_depth, b._type, b._msg)
+end
+
+# Utils
+# -----
+
+function set_dirty_flag!(bs::B) where B
+    if isa(bs, BindingSet)
+        bs._dirty = true
+    elseif isa(bs, Vector)
+        set_dirty_flag!.(bs)
+    else
+        error("expected `BindingSet` or nested `Vector` of `BindingSet`, got $B")
+    end
+
+    return nothing
+end
 
 # Display
 # -------
