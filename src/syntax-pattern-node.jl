@@ -102,10 +102,10 @@ julia> Meta.parse("function (f) end")
 ```
 
 The user should be able to write patterns to match both these cases. For the first one, it
-makes sense for `function _f end` to work. For the second one, `function (_f) end` should
-work. What about `function (_f:::expr) end`? Since `function _f end` is much more widely
-used than `function (_f) end`, it makes more sense to parse `function (_f:::expr) end` the
-same as `function _f end`. Therefore, the `:tuple` head is eliminated in this case.
+makes sense for `function {f} end` to work. For the second one, `function ({f}) end` should
+work. What about `function ({f:::expr}) end`? Since `function {f} end` is much more widely
+used than `function ({f}) end`, it makes more sense to parse `function ({f:::expr}) end` the
+same as `function {f} end`. Therefore, the `:tuple` head is eliminated in this case.
 
 # Examples
 
@@ -301,7 +301,7 @@ SyntaxPatternNode:
   [quote-:]
     stx_cls                              :: Identifier
 
-julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~and(~var(:x, :stx_cls), ~fail(x.value != 2, \"not two\"))"))
+julia> Argus.parse_pattern_forms(parsestmt(SyntaxNode, "~and(~var(:x, :stx_cls), ~fail([:x], x.value != 2, \"not two\"))"))
 SyntaxPatternNode:
 [~and]
   [~var]
@@ -310,13 +310,15 @@ SyntaxPatternNode:
     [quote-:]
       stx_cls                            :: Identifier
   [~fail]
+    [vect]
+      [quote-:]
+        x                                :: Identifier
     [call-i]
       [.]
         x                                :: Identifier
         value                            :: Identifier
       !=                                 :: Identifier
       2                                  :: Integer
-    "not two"                            :: String
 ```
 """
 function parse_pattern_forms(node::JS.SyntaxNode)
@@ -524,7 +526,7 @@ SyntaxPatternNode:
         funcall                          :: Identifier
     2                                    :: Integer
 
-julia> misparsed1 = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x:::identifier} = 2 )))
+julia> misparsed_assign = Argus.parse_pattern_forms(Argus.desugar_expr(:( {x:::identifier} = 2 )))
 SyntaxPatternNode:
 [function-=]
   [~var]
@@ -534,7 +536,7 @@ SyntaxPatternNode:
       identifier                         :: Identifier
   2                                      :: Integer
 
-julia> Argus.fix_misparsed!(misparsed1)
+julia> Argus.fix_misparsed!(misparsed_assign)
 SyntaxPatternNode:
 [=]
   [~var]
@@ -544,7 +546,7 @@ SyntaxPatternNode:
       identifier                         :: Identifier
   2                                      :: Integer
 
-julia> misparsed2 = Argus.parse_pattern_forms(Argus.desugar_expr(:( ({f}({args}...) = {_})... )))
+julia> misparsed_dollar_expr = Argus.parse_pattern_forms(Argus.desugar_expr(:( ({f}({args}...) = {_})... )))
 SyntaxPatternNode:
 [~rep]
   [\$]
@@ -573,7 +575,7 @@ SyntaxPatternNode:
             [quote-:]
               expr                       :: Identifier
 
-julia> Argus.fix_misparsed!(misparsed2)
+julia> Argus.fix_misparsed!(misparsed_dollar_expr)
 SyntaxPatternNode:
 [~rep]
   [function-=]
@@ -596,7 +598,7 @@ SyntaxPatternNode:
         [quote-:]
           expr                           :: Identifier
 
-julia> misparsed3 = Argus.parse_pattern_forms(Argus.desugar_expr(:(:( f.\$x ))))
+julia> misparsed_dollar = Argus.parse_pattern_forms(Argus.desugar_expr(:(:( f.\$x ))))
 SyntaxPatternNode:
 [quote-:]
   [.]
@@ -605,7 +607,7 @@ SyntaxPatternNode:
       [\$]
         x                                :: Identifier
 
-julia> Argus.fix_misparsed!(misparsed3)
+julia> Argus.fix_misparsed!(misparsed_dollar)
 SyntaxPatternNode:
 [quote-:]
   [.]
@@ -656,60 +658,6 @@ function fix_misparsed!(node::SyntaxPatternNode)
             return fundef_to_assign(lhs, rhs, node)
         end
     elseif is_dollar_expr_call(node)
-        # Example:
-        # @pattern begin
-        #     ({f}({args}...) = {_})...
-        # end
-        #
-        # SyntaxPatternNode:
-        # [$]
-        #   [call]
-        #     Expr                                 :: Identifier
-        #     [quote-:]
-        #       =                                  :: =
-        #     [quote-:]
-        #       [call]
-        #         [~var]
-        #           [quote-:]
-        #             f                            :: Identifier
-        #           [quote-:]
-        #             expr                         :: Identifier
-        #         [~rep]
-        #           [~var]
-        #             [quote-:]
-        #               args                       :: Identifier
-        #             [quote-:]
-        #               expr                       :: Identifier
-        #     [quote]
-        #       [block]
-        #         [~var]
-        #           [quote-:]
-        #             _                            :: Identifier
-        #           [quote-:]
-        #             expr                         :: Identifier
-        #
-        # Result:
-        # SyntaxPatternNode:
-        # [function-=]
-        #   [call]
-        #     [~var]
-        #       [quote-:]
-        #         f                                :: Identifier
-        #       [quote-:]
-        #         expr                             :: Identifier
-        #     [~rep]
-        #       [~var]
-        #         [quote-:]
-        #           args                           :: Identifier
-        #         [quote-:]
-        #           expr                           :: Identifier
-        #   [block]
-        #     [~var]
-        #       [quote-:]
-        #         _                                :: Identifier
-        #       [quote-:]
-        #         expr                             :: Identifier
-        #
         # Check the head.
         node_head = node.children[1].children[2].children[1].data.val
         kind_from_head = node_head == :kw ?
@@ -795,9 +743,6 @@ function keep_toplevel_branches_only(node::SyntaxPatternNode)
     toplevel_branches = filter(c -> kind(c) == K"toplevel", children(node))
     return SyntaxPatternNode(node.parent, toplevel_branches, node.data)
 end
-
-_is_leaf(node::SyntaxPatternNode) =
-    is_var(node) || isnothing(node.children)
 
 ### Pass 1 (`Expr` desugaring)
 
@@ -928,6 +873,34 @@ _strip_quote_node(node::JS.SyntaxNode) =
 _strip_string_node(node::JS.SyntaxNode) =
     kind(node) === K"string" ? node.children[1] : node
 
+# The expression `module {x} end`, when desugared, interprets the `~var` call as part of
+# the module's body instead of as the module's name.
+# ```
+# julia> Argus.desugar_expr(:( module {x} end ))
+# SyntaxNode:
+# [module]
+#   ~                                      :: Identifier
+#   [block]
+#     [call]
+#       var                                :: Identifier
+#       [quote-:]
+#         x                                :: Identifier
+#       [quote-:]
+#         expr                             :: Identifier
+#
+# julia> Argus.desugar_expr(:( module {x} end )) |> Argus.reparse_module_name
+# SyntaxNode:
+# [module]
+#   [call]
+#     ~                                    :: Identifier
+#     [call]
+#       var                                :: Identifier
+#       [quote-:]
+#         x                                :: Identifier
+#       [quote-:]
+#         expr                             :: Identifier
+#   [block]
+# ```
 is_var_module_name(node::JS.SyntaxNode) =
     kind(node) === K"module"                       &&
     node.children[1].val === :~                    &&
@@ -935,7 +908,6 @@ is_var_module_name(node::JS.SyntaxNode) =
     node.children[2].children[1].children[1].val === :var
 function reparse_module_name(node::JS.SyntaxNode)
     tilda_node = node.children[1]
-    tilda_raw = tilda_node.raw
     var_node = node.children[2].children[1]
     var_raw = node.raw.children[4].children[1]
     module_name_raw = JS.GreenNode(
@@ -1054,11 +1026,11 @@ function is_misparsed(node::SyntaxPatternNode)
         k_lhs = kind(lhs)
         if is_var(lhs)
             syntax_class_name = get_var_syntax_class_name(lhs)
-            # An `=` node constrained to `:identifier` should be interpreted as an assignment,
-            # not a function definition.
+            # An `=` node constrained to `:identifier` should be interpreted as an
+            # assignment, not a function definition.
             syntax_class_name === :identifier && return true
-            # An `=` node constrained to `:funcall` should indeed be interpreted as a function
-            # definition.
+            # An `=` node constrained to `:funcall` should indeed be interpreted as a
+            # function definition.
             syntax_class_name === :funcall && return false
             # Any other constraint on the lhs causes makes the `=` node ambiguous.
             return true
@@ -1248,5 +1220,6 @@ function Base.show(io::IO, ::MIME"text/plain", node::SyntaxPatternNode)
 end
 Base.show(io::IO, ::MIME"text/x.sexpression", node::SyntaxPatternNode; show_kind=false) =
     _show_syntax_pattern_node_sexpr(io, node, show_kind)
-Base.show(io::IO, node::SyntaxPatternNode) = _show_syntax_pattern_node_sexpr(io, node, false)
+Base.show(io::IO, node::SyntaxPatternNode) =
+    _show_syntax_pattern_node_sexpr(io, node, false)
 Base.show(io::IO, ::Type{SyntaxPatternNode}) = print(io, "SyntaxPatternNode")

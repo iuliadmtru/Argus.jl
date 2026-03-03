@@ -83,9 +83,8 @@ function syntax_match(pattern_node::SyntaxPatternNode,
                       greedy=true)
     match_result = _syntax_match(pattern_node, src; greedy)
     isa(match_result, MatchFail) && return match_result
-    # Remove invalid bindings and permanentise temporary bindings (there can be one
-    # temporary binding if the last matching pattern was a repetition).
-    match_result = remove_invalid_bindings(match_result)
+    # Permanentise temporary bindings (there can be one temporary binding if the last
+    # matching pattern was a repetition).
     return make_permanent(match_result)
 end
 
@@ -105,20 +104,19 @@ _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true) =
                   recover=true,
                   tmp=false)
 
-Returns a `BindingSet{AbstractBinding}` which may contain `InvalidBinding`s or
-`TemporaryBinding`s. Keep track of all the possibly matching states in `recovery_stack`.
-Gather the bindings along the way.
+Returns a `BindingSet` which may contain invalid or temporary bindings. Keep track of all
+the possibly matching states in `recovery_stack`. Gather the bindings along the way.
 
 `tmp` marks repetitions. When `tmp` is `true`, all bound variables are stored as temporary.
 New bound source nodes are pushed in the temporary bindings' source lists instead of being
 compared for compatibility with previously bound nodes.
 
-`recover` signals whether to recover from a match failure or not. It is always `true` except
-inside `~and` branches. If an `~and` branch fails we don't want to pop the recovery stack
-somewhere inside that branch, wherever the failure happened. That would cause a wrong state
-recovery. Instead, we want to try another path for the branch _within_ the `~and`. We keep
-the encompassing `~and` configuration, replace the current branch with another path and
-try again.
+`recover` signals whether to recover from a match failure or not. It is always `true`
+except inside `~and` branches. If an `~and` branch fails we don't want to pop the recovery
+stack somewhere inside that branch, wherever the failure happened. That would cause a wrong
+state recovery. Instead, we want to try another path for the branch _within_ the `~and`. We
+keep the encompassing `~and` configuration, replace the current branch with another path
+and try again.
 
 
 # Examples
@@ -128,23 +126,23 @@ Allowing recoveries inside `~and` branches:
 ```
 julia> pattern = @pattern ~and(
            ~or({a} + {b}, {b} + {a}),
-           ~fail(b.value != 2, "not two")
+           ~fail([:b], b.value != 2, "not two")
        );
 
 julia> syntax_match(pattern, parsestmt(SyntaxNode, "1 + 3"))
-BindingSet with 2 entries:
+BindingSet @ 0:0 with 2 entries:
   :a => Binding:
           Name: :a
           Bound source: 3 @ 1:5
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
   :b => Binding:
           Name: :b
           Bound source: 1 @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 ```
 
 Whats happens here is:
@@ -224,7 +222,6 @@ function _syntax_match(pattern::SyntaxPatternNode,
                                                  src,
                                                  bindings;
                                                  recovery_stack,
-                                                 recover,
                                                  greedy,
                                                  tmp)
         isa(match_result, MatchFail) &&
@@ -314,16 +311,15 @@ end
                          rep_sequence=false)
 
 Try to match a sequence of pattern nodes with a sequence of source nodes exactly once. If
-the sequences can't match, return a tuple containing [`MatchFail`](@ref) with the
+the sequences can't match, return a tuple containing a [`MatchFail`](@ref) with the
 appropriate message and the original source nodes. If there is a match, return the bindings
 and the remaining unmatched source nodes.
 
-In case of `~rep` nodes, greedily "consume" all matching source nodes.
+In case of `~rep` nodes, greedily "consume" all matching source nodes if `greedy` is
+`true`. If it is `false`, `~rep` nodes consume as few source nodes as possible.
 
 If the remaining patterns can't match the remaining source nodes, backtrack to find a
 matching state.
-
-The algorithm can be made non-greedy by setting `greedy` to `false`.
 
 # Examples
 
@@ -391,9 +387,10 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                         tmp,
                                         rep_sequence)
         end
-        # The first pattern node is not a repetition, so there can be no match on this path.
-        return recover!(recovery_stack,                      # `recovery_stack` empty => 1.b
-                        partial_syntax_match;                # else                   => 2.b
+        # The first pattern node is not a repetition, so there can be no match on this
+        # path.
+        return recover!(recovery_stack,                     # `recovery_stack` empty => 1.b
+                        partial_syntax_match;               # else                   => 2.b
                         fail_ret=(MatchFail(), srcs),
                         greedy,
                         tmp,
@@ -406,8 +403,12 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     s = srcs[1]
     if !is_rep(p)
         recovery_stack_current_p = []
-        match_result =
-            _syntax_match(p, s, bindings; recovery_stack=recovery_stack_current_p, greedy, tmp)
+        match_result = _syntax_match(p,
+                                     s,
+                                     bindings;
+                                     recovery_stack=recovery_stack_current_p,
+                                     greedy,
+                                     tmp)
         # The first pattern node is not a repetition so it needs to match the first source
         # node exactly.
         if isa(match_result, MatchFail)
@@ -435,7 +436,8 @@ function partial_syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
                                                         tmp,
                                                         rep_sequence)
             if isempty(recovery_stack_current_p)
-                recovery_stack_rest = resolve_conflicts_and_combine([([p], [s], bindings)], recovery_stack_rest)
+                recovery_stack_rest = resolve_conflicts_and_combine([([p], [s], bindings)],
+                                                                    recovery_stack_rest)
             else
                 if isempty(rest(pattern_nodes))
                     recovery_stack_rest =
@@ -525,7 +527,7 @@ end
                      only_matches=true)
 
 Try to match a pattern node against a source node. Return all successful matches. If
-`only_matches` is `false` return the non-trivial failures as well.
+`only_matches` is `false` return all non-trivial failures as well.
 """
 function syntax_match_all(pattern::Pattern,
                           src::JS.SyntaxNode,
@@ -543,8 +545,8 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
     # TODO: Rewrite this in a more generalised way, if possible.
     if (kind(src) == K"block" || kind(src) == K"toplevel")
         if is_toplevel(pattern_node)
-            # Both the pattern and the source are series of expressions. Match the pattern's
-            # expressions sequence with all the sub-sequences in the source.
+            # Both the pattern and the source are series of expressions. Match the
+            # pattern's expressions sequence with all the sub-sequences in the source.
             if has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
                 srcs = children(src)
                 while !isempty(srcs)
@@ -581,8 +583,8 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 end
                 return match_result_all
             else
-                # The pattern doesn't have repetitions and it has the same number of children as
-                # the source. Exhaust al the possibly matching paths.
+                # The pattern doesn't have repetitions and it has the same number of
+                # children as the source. Exhaust al the possibly matching paths.
                 return match_and_recover!(match_result_all,
                                           pattern_node,
                                           src,
@@ -597,13 +599,13 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                bindings;
                                greedy,
                                only_matches)
-            # If the pattern is an `~or` pattern, only match `toplevel` branches against the
-            # expressions in the source.
+            # If the pattern is an `~or` pattern, only match `toplevel` branches against
+            # the expressions in the source.
             pattern_node = keep_toplevel_branches_only(pattern_node)
             isempty(children(pattern_node)) && return match_result_all
-            # The pattern is a series of expressions (grouped in a `toplevel`, `~or` or `~and`
-            # node) with fail conditions attached. Match through all expressions in the source
-            # until there are none left.
+            # The pattern is a series of expressions (grouped in a `toplevel`, `~or` or
+            # `~and` node) with fail conditions attached. Match through all expressions in
+            # the source until there are none left.
             #
             # Match the pattern with all source expressions except the first one.
             (isnothing(src.children) || isempty(src.children) || length(src.children) == 1) &&
@@ -644,7 +646,7 @@ end
                               src::JS.SyntaxNode,
                               bindings::BindingSet;
                               recovery_stack=[],
-                              recover=true,
+                              greedy=true,
                               tmp=false)
 
 Try to match a pattern form node. Dispatch the matching to the specific pattern form
@@ -653,19 +655,17 @@ match function.
 function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
                                    src::JS.SyntaxNode,
                                    bindings::BindingSet;
-                                   recovery_stack,
-                                   recover=true,
+                                   recovery_stack=[],
                                    greedy=true,
                                    tmp=false)
     args = (pattern_node, src, bindings)
-    kwargs_or = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
-    kwargs_and = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
+    kwargs = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     node_data = pattern_node.data
     # Dispatch on form type.
-    isa(node_data, FailSyntaxData) && return syntax_match_fail(args...)
-    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; tmp)
-    isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; kwargs_or...)
-    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; kwargs_and...)
+    isa(node_data, FailSyntaxData) && return syntax_match_fail(pattern_node, bindings)
+    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; greedy, tmp)
+    isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; kwargs...)
+    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; kwargs...)
     isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...; greedy)
     return MatchFail("unknown pattern form")
 end
@@ -674,6 +674,7 @@ end
     syntax_match_var(var_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
                      bindings::BindingSet;
+                     greedy=true,
                      tmp=false)
 
 Try to match a `~var` pattern form. If there's a match, bind the pattern variable to `src`
@@ -705,8 +706,8 @@ function syntax_match_var(var_node::SyntaxPatternNode,
         isa(match_result, MatchFail) && return match_result
         match_result
     end
-    # If there's a match and the pattern variable is not anonymous or if `tmp`
-    # is `true`, bind the pattern variable and add it to the `BindingSet`.
+    # Bind the pattern variable and add it to the `BindingSet`, except if it's a
+    # non-temporary anonymous binding.
     is_anonymous_pattern_variable(pattern_var_name) && !tmp &&
         return bindings
     # If the binding already exists, check if the new binding is compatible with the
@@ -732,16 +733,12 @@ function syntax_match_var(var_node::SyntaxPatternNode,
 end
 
 """
-    syntax_match_fail(fail_node::SyntaxPatternNode,
-                      src::JS.SyntaxNode,
-                      bindings::BindingSet)
+    syntax_match_fail(fail_node::SyntaxPatternNode, bindings::BindingSet)
 
 Try to match a `~fail` pattern form. If the fail condition is satisfied return a
 [`MatchFail`](@ref) with an informative fail message. Otherwise, return `bindings`.
 """
-function syntax_match_fail(fail_node::SyntaxPatternNode,
-                           src::JS.SyntaxNode,
-                           bindings::BindingSet)
+function syntax_match_fail(fail_node::SyntaxPatternNode, bindings::BindingSet)
     condition = get_fail_condition(fail_node)
     message = get_fail_message(fail_node)
     # Evaluate the fail condition.
@@ -821,6 +818,8 @@ end
     syntax_match_and(and_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
                      bindings::BindingSet;
+                     recovery_stack=[],
+                     greedy=true,
                      tmp=false)
 
 Try to match an `~and` pattern form. Return the bindings resulted from all branches, or
@@ -868,7 +867,8 @@ function syntax_match_and(and_node::SyntaxPatternNode,
         while !isempty(branch_recovery_stack)
             _and_node = copy(and_node)
             rec_p, rec_s, rec_bs = pop!(branch_recovery_stack)
-            _and_node.children = SyntaxPatternNode[rec_p, @views(_and_node.children[i+1:end])...]
+            _and_node.children =
+                SyntaxPatternNode[rec_p, @views(_and_node.children[i+1:end])...]
             push!(recovery_stack, (_and_node, rec_s, rec_bs))
         end
         bindings = make_permanent(match_result)
@@ -886,10 +886,12 @@ end
 """
     syntax_match_rep(rep_node::SyntaxPatternNode,
                      src::JS.SyntaxNode,
-                     bindings::BindingSet)
+                     bindings::BindingSet;
+                     greedy=true)
     syntax_match_rep(rep_node::SyntaxPatternNode,
                      src::Vector{JS.SyntaxNode},
-                     bindings::BindingSet)
+                     bindings::BindingSet;
+                     greedy=true)
 
 Try to match a `~rep` pattern form (ellipsis). An ellipsis of depth 1 matches a sequence of
 nodes. An ellipsis of depth 2 matches a sequence of sequences of nodes. Ellipses can have
@@ -901,28 +903,28 @@ any depth.
 julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( {x}... )),
                                              parsestmt(SyntaxNode, "[a, b, c]"),
                                              BindingSet())
-BindingSet with 1 entry:
-  :x => Argus.TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}:
+BindingSet @ 0:0 with 1 entries:
+  :x => Binding (temporary):
           Name: :x
           Bound sources: [(vect a b c) @ 1:1]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries
             ]
 
 julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( ({x}...)... )),
                                              parsestmt(SyntaxNode, "[a, b, c]"),
                                              BindingSet())
-BindingSet with 1 entry:
-  :x => Argus.TemporaryBinding{Vector{Vector{SyntaxNode}}, Vector{Vector{BindingSet}}}:
+BindingSet @ 0:0 with 1 entries:
+  :x => Binding (temporary):
           Name: :x
           Bound sources: [[(vect a b c) @ 1:1]]
           Ellipsis depth: 2
           Sub-bindings:
             [
              [
-              BindingSet with 0 entries
+              BindingSet @ 0:0 with 0 entries
              ]
             ]
 
@@ -933,16 +935,16 @@ julia> match_result = Argus.syntax_match_rep(SyntaxPatternNode(:( {x}... )),
                                                                   c
                                                                   \"""),
                                              BindingSet())
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound sources: [a @ 1:1, b @ 2:1, c @ 3:1]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries,
-             BindingSet with 0 entries,
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
             ]
 ```
 """
@@ -960,16 +962,16 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     for var in get_rep_vars(rep_node)
         var_name = var.name
         var_binding = match_result[var_name]
-        # Add the bindings generated by matching the repetition inner node, but increase the
-        # depth for the bound sources and sub-bindings.
+        # Add the bindings generated by matching the repetition inner node, but increase
+        # the depth for the bound sources and sub-bindings.
         if haskey(bindings, var_name)
             # If the pattern variable is already bound, we need to add the new binding to
             # its binding list.
             b = should_copy(bindings) ?
                 shared_copy(bindings[var_name]) :
                 bindings[var_name]
-            # The pattern variable may have already been bound, for example during an `~and`
-            # match.
+            # The pattern variable may have already been bound, for example during an
+            # `~and` match.
             !is_temporary(b) && return bindings
             b_src = b.src
             push!(b_src, var_binding.src)
@@ -1038,13 +1040,14 @@ is_exported_pattern_variable(ex) = !startswith(string(ex), "_")
 
 """
     recover!(recovery_stack::AbstractVector,
-             from::Function,
-             recover::Bool;
+             from::Function;
+             recover=true,
+             popfirst=false,
              fail_ret,
              kwargs...)
 
-Try to recover from a match failure by calling `from` with the last possible recovery state.
-If there are no recovery states return `fail_ret`.
+Try to recover from a match failure by calling `from` with the last possible recovery
+state. If there are no recovery states return `fail_ret`.
 """
 function recover!(recovery_stack::AbstractVector,
                   from::Function;
@@ -1104,7 +1107,7 @@ end
 """
     rest(v::Vector{JuliaSyntax.TreeNode{T}})
 
-Return the remaning vector if the first element is removed from `v`. If `v` is empty, return
+Return the remaning vector if the first element is removed from `v`. If `v` is empty return
 an empty vector of the same type.
 """
 rest(v::V) where V <: AbstractVector{JS.TreeNode{T}} where T =
@@ -1113,15 +1116,14 @@ rest(v::V) where V <: AbstractVector{JS.TreeNode{T}} where T =
 """
     remove_invalid_bindings(bs::BindingSet)
 
-Filter out all elements of type [`InvalidBinding`](@ref) from a [`BindingSet`](@ref).
+Filter out all bindings marked as invalid from a [`BindingSet`](@ref).
 """
-remove_invalid_bindings(bs::BindingSet) =
-    filter(p -> !is_invalid(p.second), bs)
+remove_invalid_bindings(bs::BindingSet) = filter(p -> !is_invalid(p.second), bs)
 
 """
     make_permanent(bs::BindingSet)
 
-Turn all `TemporaryBinding`s into `Binding`s.
+Turn all temporary bindings into regular, unmarked bindings.
 
 # Examples
 
@@ -1131,16 +1133,16 @@ julia> srcs = [parsestmt(SyntaxNode, "1 + a"), parsestmt(SyntaxNode, "1 + 2"), p
 julia> partial_result, srcs = partial_syntax_match(children(@pattern begin (1 + {x})... end),
                                                    srcs;
                                                    tmp=true)
-(BindingSet(:x => Argus.TemporaryBinding{SyntaxNode, BindingSet}(:x, a @ 1:5, BindingSet())), SyntaxNode[(call-i 1 + 2), (call-i c + 1)])
+(BindingSet(:x => Binding(:x, a @ 1:5, BindingSet(), TEMPORARY_BINDING)), SyntaxNode[(call-i 1 + 2), (call-i c + 1)])
 
 julia> Argus.make_permanent(partial_result)
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound source: a @ 1:5
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 ```
 """
 function make_permanent(bs::BindingSet)
@@ -1182,11 +1184,10 @@ julia> src =
 julia> partial_result1, srcs1 = partial_syntax_match(children(pattern), children(parseall(SyntaxNode, src)); tmp=true);
 
 julia> partial_result1.bindings
-Dict{Symbol, Argus.AbstractBinding} with 3 entries:
-OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, f @ 1:1, BindingSet())
-  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [], BindingSet[])
-  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, 2 @ 1:13, BindingSet())
+Dict{Symbol, Binding} with 3 entries:
+  :f    => Binding(:f, f @ 1:1, BindingSet(), TEMPORARY_BINDING)
+  :_    => Binding(:_, 2 @ 1:13, BindingSet(), TEMPORARY_BINDING)
+  :args => Binding(:args, [], BindingSet[], TEMPORARY_BINDING)
 
 julia> srcs1
 2-element Vector{SyntaxNode}:
@@ -1196,10 +1197,10 @@ julia> srcs1
 julia> partial_result2, srcs2 = partial_syntax_match(children(pattern), srcs1; tmp=true);
 
 julia> partial_result2.bindings
-OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, g @ 2:1, BindingSet())
-  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [x @ 2:3], BindingSet[BindingSet()])
-  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i x + 1) @ 2:14, BindingSet())
+Dict{Symbol, Binding} with 3 entries:
+  :f    => Binding(:f, g @ 2:1, BindingSet(), TEMPORARY_BINDING)
+  :_    => Binding(:_, (call-i x + 1) @ 2:14, BindingSet(), TEMPORARY_BINDING)
+  :args => Binding(:args, [x @ 2:3], BindingSet[BindingSet()], TEMPORARY_BINDING)
 
 julia> srcs2
 1-element Vector{SyntaxNode}:
@@ -1208,25 +1209,25 @@ julia> srcs2
 julia> partial_result3, srcs3 = partial_syntax_match(children(pattern), srcs2; tmp=true);
 
 julia> partial_result3.bindings
-OrderedCollections.OrderedDict{Symbol, Argus.AbstractBinding} with 3 entries:
-  :f    => TemporaryBinding{SyntaxNode, BindingSet}(:f, h @ 3:1, BindingSet())
-  :args => TemporaryBinding{Vector{SyntaxNode}, Vector{BindingSet}}(:args, [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4], BindingSet[BindingSet(), BindingSet()])
-  :_    => TemporaryBinding{SyntaxNode, BindingSet}(:_, (call-i a - b) @ 3:24, BindingSet())
+Dict{Symbol, Binding} with 3 entries:
+  :f    => Binding(:f, h @ 3:1, BindingSet(), TEMPORARY_BINDING)
+  :_    => Binding(:_, (call-i a - b) @ 3:24, BindingSet(), TEMPORARY_BINDING)
+  :args => Binding(:args, [a @ 3:3, (parameters (= (::-i b Int) 2)) @ 3:4], BindingSet[BindingSet(), BindingSet()], TEMPORARY_BINDING)
 
 julia> srcs3
 SyntaxNode[]
 
 julia> Argus.make_permanent(BindingSet[partial_result1, partial_result2, partial_result3])
-BindingSet with 2 entries:
+BindingSet @ 0:0 with 2 entries:
   :f => Binding:
           Name: :f
           Bound sources: [f @ 1:1, g @ 2:1, h @ 3:1]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries,
-             BindingSet with 0 entries,
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
             ]
   :args => Binding:
              Name: :args
@@ -1236,11 +1237,11 @@ BindingSet with 2 entries:
                [
                 [],
                 [
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries
                 ],
                 [
-                 BindingSet with 0 entries,
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
                 ]
                ]
 ```
@@ -1302,18 +1303,20 @@ end
 
 """
     push_match_result!(match_all_result::MatchResults,
-                       match_result::MatchResult;
+                       match_result::MatchResult,
+                       src::JS.SyntaxNode;
                        only_matches=true)
 
-Add a match result to a list of match results. If `only_matches` is `true`, don't include
-`MatchFail`s. Otherwise, include non-trivial failures.
+Add a match result to a list of match results, associating a file name and source location.
+If `only_matches` is `true`, don't include `MatchFail`s. Otherwise, include non-trivial
+failures.
 """
 function push_match_result!(match_all_result::MatchResults,
                             match_result::MatchResult,
                             src::JS.SyntaxNode;
                             only_matches=true)
     if isa(match_result, MatchFail)
-        !only_matches && match_result != MatchFail() &&
+        !only_matches && !is_default_match_fail(match_result) &&
             push!(match_all_result.failures, match_result)
     else
         (match_result::BindingSet).source_location = JS.source_location(src)
@@ -1328,8 +1331,7 @@ end
                        src::JS.SyntaxNode,
                        bindings::BindingSet=BindingSet();
                        greedy,
-                       only_matches,
-                       recurse)
+                       only_matches)
 
 Try to match a pattern node with a source node. Recover in case of failure.
 """

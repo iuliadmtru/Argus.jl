@@ -6,9 +6,10 @@ Syntax classes provide the basis for a syntax matching mechanism. A syntax class
 a syntactic "shape" and provides a description for that shape.
 
 Syntax class bodies can contain one or more patterns. If there are multiple patterns, the
-search for a syntax match stops at the first matching pattern. Pattern variables can be
-constrained by syntax classes using the syntax `<pattern_var_name>:::<syntax_class_name>`.
-Unconstrained pattern variables are constrained by default to `:::expr`.
+search for a syntax match stops at the first matching pattern. A pattern variable can be
+constrained by a syntax class using the syntax
+`{<pattern_var_name>:::<syntax_class_name>}`. Unconstrained pattern variables are
+constrained by default to `:::expr`.
 
 # Examples
 
@@ -66,15 +67,15 @@ SyntaxClass: `true` or `false`
     false                                :: Bool
 
 julia> syntax_match(bool_literal, parsestmt(SyntaxNode, "true"))
-BindingSet with 0 entries
+BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(bool_literal, parsestmt(SyntaxNode, "a"))
-MatchFail("no match")
+MatchFail("expected `true` or `false`")
 
 julia> bool_literal2 = @syntax_class "`true` or `false`" begin
            @pattern begin
                {b:::literal}
-               @fail b.value != true && b.value != false "not `true` nor `false`"
+               @fail [:b] b.value != true && b.value != false "not `true` nor `false`"
            end
        end
 SyntaxClass: `true` or `false`
@@ -98,22 +99,22 @@ SyntaxClass: `true` or `false`
         "not `true` nor `false`"         :: String
 
 julia> syntax_match(bool_literal2, parsestmt(SyntaxNode, "true"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :b => Binding:
           Name: :b
           Bound source: true @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 1 entry:
+            BindingSet @ 0:0 with 1 entries:
               :_lit => Binding:
                          Name: :_lit
                          Bound source: true @ 1:1
                          Ellipsis depth: 0
                          Sub-bindings:
-                           BindingSet with 0 entries
+                           BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(bool_literal2, parsestmt(SyntaxNode, "a"))
-MatchFail("not a literal")
+MatchFail("expected literal")
 ```
 
 Note: A pattern can be written in multiple ways. Some ways can be easier to write, others
@@ -124,11 +125,13 @@ macro syntax_class(description, body)
     err_msg_general =
         """
         invalid `@syntax_class` syntax
-        The `@syntax_class` body should be defined using a `begin ... end` block."""
+        The `@syntax_class` body should be defined using a `begin ... end` block.
+        """
     err_msg_body =
         """
         invalid `@syntax_class` syntax
-        All expressions in a `@syntax_class` body should be `Pattern`s."""
+        All expressions in a `@syntax_class` body should be `Pattern`s.
+        """
 
     @isexpr(body, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
@@ -184,7 +187,10 @@ end
 """
     @define_syntax_class([registry,] name, description, syntax_class_expr)
 
-Define a syntax class and register it in the given registry.
+Define a syntax class and register it in the given registry, or in the default registry
+if no registry is given.
+
+Note: Currently the support for syntax class registries is limited.
 """
 macro define_syntax_class(name, description, syntax_class_expr)
     syntax_class = :( @syntax_class($(esc(description)), $syntax_class_expr) )

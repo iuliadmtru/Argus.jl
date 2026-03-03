@@ -21,7 +21,10 @@ wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` mac
   - `@esc(ex, depth)`: Escape `ex` only up to `depth`.
 
 `@fail` usage:
-  - `@fail(condition, msg)`: Fail with the message `msg` if `condition` is satisfied.
+  - `@fail(pattern_vars, condition, msg)`: Fail with the message `msg` if `condition`
+                                           is satisfied. The pattern variables found in
+                                           `condition` must be given as a vector of
+                                           `Symbol`s.
 
 # Examples
 
@@ -34,13 +37,16 @@ Pattern:
   b                                      :: Identifier
 
 julia> assign_to_x = @pattern begin
-           {x:::assign}                               # Pattern variable matching an assignment.
-           @fail x.lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
+           {x:::assign}                                    # Pattern variable matching an assignment.
+           @fail [:x] x.lhs.name == "x" "assignment to x"  # The matching fails if the rhs variable's name is "x".
        end
 Pattern:
 [~and]
   x:::assign                             :: ~var
   [~fail]
+    [vect]
+      [quote-:]
+        x                                :: Identifier
     [call-i]
       [.]
         [.]
@@ -50,12 +56,11 @@ Pattern:
       ==                                 :: Identifier
       [string]
         "x"                              :: String
-    "assignment to x"                    :: String
 
 julia> syntax_match(assign_to_x, JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, "x = 2"))
 MatchFail("assignment to x")
 
-julia> pattern = @pattern begin
+julia> const_reassign = @pattern begin
            const {a:::identifier} = {_}
            {_}...
            const {a:::identifier} = {_}  # Reassignment of `const`.
@@ -73,53 +78,53 @@ Pattern:
       a:::identifier                     :: ~var
       _:::expr                           :: ~var
 
-julia> syntax_match(pattern, parseall(SyntaxNode,
-                                      \"""
-                                      const x = 2
-                                      other_ex
-                                      const x = 3
-                                      \"""))
-BindingSet with 1 entry:
+julia> syntax_match(const_reassign, parseall(SyntaxNode,
+                                             \"""
+                                             const x = 2
+                                             other_ex
+                                             const x = 3
+                                             \"""))
+BindingSet @ 0:0 with 1 entries:
   :a => Binding:
           Name: :a
           Bound source: x @ 3:7
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 1 entry:
+            BindingSet @ 0:0 with 1 entries:
               :_id => Binding:
                         Name: :_id
                         Bound source: x @ 3:7
                         Ellipsis depth: 0
                         Sub-bindings:
-                          BindingSet with 0 entries
+                          BindingSet @ 0:0 with 0 entries
 
-julia> pattern = @pattern @esc(x...)
+julia> esc_pattern = @pattern @esc(x...)
 Pattern:
 [...]
   x                                      :: Identifier
 
-julia> syntax_match(pattern, parsestmt(SyntaxNode, "x..."))
-BindingSet with 0 entries
+julia> syntax_match(esc_pattern, parsestmt(SyntaxNode, "x..."))
+BindingSet @ 0:0 with 0 entries
 
-julia> pattern = @pattern @esc({x}..., 1)
+julia> esc1_pattern = @pattern @esc({x}..., 1)
 Pattern:
 [...]
   x:::expr                               :: ~var
 
-julia> syntax_match(pattern, parsestmt(SyntaxNode, "x..."))
-BindingSet with 1 entry:
+julia> syntax_match(esc1_pattern, parsestmt(SyntaxNode, "x..."))
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound source: x @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 ```
 
 Note: `@fail` and `@esc` macros only exist inside `@pattern` bodies.
 
 ```
-julia> @fail :false ""
+julia> @fail [] :false ""
 ERROR: LoadError: UndefVarError: `@fail` not defined in `Main`
 Suggestion: check for spelling errors or missing imports.
 in expression starting at ...
@@ -141,17 +146,20 @@ macro pattern(expr)
          -- ```
         |   @pattern begin
         |       <expr>+
-        |       (@fail <condition> <message>)*
+        |       (@fail <pattern_vars> <condition> <message>)*
         |   end
-         -- ```"""
+         -- ```
+         """
     err_msg_should_not_be_fail =
         """
         invalid `@pattern` syntax
-        The first expression cannot be a fail condition."""
+        The first expression cannot be a fail condition.
+        """
     err_msg_should_be_fail =
         """
         invalid `@pattern` syntax
-        Pattern expressions and fail conditions cannot be interspersed."""
+        Pattern expressions and fail conditions cannot be interspersed.
+        """
 
     @isexpr(expr, :quote) &&
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
@@ -180,7 +188,7 @@ macro pattern(expr)
         #   @pattern begin
         #       <pattern_expr>
         #       <pattern_expr>*
-        #       (@fail <condition> <msg>)*
+        #       (@fail <pattern_vars> <condition> <msg>)*
         #   end
         #   ```
         idx = 4  # Index of expressions inside the macro body, skipping `LineNumberNode`s.
@@ -193,7 +201,7 @@ macro pattern(expr)
             #       <pattern_expr>
             #       <pattern_expr>
             #       <pattern_expr>*
-            #       (@fail <condition> <msg>)*
+            #       (@fail <pattern_vars> <condition> <msg>)*
             #   end
             #   ```
             #

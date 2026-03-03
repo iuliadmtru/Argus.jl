@@ -23,29 +23,29 @@ a `Vector` of source nodes of depth `n`.
 
 ```
 julia> match_result = syntax_match((@pattern {x}), parsestmt(SyntaxNode, "[a, b, c]"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound source: (vect a b c) @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 
 julia> match_result = syntax_match((@pattern [{x}...]), parsestmt(SyntaxNode, "[a, b, c]"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound sources: [a @ 1:2, b @ 1:5, c @ 1:8]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries,
-             BindingSet with 0 entries,
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
             ]
 
 julia> match_result = syntax_match((@pattern [({x}...)...]), parsestmt(SyntaxNode, "[a, b, c]"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entries:
   :x => Binding:
           Name: :x
           Bound sources: [[a @ 1:2], [b @ 1:5], [c @ 1:8]]
@@ -53,13 +53,13 @@ BindingSet with 1 entry:
           Sub-bindings:
             [
              [
-              BindingSet with 0 entries
+              BindingSet @ 0:0 with 0 entries
              ],
              [
-              BindingSet with 0 entries
+              BindingSet @ 0:0 with 0 entries
              ],
              [
-              BindingSet with 0 entries
+              BindingSet @ 0:0 with 0 entries
              ]
             ]
 ```
@@ -88,283 +88,6 @@ Binding(bname::Symbol, src::S, bindings::B, ellipsis_depth::Int) where {S, B} =
     Binding(bname, src, bindings, UInt8(ellipsis_depth), REGULAR_BINDING, "")
 Binding(bname::Symbol, msg::String) =
     Binding(bname, nothing, nothing, UInt8(0), INVALID_BINDING, msg)
-
-is_invalid(b::Binding) = b._type == INVALID_BINDING
-is_temporary(b::Binding) = b._type == TEMPORARY_BINDING
-
-# Binding set
-# ===========
-
-"""
-    BindingSet{T <: AbstractBinding} <: AbstractDict{Symbol, T}
-
-Set of bindings resulted from a successful syntax match. Contains only [`Binding`](@ref)
-values if resulted from a successful and complete syntax match. May contain
-[`TemporaryBinding`](@ref) and/or [`InvalidBinding`](@ref) if resulted from a successful
-but incomplete syntax match.
-"""
-mutable struct BindingSet <: AbstractDict{Symbol, Binding}
-    bindings::Dict{Symbol, Binding}  # TODO: Order by appearance in the source code?
-    source_location::Tuple{Int64, Int64}
-    file_name::String
-    _dirty::Bool
-end
-BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "", false)
-BindingSet(bs::BindingSet; dirty::Bool=false) =
-    BindingSet(bs.bindings, bs.source_location, bs.file_name, dirty)
-BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "", false)
-
-# Dict interface
-# --------------
-
-Base.isempty(bs::BindingSet) = isempty(bs.bindings)
-Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name, bs._dirty)
-Base.empty!(bs::BindingSet) = empty!(bs.bindings)
-Base.length(bs::BindingSet) = length(bs.bindings)
-
-Base.iterate(bs::BindingSet) = iterate(bs.bindings)
-Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
-function Base.setindex!(bs::BindingSet, v, k...)
-    if should_copy(bs)
-        bs.bindings = Dict(k => shared_copy(v) for (k, v) in bs.bindings)
-        bs._dirty = false
-    end
-    setindex!(bs.bindings, v, k...)
-end
-
-Base.haskey(bs::BindingSet, k) = haskey(bs.bindings, k)
-Base.get(bs::BindingSet, k, d) = get(bs.bindings, k, d)
-Base.get(f::Union{Function, Type}, bs::BindingSet, k) = get(f, bs.bindings, k)
-Base.get!(bs::BindingSet, k, d) = get!(bs.bindings, k, d)
-Base.get!(f::Union{Function, Type}, bs::BindingSet, k) = get!(f, bs.bindings, k)
-Base.getkey(bs::BindingSet, k, d) = getkey(bs.bindings, k, d)
-Base.delete!(bs::BindingSet, k) = delete!(bs.bindings, k)
-Base.pop!(bs::BindingSet, k) = pop!(bs.bindings, k)
-Base.pop!(bs::BindingSet, k, d) = pop!(bs.bindings, k, d)
-Base.keys(bs::BindingSet) = keys(bs.bindings)
-Base.values(bs::BindingSet) = values(bs.bindings)
-Base.pairs(bs::BindingSet) = pairs(bs.bindings)
-Base.merge(bs::BindingSet, others::BindingSet...) =
-    BindingSet(merge(bs.bindings, others...))
-Base.mergewith(c, bs::BindingSet, others::BindingSet...) =
-    BindingSet(mergewith(c, bs.bindings, others...))
-Base.merge!(bs::BindingSet, others::BindingSet...) =
-    BindingSet(merge!(bs.bindings, others...))
-Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
-    BindingSet(mergewith!(c, bs.bindings, others...))
-Base.keytype(bs::BindingSet) = keytype(bs.bindings)
-Base.valtype(bs::BindingSet) = valtype(bs.bindings)
-
-# Utils
-# -----
-
-should_copy(bs::BindingSet) = bs._dirty
-
-function shared_copy(bs::BindingSet)
-    bs._dirty = true
-    return BindingSet(bs; dirty=true)
-end
-shared_copy(bs::AbstractVector) = shared_copy.(bs)
-
-# Display
-# -------
-
-function Base.summary(io::IO, bs::BindingSet)
-    show(io, typeof(bs))
-    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
-end
-
-Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
-    _show_binding_set(io, bs, "")
-
-function _show_binding_set(io::IO, bs, indent)
-    if isa(bs, AbstractVector)
-        print(io, indent * "[")
-        if isempty(bs)
-            print(io, "]")
-        else
-            for (i, el) in enumerate(bs)
-                println(io)
-                _show_binding_set(io, el, indent * " ")
-                if i < length(bs)
-                    print(io, ",")
-                end
-            end
-            println(io)
-            print(io, indent * "]")
-        end
-    else
-        print(io, indent)
-        summary(io, bs)
-        if !isempty(bs)
-            print(io, ":")
-            for (k, v) in bs
-                println(io)
-                s = indent * "  $(repr(k)) => "
-                print(io, s)
-                b_indent = repeat(' ', length(s))
-                _show_binding(io, v, b_indent)
-            end
-        end
-    end
-end
-
-function _repr_location(bs::BindingSet)
-    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
-    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
-
-    return location
-end
-
-# Errors
-# ======
-
-"""
-    BindingFieldError <: Exception
-
-A fail condition tried to access an invalid field of a binding.
-
-A binding field is valid if any one of the following is true:
-  - It is one of the corresponding struct fields (e.g. `src` for a [`Binding`](@ref));
-  - It is the name of one of the binding's sub-bindings;
-  - The binding's `src` is an identifier and the field is `name`;
-  - The binding's `src` is a literal and the field is `value`.
-"""
-struct BindingFieldError <: Exception
-    binding::AbstractBinding
-    field::Symbol
-    available_fields::Vector{Symbol}
-    internal_fields::Vector{Symbol}
-    reason::String
-end
-
-"""
-    BindingSetKeyError <: Exception
-
-A fail condition tried to access a non-existent binding.
-"""
-struct BindingSetKeyError <: Exception
-    key
-end
-
-# Display
-# -------
-
-function Base.showerror(io::IO, err::BindingFieldError)
-    print(io, "BindingFieldError: ")
-    println(io,
-            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
-            "because ", err.reason, ".")
-    available = isempty(err.available_fields) ?
-        "none"                                :
-        join(map(s -> "`$s`", err.available_fields), ", ")
-    println(io, "Available fields: ", available)
-    println(io)
-    println(io,
-            "The following fields are internal, avoid using them in patterns: ",
-            join(map(s -> "`$s`", err.internal_fields), ", "))
-end
-
-function Base.showerror(io::IO, err::BindingSetKeyError)
-    print(io, "BindingSetKeyError: ")
-    println(io, "binding ", err.key, " not found")
-end
-
-"""
-    InvalidBinding <: AbstractBinding
-
-Internal binding type used for invalidating bindings. Multiple appearances of the same
-pattern variable that are not consistent with each other are marked as invalid in order to
-stop matching them further.
-
-Compatibility is decided through the [`compatible`](@ref) predicate.
-
-# Examples
-
-```
-julia> pattern = @pattern begin
-           {x:::identifier} = 2
-           {x:::identifier} = 3
-       end;
-
-julia> syntax_match(pattern, parseall(SyntaxNode,
-                                      \"""
-                                      a = 2
-                                      b = 3
-                                      \"""))
-MatchFail("conflicting bindings for pattern variable x")
-```
-
-The `syntax_match` steps are:
-
-1. Does `{x:::identifier} = 2` match `a = 2`?
-   > Yes.
-2. Do we have a binding for `x` already?
-   > No.
-3. => Bind `x` to `a`.
-
-4. Does `{x:::identifier} = 3` match `b = 3`?
-   > Yes.
-5. Do we have a binding for `x` already?
-   > Yes, `a`.
-6. Is `a` compatible with `b` (same head, same children, same value)?
-   > No.
-7. => Replace the binding for `x` with an `InvalidBinding`. Attach the message
-   "conflicting bindings for pattern variable x" to it.
-8. => Return a `MatchFail` with the same message.
-"""
-# struct InvalidBinding <: AbstractBinding
-#     msg::String
-# end
-
-"""
-    TemporaryBinding <: AbstractBinding
-
-Internal binding type used for storing bindings for unfinished repetitions.
-
-# Examples
-
-```
-julia> pattern = @pattern {_}...
-Pattern:
-[~rep]
-  _:::expr                               :: ~var
-
-julia> syntax_match(pattern, parseall(SyntaxNode, \"""
-                                                  ex1
-                                                  ex2
-                                                  \"""))
-BindingSet with 0 entries
-```
-
-The `syntax_match` steps are:
-
-1. Does `{_:::expr}` match `ex1`?
-   > Yes.
-2. Do we have a binding for `_` already?
-   > No.
-3. => Bind `_` to `[ex1]` as a `TemporaryBinding`.
-
-4. Does `{_:::expr}` match `ex2`?
-   > Yes.
-5. Do we have a binding for `_` already?
-   > Yes, `[ex1]`.
-6. => Add the new matching source node to `_`'s source list.
-
-7. No more source nodes to match, time to finish. Remove all `InvalidBinding`s (none in
-   this example) and transform all temporary bindings for non-anonymous pattern variables
-   into regular `Binding`s.
-8. Only anonymous pattern variables here.
-   => Return an empty binding set.
-"""
-# struct TemporaryBinding{S, B} <: AbstractBinding
-#     bname::Symbol
-#     src::S
-#     bindings::B
-#     ellipsis_depth::Int
-# end
-# Binding(b::TemporaryBinding{S, B}) where {S, B} =
-#     Binding{S, B}(b.bname, b.src, b.bindings, b.ellipsis_depth)
 
 # Base overwrites
 # ---------------
@@ -434,17 +157,90 @@ end
 # Utils
 # -----
 
-function set_dirty_flag!(bs::B) where B
-    if isa(bs, BindingSet)
-        bs._dirty = true
-    elseif isa(bs, Vector)
-        set_dirty_flag!.(bs)
-    else
-        error("expected `BindingSet` or nested `Vector` of `BindingSet`, got $B")
-    end
-
-    return nothing
-end
+# During matching, bindings may be marked as invalid or temporary.
+#
+# Invalid bindings
+# ----------------
+#
+# Multiple appearances of the same pattern variable that are not consistent with each other
+# are marked as invalid in order to stop matching them further. Compatibility is decided
+# through the `compatible` predicate.
+#
+# # Examples
+#
+# ```
+# julia> pattern = @pattern begin
+#            {x:::identifier} = 2
+#            {x:::identifier} = 3
+#        end;
+#
+# julia> syntax_match(pattern, parseall(SyntaxNode,
+#                                       """
+#                                       a = 2
+#                                       b = 3
+#                                       """))
+# MatchFail("conflicting bindings for pattern variable x")
+# ```
+#
+# The `syntax_match` steps are:
+#
+# 1. Does `{x:::identifier} = 2` match `a = 2`?
+#    > Yes.
+# 2. Do we have a binding for `x` already?
+#    > No.
+# 3. => Bind `x` to `a`.
+#
+# 4. Does `{x:::identifier} = 3` match `b = 3`?
+#    > Yes.
+# 5. Do we have a binding for `x` already?
+#    > Yes, `a`.
+# 6. Is `a` compatible with `b` (same head, same children, same value)?
+#    > No.
+# 7. => Replace the binding for `x` with an `InvalidBinding`. Attach the message
+#    "conflicting bindings for pattern variable x" to it.
+# 8. => Return a `MatchFail` with the same message.
+#
+# Temporary bindings
+# ------------------
+# 
+# Used for storing bindings for unfinished repetitions.
+# 
+# # Examples
+# 
+# ```
+# julia> pattern = @pattern {_}...
+# Pattern:
+# [~rep]
+#   _:::expr                               :: ~var
+# 
+# julia> syntax_match(pattern, parseall(SyntaxNode, """
+#                                                   ex1
+#                                                   ex2
+#                                                   """))
+# BindingSet @ 0:0 with 0 entries
+# ```
+# 
+# The `syntax_match` steps are:
+# 
+# 1. Does `{_:::expr}` match `ex1`?
+#    > Yes.
+# 2. Do we have a binding for `_` already?
+#    > No.
+# 3. => Bind `_` to `[ex1]` and mark it as temporary.
+# 
+# 4. Does `{_:::expr}` match `ex2`?
+#    > Yes.
+# 5. Do we have a binding for `_` already?
+#    > Yes, `[ex1]`.
+# 6. => Add the new matching source node to `_`'s source list.
+# 
+# 7. No more source nodes to match, time to finish. Remove all invalid bindings (none in
+#    this example) and transform all temporary bindings for non-anonymous pattern variables
+#    into regular bindings.
+# 8. Only anonymous pattern variables here.
+#    => Return an empty binding set.
+is_invalid(b::Binding) = b._type == INVALID_BINDING
+is_temporary(b::Binding) = b._type == TEMPORARY_BINDING
 
 # Display
 # -------
@@ -494,4 +290,193 @@ function _src_with_location_str(src)
     str *= join(_src_with_location_str.(src), ", ")
     str *= "]"
     return str
+end
+
+# Binding set
+# ===========
+
+"""
+    BindingSet <: AbstractDict{Symbol, Binding}
+
+Set of bindings resulted from a successful syntax match.
+"""
+mutable struct BindingSet <: AbstractDict{Symbol, Binding}
+    bindings::Dict{Symbol, Binding}  # TODO: Order by appearance in the source code?
+    source_location::Tuple{Int64, Int64}
+    file_name::String
+    _dirty::Bool
+end
+BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "", false)
+BindingSet(bs::BindingSet; dirty::Bool=false) =
+    BindingSet(bs.bindings, bs.source_location, bs.file_name, dirty)
+BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "", false)
+
+# Dict interface
+# --------------
+
+Base.isempty(bs::BindingSet) = isempty(bs.bindings)
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name, bs._dirty)
+Base.empty!(bs::BindingSet) = empty!(bs.bindings)
+Base.length(bs::BindingSet) = length(bs.bindings)
+
+Base.iterate(bs::BindingSet) = iterate(bs.bindings)
+Base.iterate(bs::BindingSet, i::Int) = iterate(bs.bindings, i)
+function Base.setindex!(bs::BindingSet, v, k...)
+    if should_copy(bs)
+        bs.bindings = Dict(k => shared_copy(v) for (k, v) in bs.bindings)
+        bs._dirty = false
+    end
+    setindex!(bs.bindings, v, k...)
+end
+
+Base.haskey(bs::BindingSet, k) = haskey(bs.bindings, k)
+Base.get(bs::BindingSet, k, d) = get(bs.bindings, k, d)
+Base.get(f::Union{Function, Type}, bs::BindingSet, k) = get(f, bs.bindings, k)
+Base.get!(bs::BindingSet, k, d) = get!(bs.bindings, k, d)
+Base.get!(f::Union{Function, Type}, bs::BindingSet, k) = get!(f, bs.bindings, k)
+Base.getkey(bs::BindingSet, k, d) = getkey(bs.bindings, k, d)
+Base.delete!(bs::BindingSet, k) = delete!(bs.bindings, k)
+Base.pop!(bs::BindingSet, k) = pop!(bs.bindings, k)
+Base.pop!(bs::BindingSet, k, d) = pop!(bs.bindings, k, d)
+Base.keys(bs::BindingSet) = keys(bs.bindings)
+Base.values(bs::BindingSet) = values(bs.bindings)
+Base.pairs(bs::BindingSet) = pairs(bs.bindings)
+Base.merge(bs::BindingSet, others::BindingSet...) =
+    BindingSet(merge(bs.bindings, others...))
+Base.mergewith(c, bs::BindingSet, others::BindingSet...) =
+    BindingSet(mergewith(c, bs.bindings, others...))
+Base.merge!(bs::BindingSet, others::BindingSet...) =
+    BindingSet(merge!(bs.bindings, others...))
+Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
+    BindingSet(mergewith!(c, bs.bindings, others...))
+Base.keytype(bs::BindingSet) = keytype(bs.bindings)
+Base.valtype(bs::BindingSet) = valtype(bs.bindings)
+
+# Utils
+# -----
+
+should_copy(bs::BindingSet) = bs._dirty
+
+function shared_copy(bs::BindingSet)
+    bs._dirty = true
+    return BindingSet(bs; dirty=true)
+end
+shared_copy(bs::AbstractVector) = shared_copy.(bs)
+
+function set_dirty_flag!(bs::B) where B
+    if isa(bs, BindingSet)
+        bs._dirty = true
+    elseif isa(bs, Vector)
+        set_dirty_flag!.(bs)
+    else
+        error("expected `BindingSet` or nested `Vector` of `BindingSet`, got $B")
+    end
+
+    return nothing
+end
+
+# Display
+# -------
+
+function Base.summary(io::IO, bs::BindingSet)
+    show(io, typeof(bs))
+    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
+end
+
+Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
+    _show_binding_set(io, bs, "")
+
+function _show_binding_set(io::IO, bs, indent)
+    if isa(bs, AbstractVector)
+        print(io, indent * "[")
+        if isempty(bs)
+            print(io, "]")
+        else
+            for (i, el) in enumerate(bs)
+                println(io)
+                _show_binding_set(io, el, indent * " ")
+                if i < length(bs)
+                    print(io, ",")
+                end
+            end
+            println(io)
+            print(io, indent * "]")
+        end
+    else
+        print(io, indent)
+        summary(io, bs)
+        if !isempty(bs)
+            print(io, ":")
+            for (k, v) in bs
+                println(io)
+                s = indent * "  $(repr(k)) => "
+                print(io, s)
+                b_indent = repeat(' ', length(s))
+                _show_binding(io, v, b_indent)
+            end
+        end
+    end
+end
+
+function _repr_location(bs::BindingSet)
+    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
+    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
+
+    return location
+end
+
+# Errors
+# ======
+
+"""
+    BindingFieldError <: Exception
+
+A fail condition tried to access an invalid field of a binding.
+
+A binding field is valid if any one of the following is true:
+  - It is one of the corresponding struct fields (e.g. `src` for a [`Binding`](@ref));
+  - It is the name of one of the binding's sub-bindings;
+  - The binding's `src` is an identifier and the field is `name`;
+  - The binding's `src` is a literal and the field is `value`;
+  - The binding's `src` is a macro definition and the field is `call` or `body`;
+  - The binding's `src` is a macro call and the field is `name` or `args`.
+"""
+struct BindingFieldError <: Exception
+    binding::AbstractBinding
+    field::Symbol
+    available_fields::Vector{Symbol}
+    internal_fields::Vector{Symbol}
+    reason::String
+end
+
+"""
+    BindingSetKeyError <: Exception
+
+A fail condition tried to access a non-existent binding.
+"""
+struct BindingSetKeyError <: Exception
+    key
+end
+
+# Display
+# -------
+
+function Base.showerror(io::IO, err::BindingFieldError)
+    print(io, "BindingFieldError: ")
+    println(io,
+            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
+            "because ", err.reason, ".")
+    available = isempty(err.available_fields) ?
+        "none"                                :
+        join(map(s -> "`$s`", err.available_fields), ", ")
+    println(io, "Available fields: ", available)
+    println(io)
+    println(io,
+            "The following fields are internal, avoid using them in patterns: ",
+            join(map(s -> "`$s`", err.internal_fields), ", "))
+end
+
+function Base.showerror(io::IO, err::BindingSetKeyError)
+    print(io, "BindingSetKeyError: ")
+    println(io, "binding ", err.key, " not found")
 end

@@ -58,24 +58,19 @@ julia> rule_match(consecutive_assign, parseall(SyntaxNode, \"""
                                                            \"""))
 RuleMatchResult with 1 matches and 0 failures:
 Matches:
+  @ 1:1
   BindingSet(:x => Binding(:x, a @ 3:7, BindingSet(:_id => Binding(:_id, a @ 3:7, BindingSet()))))
 
 julia> rule_match(consecutive_assign, parseall(SyntaxNode, \"""
-                                                           const a = 2
+                                                           const T{T} = Int
                                                            some_expr
-                                                           const a = 4
-                                                           \"""); only_matches=false)
-RuleMatchResult with 1 matches and 12 failures:
-Matches:
-  BindingSet(:x => Binding(:x, a @ 3:7, BindingSet(:_id => Binding(:_id, a @ 3:7, BindingSet()))))
+                                                           const T{T} = String
+                                                           \""");
+                  only_matches=false)
+RuleMatchResult with 0 matches and 2 failures:
 Failures:
-  MatchFail("no match")
-  MatchFail("no match")
-  MatchFail("no match")
-  .
-  .
-  .
-  MatchFail("no match")
+  MatchFail("expected identifier")
+  MatchFail("expected identifier")
 ```
 """
 macro rule(name, ex)
@@ -302,19 +297,28 @@ end
 RuleMatchResult() = RuleMatchResult([], [])
 
 """
-    rule_match(rule::Rule, src::Juliasyntax.SyntaxNode; greedy=true, only_matches=true)
-    rule_match(rule::Rule, filename::AbstractString; greedy=true, only_matches=true)
+    rule_match(rule::Rule,
+               src::Juliasyntax.SyntaxNode,
+               bindings::BindingSet=BindingSet();
+               greedy=true,
+               only_matches=true)
+    rule_match(rule::Rule,
+               filename::AbstractString,
+               bindings::BindingSet=BindingSet();
+               greedy=true,
+               only_matches=true)
 
-Match a rule against a source code. Return the set of all matches with their associated
-refactored code, if applicable. If `only_matches` is `false` return failures as well.
-The rule pattern is matched against all children nodes in the source node, up to the leafs.
-Matching is greedy by default.
+Match a rule against a given source code. Return the set of all matches with their
+associated refactored code, if applicable. If `only_matches` is `false` return failures
+as well. The rule pattern is matched against all children nodes in the source node, up to
+the leafs. Matching is greedy by default. Optionally, a rule match can happen in a given
+context specified by `bindings`.
 
 !!! note
     Matching a rule with a `SyntaxNode` may return different results than matching against
     a file. The reason is that `Expr` and `SyntaxNode` representations differ in some
     respects. These differences may be addressed when parsing a file. Therefore, in case
-    of disagreeing results, prefer to trust file-parsing method.
+    of disagreeing results, prefer to trust the file-parsing method.
 
 See [`syntax_match_all`](@ref).
 """
@@ -330,19 +334,23 @@ function rule_match(rule::Rule,
         [(bs, expand(rule.template, bs)) for bs in binding_sets]
     return RuleMatchResult(matches_with_refactorings, match_results.failures)
 end
-function rule_match(rule::Rule, src::AbstractString; greedy=true, only_matches=true)
+function rule_match(rule::Rule,
+                    src::AbstractString,
+                    bindings::BindingSet=BindingSet();
+                    greedy=true,
+                    only_matches=true)
     if isfile(src)
         src_txt = read(src, String)
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _normalise!(src_node)
 
-        return rule_match(rule, src_node; greedy, only_matches)
+        return rule_match(rule, src_node, bindings; greedy, only_matches)
     end
     if isdir(src)
         files = source_files(src)
         match_results = RuleMatchResult()
         for f in files
-            match_result = rule_match(rule, f; greedy, only_matches)
+            match_result = rule_match(rule, f, bindings; greedy, only_matches)
             append!(match_results, match_result)
         end
         return match_results
@@ -931,7 +939,7 @@ function reorder_parameters_vect!(node::JS.SyntaxNode)
 end
 
 function squash_parameters!(nodes::T) where T <: AbstractVector{JS.SyntaxNode}
-    isempty(nodes) && error("Invalid input?")
+    isempty(nodes) && error("Invalid input?")  # TODO: Investigate error.
     length(nodes) == 1 && return nodes[1]
     # Squash the `parameters` nodes into one node.
     node = nodes[1]

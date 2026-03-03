@@ -149,11 +149,11 @@ _register_kinds() = JS.register_kinds!(Argus,
                                        ])
 _register_kinds()
 
-JS.head(data::VarSyntaxData)  = JS.SyntaxHead(K"~var",  0)
-JS.head(data::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
-JS.head(data::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
-JS.head(data::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
-JS.head(data::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
+JS.head(::VarSyntaxData)  = JS.SyntaxHead(K"~var",  0)
+JS.head(::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
+JS.head(::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
+JS.head(::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
+JS.head(::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
 
 # Base overwrites
 # ---------------
@@ -215,7 +215,9 @@ function fail_condition(condition, pattern_vars)
     let_bindings = [:($v = $bindings_sym[$(QuoteNode(v))]) for v in pattern_vars]
 
     return Core.eval(@__MODULE__, :(($bindings_sym) -> try
-                                        let $(let_bindings...); $condition; end
+                                        let $(let_bindings...)
+                                            $condition
+                                        end
                                     catch err
                                         if isa(err, KeyError)
                                             throw(BindingSetKeyError(err.key))
