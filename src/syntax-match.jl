@@ -34,7 +34,13 @@ struct MatchResults
 end
 MatchResults() = MatchResults(BindingSet[], MatchFail[])
 
-is_successful(result::MatchResult) = isa(result, BindingSet)
+# Utils
+# -----
+
+is_successful(result::MatchFail) = false
+is_successful(result) = true
+is_default_match_fail(result::MatchFail) =
+    isempty(result.message) || result.message == "no match"
 
 # Syntax matching
 # ===============
@@ -59,16 +65,18 @@ end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
                       greedy=true)
-    failure = MatchFail()
+    syntax_class_failure = MatchFail("expected " * syntax_class.description)
+    tracked_failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
         match_result = _syntax_match(pattern, src; greedy)
         # Return the first successful match.
         is_successful(match_result) && return match_result
-        # TODO: Track the failures and return the most relevant one.
-        failure = match_result
+        if !is_default_match_fail(match_result)
+            tracked_failure = match_result
+        end
     end
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
-    return MatchFail("expected " * syntax_class.description)
+    return is_default_match_fail(tracked_failure) ? syntax_class_failure : tracked_failure
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JS.SyntaxNode;
