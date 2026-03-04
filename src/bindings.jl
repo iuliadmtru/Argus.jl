@@ -245,15 +245,24 @@ is_temporary(b::Binding) = b._type == TEMPORARY_BINDING
 # Display
 # -------
 
-Base.show(io::IO, ::MIME"text/plain", b::AbstractBinding) =
+Base.show(io::IO, ::MIME"text/plain", b::Binding) =
     _show_binding(io, b, "")
-Base.show(io::IO, b::AbstractBinding) =
+function Base.show(io::IO, b::Binding)
     print(io,
-          typeof(b), "(",
-          repr(b.bname), ", ",
+          "Binding(",
+          repr(b.bname), ", ")
+    if is_invalid(b)
+        print(io, b._msg, ", INVALID_BINDING")
+        return nothing
+    end
+    print(io,
           _src_with_location_str(b.src), ", ",
-          repr(b.bindings),
-          ")")
+          repr(b.bindings))
+    if is_temporary(b)
+        print(io, ", TEMPORARY_BINDING")
+    end
+    print(io, ")")
+end
 Base.show(io::IO, ::Type{Binding{S, B}}) where {S, B} = print(io, "Binding")
 
 function _show_bindings(io::IO, bs, outer_indent)
@@ -261,14 +270,16 @@ function _show_bindings(io::IO, bs, outer_indent)
     _show_binding_set(io, bs, outer_indent * "  ")
 end
 
-function _show_binding(io::IO, b::AbstractBinding, outer_indent)
+function _show_binding(io::IO, b::Binding, outer_indent)
     indent = outer_indent * "  "
-    indent_size = length(indent)
-
     bound_src_label, bound_src = _repr_source_nodes(b.src)
-    bound_src_str = indent * bound_src_label * bound_src
 
-    println(io, typeof(b), ":")
+    _show_binding_type(io, b)
+    println(io, ":")
+    if b._type == INVALID_BINDING
+        println(io, indent, "Message: ", repr(b._msg))
+        return nothing
+    end
     println(io, indent, "Name: ", repr(b.bname))
     println(io, indent, bound_src_label, bound_src)
     println(io, indent, "Ellipsis depth: ", b.ellipsis_depth)
@@ -291,6 +302,11 @@ function _src_with_location_str(src)
     str *= "]"
     return str
 end
+
+_show_binding_type(io::IO, b::Binding) =
+    b._type == INVALID_BINDING   ? print(io, "Binding (INVALID)")   :
+    b._type == TEMPORARY_BINDING ? print(io, "Binding (TEMPORARY)") :
+    print(io, "Binding")
 
 # Binding set
 # ===========
