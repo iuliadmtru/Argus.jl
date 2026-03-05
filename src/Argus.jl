@@ -1,6 +1,8 @@
 module Argus
 
 import MacroTools
+using RuntimeGeneratedFunctions
+RuntimeGeneratedFunctions.init(@__MODULE__)
 
 using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
     children, is_leaf, is_identifier, source_location,

@@ -214,19 +214,19 @@ function fail_condition(condition, pattern_vars)
     bindings_sym = gensym()
     let_bindings = [:($v = $bindings_sym[$(QuoteNode(v))]) for v in pattern_vars]
 
-    return Core.eval(@__MODULE__, :(($bindings_sym) -> try
-                                        let $(let_bindings...)
-                                            $condition
-                                        end
-                                    catch err
-                                        if isa(err, KeyError)
-                                            throw(BindingSetKeyError(err.key))
-                                        elseif isa(err, UndefVarError)
-                                            throw(BindingSetKeyError(err.var))
-                                        else
-                                            rethrow(err)
-                                        end
-                                    end))
+    return @RuntimeGeneratedFunction(:(($bindings_sym) -> try
+                                           let $(let_bindings...)
+                                               $condition
+                                           end
+                                       catch err
+                                           if isa(err, KeyError)
+                                               throw(BindingSetKeyError(err.key))
+                                           elseif isa(err, UndefVarError)
+                                               throw(BindingSetKeyError(err.var))
+                                           else
+                                               rethrow(err)
+                                           end
+                                       end))
 end
 
 """
