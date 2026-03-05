@@ -300,13 +300,30 @@
                     @show {x}
                     @fail [:x] x.name != "x" "not x"
                 end
-                src = parsestmt(SyntaxNode, "@show x")
                 @test is_successful(syntax_match(pattern,
                                                  parsestmt(SyntaxNode, "@show x")))
                 @test is_successful(syntax_match(pattern,
                                                  parsestmt(SyntaxNode, "@show(x)")))
                 @test !is_successful(syntax_match(pattern,
                                                   parsestmt(SyntaxNode, "@show(y)")))
+            end
+            let
+                pattern = @pattern {_:::funcall}::{ret_type} = {_}
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "f(x)::T = x")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "f(x) = x")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "x::T = y")))
+            end
+            let
+                pattern = @pattern {_:::identifier}::{ret_type} = {_}
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "x::T = y")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "x = y")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "f(x)::T = x")))
             end
             ## Multiple pattern expressions.
             let

@@ -654,6 +654,34 @@ function fix_misparsed!(node::SyntaxPatternNode)
             funcall_alternative.parent = new_node
             # Return the `~or` node.
             return new_node
+        elseif kind(lhs) == K"::"
+            lhs_lhs = lhs.children[1]
+            # If the typed node is a function call or a pattern variable constrained to
+            # `:funcall` the node should remain a function call.
+            kind(lhs_lhs) == K"call" && return node
+            if is_var(lhs_lhs)
+                get_var_syntax_class_name(lhs_lhs) === :funcall && return node
+                # If the typed node is a pattern variable constrained to `:identifier` the
+                # node should be an assignment.
+                get_var_syntax_class_name(lhs_lhs) === :identifier &&
+                    return fundef_to_assign(lhs, rhs, node)
+                new_node_data = OrSyntaxData()
+                # Update the head for the assignment alternative.
+                assignment_data = update_data_head(node.data, JS.SyntaxHead(K"=", 0))
+                assignment_alternative =
+                    SyntaxPatternNode(nothing, [lhs, rhs], assignment_data)
+                # Keep the current node as the `function` alternative.
+                func_alternative =
+                    SyntaxPatternNode(nothing, [lhs, rhs], node.data)
+                # Link the alternatives to the new `~or` pattern form node.
+                new_node = SyntaxPatternNode(node.parent,
+                                             [assignment_alternative, func_alternative],
+                                             new_node_data)
+                assignment_alternative.parent = new_node
+                func_alternative.parent = new_node
+                # Return the `~or` node.
+                return new_node
+            end
         else
             return fundef_to_assign(lhs, rhs, node)
         end
