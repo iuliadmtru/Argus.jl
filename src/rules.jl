@@ -298,21 +298,18 @@ RuleMatchResult() = RuleMatchResult([], [])
 
 """
     rule_match(rule::Rule,
-               src::Juliasyntax.SyntaxNode,
-               bindings::BindingSet=BindingSet();
+               src::Juliasyntax.SyntaxNode;
                greedy=true,
                only_matches=true)
     rule_match(rule::Rule,
-               filename::AbstractString,
-               bindings::BindingSet=BindingSet();
+               filename::AbstractString;
                greedy=true,
                only_matches=true)
 
 Match a rule against a given source code. Return the set of all matches with their
 associated refactored code, if applicable. If `only_matches` is `false` return failures
 as well. The rule pattern is matched against all children nodes in the source node, up to
-the leafs. Matching is greedy by default. Optionally, a rule match can happen in a given
-context specified by `bindings`.
+the leafs. Matching is greedy by default.
 
 !!! note
     Matching a rule with a `SyntaxNode` may return different results than matching against
@@ -323,11 +320,10 @@ context specified by `bindings`.
 See [`syntax_match_all`](@ref).
 """
 function rule_match(rule::Rule,
-                    src::JS.SyntaxNode,
-                    bindings::BindingSet=BindingSet();
+                    src::JS.SyntaxNode;
                     greedy=true,
                     only_matches=true)
-    match_results = syntax_match_all(rule.pattern, src, bindings; greedy, only_matches)
+    match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
     binding_sets = match_results.matches
     matches_with_refactorings = isnothing(rule.template) ?
         [(bs, nothing) for bs in binding_sets] :
@@ -335,8 +331,7 @@ function rule_match(rule::Rule,
     return RuleMatchResult(matches_with_refactorings, match_results.failures)
 end
 function rule_match(rule::Rule,
-                    src::AbstractString,
-                    bindings::BindingSet=BindingSet();
+                    src::AbstractString;
                     greedy=true,
                     only_matches=true)
     if isfile(src)
@@ -344,13 +339,13 @@ function rule_match(rule::Rule,
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _normalise!(src_node)
 
-        return rule_match(rule, src_node, bindings; greedy, only_matches)
+        return rule_match(rule, src_node; greedy, only_matches)
     end
     if isdir(src)
         files = source_files(src)
         match_results = RuleMatchResult()
         for f in files
-            match_result = rule_match(rule, f, bindings; greedy, only_matches)
+            match_result = rule_match(rule, f; greedy, only_matches)
             append!(match_results, match_result)
         end
         return match_results

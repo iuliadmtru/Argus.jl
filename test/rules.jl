@@ -290,6 +290,16 @@
             @test match_result.matches[1][1].source_location == (1, 1)
             @test match_result.matches[2][1].source_location == (2, 1)
         end
+        let
+            rule = @rule "named pattern variable" begin
+                description = ""
+                pattern = @pattern {m:::macrocall}
+            end
+            match_result = rule_match(rule, parseall(SyntaxNode, "@m{x}\n@m{y}"))
+            @test length(match_result.matches) == 2
+            @test match_result.matches[1][1].source_location == (1, 1)
+            @test match_result.matches[2][1].source_location == (2, 1)
+        end
     end
 
     @testset "`Expr`-parsing compatibility" begin

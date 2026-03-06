@@ -521,8 +521,7 @@ end
 
 """
     syntax_match_all(pattern_node::SyntaxPatternNode,
-                     src::JS.SyntaxNode,
-                     bindings::BindingSet=BindingSet();
+                     src::JS.SyntaxNode;
                      greedy=true,
                      only_matches=true)
 
@@ -530,18 +529,17 @@ Try to match a pattern node against a source node. Return all successful matches
 `only_matches` is `false` return all non-trivial failures as well.
 """
 function syntax_match_all(pattern::Pattern,
-                          src::JS.SyntaxNode,
-                          bindings::BindingSet=BindingSet();
+                          src::JS.SyntaxNode;
                           greedy=true,
                           only_matches=true)
-    return syntax_match_all(pattern.src, src, bindings; greedy, only_matches)
+    return syntax_match_all(pattern.src, src; greedy, only_matches)
 end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
-                          src::JS.SyntaxNode,
-                          bindings::BindingSet=BindingSet();
+                          src::JS.SyntaxNode;
                           greedy=true,
                           only_matches=true)
     match_result_all = MatchResults()
+    bindings = BindingSet()
     # TODO: Rewrite this in a more generalised way, if possible.
     if (kind(src) == K"block" || kind(src) == K"toplevel")
         if is_toplevel(pattern_node)
@@ -577,7 +575,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 is_leaf(src) && return match_result_all
                 for c in children(src)
                     match_result_child =
-                        syntax_match_all(pattern_node, c, bindings; greedy, only_matches)
+                        syntax_match_all(pattern_node, c; greedy, only_matches)
                     append!(match_result_all.failures, match_result_child.failures)
                     append!(match_result_all.matches, match_result_child.matches)
                 end
@@ -612,7 +610,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 return match_result_all
             next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
             match_result =
-                syntax_match_all(pattern_node, next_src, bindings; greedy, only_matches)
+                syntax_match_all(pattern_node, next_src; greedy, only_matches)
             append!(match_result_all.failures, match_result.failures)
             append!(match_result_all.matches, match_result.matches)
             # Return all accumulated match results.
@@ -1385,7 +1383,7 @@ function match_and_recover!(match_all_result::MatchResults,
     is_leaf(src) && return match_all_result
     for c in children(src)
         rule_result_child =
-            syntax_match_all(pattern_node, c, bindings; greedy, only_matches)
+            syntax_match_all(pattern_node, c; greedy, only_matches)
         append!(match_all_result.failures, rule_result_child.failures)
         append!(match_all_result.matches, rule_result_child.matches)
     end
