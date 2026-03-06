@@ -316,4 +316,14 @@ function _register_syntax_classes()
     @define_syntax_class :dotcall "dot call" begin
         @pattern ({fun_name}).({args}...)
     end
+
+    # `infix_call`: match an infix op call.
+    @define_syntax_class :infix_call "infix call" begin
+        @pattern {lhs} ≎ {rhs}  # This is a hack!
+    end
+
+    # `infix_dotcall`: match an infix dot op call.
+    @define_syntax_class :infix_dotcall "infix dotcall" begin
+        @pattern {lhs} .≎ {rhs}  # This is a hack!
+    end
 end

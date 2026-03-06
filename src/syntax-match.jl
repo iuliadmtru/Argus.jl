@@ -1084,7 +1084,8 @@ function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
         # TODO: Remove this after correctly parsing `macrocall` (with or without params).
         _differ_by_parens(ex1, ex2) ||
         return false
-    ex1.data.val == ex2.data.val || return false
+    ex1.data.val == ex2.data.val || _infix_ops(ex1, ex2) ||
+        return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false
     is_leaf(ex1) && return true
     return recurse ?
@@ -1102,6 +1103,33 @@ function _differ_by_parens(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
     kind(ex1) == kind(ex2) || return false
     kind(ex1) in JS.KSet"macrocall" || return false
     return xor(JS.flags(ex1), JS.flags(ex2)) == JS.PARENS_FLAG
+end
+
+"""
+    _infix_ops(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
+               ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+
+The `infix_call` and `infix_dotcall` syntax classes use `≎` to represent an infix operator.
+When found in a pattern node, `≎` is compatible with any operator source node. The `≎`
+operator was chosen because of its unlikely usage in patterns and because of its similarity
+with the letter 'o' (for operator).
+"""
+function _infix_ops(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
+                    ex2::Union{JS.SyntaxNode, SyntaxPatternNode})
+    if isa(ex2, JS.SyntaxNode)
+        isa(ex1, SyntaxPatternNode) || return false
+        ex1.data.val == :≎ || return false
+        JS.is_identifier(ex2) || return false
+        # We know we are inside an infix call, so it is not possible for this to fail
+        # (I think/hope). Hopefully, there will be a better way to do this in the future.
+        JS.is_operator(JS.Kind(string(ex2.data.val))) || return false
+    else  # TODO: Remove duplicate code?
+        isa(ex2, SyntaxPatternNode) || return false
+        ex2.data.val == :≎ || return false
+        JS.is_identifier(ex1) || return false
+        JS.is_operator(JS.Kind(string(ex1.data.val))) || return false
+    end
+    return true
 end
 
 """

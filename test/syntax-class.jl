@@ -94,6 +94,28 @@
             no_match = syntax_match(dotcall, parsestmt(SyntaxNode, "x"))
             @test no_match == MatchFail("expected dot call")
         end
+        let
+            infix_call = Argus.SYNTAX_CLASS_REGISTRY[:infix_call]
+
+            match_result = syntax_match(infix_call, parsestmt(SyntaxNode, "x + y"))
+            @test length(match_result) == 2
+            @test match_result[:lhs].src.data.val == :x
+            @test match_result[:rhs].src.data.val == :y
+
+            no_match = syntax_match(infix_call, parsestmt(SyntaxNode, "+(x, y)"))
+            @test no_match == MatchFail("expected infix call")
+        end
+        let
+            infix_dotcall = Argus.SYNTAX_CLASS_REGISTRY[:infix_dotcall]
+
+            match_result = syntax_match(infix_dotcall, parsestmt(SyntaxNode, "x .+ y"))
+            @test length(match_result) == 2
+            @test match_result[:lhs].src.data.val == :x
+            @test match_result[:rhs].src.data.val == :y
+
+            no_match = syntax_match(infix_dotcall, parsestmt(SyntaxNode, ".+(x, y)"))
+            @test no_match == MatchFail("expected infix dotcall")
+        end
     end
 
     @testset "General" begin
