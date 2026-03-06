@@ -293,6 +293,7 @@ function _repr_source_nodes(src)
 end
 
 function _src_with_location_str(src)
+    isnothing(src) && return ""
     if isa(src, JS.SyntaxNode)
         (line, col) = JS.source_location(src)
         return string(src, " @ ", line, ":", col)
