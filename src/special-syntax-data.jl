@@ -208,8 +208,6 @@ Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
 """
 function fail_condition(condition, pattern_vars)
-    # Import `JuliaSyntax`.
-    Core.eval(@__MODULE__, :(import JuliaSyntax))
     # Create the `let` bindings that will be bound in the returned function.
     bindings_sym = gensym()
     let_bindings = [:($v = $bindings_sym[$(QuoteNode(v))]) for v in pattern_vars]
