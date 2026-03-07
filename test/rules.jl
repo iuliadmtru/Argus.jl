@@ -300,6 +300,28 @@
             @test match_result.matches[1][1].source_location == (1, 1)
             @test match_result.matches[2][1].source_location == (2, 1)
         end
+        let
+            rule = @rule "containers-with-abstract-type-params" begin
+                description = "Avoid containers with abstract type parameters. "
+
+                pattern = @pattern begin
+                    {container}{{_}..., {t:::abstract_type}, {_}...}
+                end
+            end
+            src = """
+                  struct S{T}
+                      f1::T
+                      f2::Vector{T}
+                      f3::Vector{AbstractT}
+                      f4::Int
+                  end
+                  f(v::Array{Integer, 2}) = v
+                  """
+            match_result = rule_match(rule, parseall(SyntaxNode, src))
+            @test length(match_result.matches) == 2
+            @test match_result.matches[1][1].source_location == (4, 9)
+            @test match_result.matches[2][1].source_location == (7, 6)
+        end
     end
 
     @testset "`Expr`-parsing compatibility" begin

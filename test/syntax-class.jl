@@ -116,6 +116,12 @@
             no_match = syntax_match(infix_dotcall, parsestmt(SyntaxNode, ".+(x, y)"))
             @test no_match == MatchFail("expected infix dotcall")
         end
+        let
+            abstract_type = Argus.SYNTAX_CLASS_REGISTRY[:abstract_type]
+
+            @test is_successful(syntax_match(abstract_type, parsestmt(SyntaxNode, "Any")))
+            @test !is_successful(syntax_match(abstract_type, parsestmt(SyntaxNode, "Bool")))
+        end
     end
 
     @testset "General" begin

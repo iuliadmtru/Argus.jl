@@ -326,4 +326,25 @@ function _register_syntax_classes()
     @define_syntax_class :infix_dotcall "infix dotcall" begin
         @pattern {lhs} .≎ {rhs}  # This is a hack!
     end
+
+    # `abstract_type`: match an abstract type (approximately...).
+    @define_syntax_class :abstract_type "abstract type" begin
+        @pattern begin
+            {_t:::identifier}
+            @fail([:_t],
+                  begin
+                      builtin = [
+                          "Any",
+                          "Number",
+                          "Real",
+                          "Integer",
+                          "Signed",
+                          "Unsigned",
+                          "Function",
+                      ]
+                      _t.name ∉ builtin && !startswith(_t.name, "Abstract")
+                  end,
+                  "")
+        end
+    end
 end
