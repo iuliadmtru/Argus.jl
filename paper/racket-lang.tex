@@ -1,0 +1,74 @@
+\usepackage{listings}
+\usepackage[dvipsnames]{xcolor}
+
+% Default style for all listings. Among other things, fixes 
+\lstset{
+	% --- Linenos ---
+	numbersep=3pt,                  % how far the line-numbers are from the code
+	numberstyle=\tiny\color{gray},
+	numbers=left,                   % where to put the line-numbers
+	stepnumber=1,                   % the step between two line-numbers. If it is 1 each line will be numbered
+	% -- Basics --
+	basicstyle=\ttfamily,
+	sensitive=true,  % Case-sensitive keywords
+	tabsize=4,
+	breaklines=true,  % Break lines if too long
+	%escapechar=`,
+	%escapeinside={<@}{@>},
+	% I don't know what keepspaces and columns do, but together, they fix the ugly default listings style.
+	columns=fullflexible,
+	keepspaces,
+	showstringspaces=false,  % Spaces not shown as _
+}
+
+% Usage: \begin{lstlisting}[language=racket] ...
+\lstdefinelanguage{racket} {
+	% -- Comments --
+	%morecomment=[l]{//},
+	%morecomment=[s]{/*}{*/},
+	morecomment=[l]{;},         % Inline comments start with ;
+	morecomment=[s]{\#|}{|\#},  % Block comments are done with #|  |#
+	commentstyle={\color{ForestGreen}\slshape\sffamily},
+	% -- Strings --
+	morestring=[b]",
+	stringstyle=\color{red},
+	% --- Literal replacements ---
+	literate=%
+	%	{lambda}{{$\lambda$}}1
+		{->}{{$\rightarrow$}}1
+		{*}{{$\times$}}1,
+	% -- Keywords (I got these from a vague French website; Racket seems to have no lstlisting style defined anywhere) --
+	classoffset=1,
+		morekeywords={
+			define, define-syntax, define-macro, define-datatype, lambda, define-stream, stream-lambda
+		},
+		keywordstyle=\color{purple},
+	classoffset=2,
+		morekeywords={
+			begin, call-with-current-continuation, call/cc, call-with-input-file, call-with-output-file, 
+			cases, cond, do, else, for-each, if,
+			let*, let, let-syntax, letrec, letrec-syntax,
+			define-context, define-controller, Integer, Boolean, get, when-required, when-provided,
+			maybe_publish, require, submod, or/c, ->, \#\%module-begin, always_publish, with-syntax, define-struct/contract, syntax-case, define/contract,
+			let-values, let*-values,
+			module, provide,
+			and, or, not, 
+			delay, force,
+			\#`, \#',
+			null, cons, car, cdr, cadr, caddr,
+			\#lang, implement, begin-for-syntax, rename-out,
+			quasiquote, quote, unquote, unquote-splicing,
+			map, filter, foldl, syntax, syntax-rules, eval, environment, query 
+		},
+		keywordstyle=\color{blue},
+	classoffset=3,
+		morekeywords={import, export},
+		keywordstyle=\color{green},
+	classoffset=0,
+	alsoletter={',`,-,/,>,<,\#,\%},
+	moredelim=**[is][\color{lightgray}]{<<@<<}{>>@>>},
+	moredelim=**[is][\itshape\color{OliveGreen}]{<<;<<}{>>;>>},
+}
+
+% Inline racket
+\newcommand{\ir}[1]{\lstinline[basicstyle=\ttfamily\normalsize,language=racket]{#1}}

@@ -1,0 +1,15 @@
+title: "Pattern-Based Syntax Analysis for Julia"
+keywords:
+  - Julia
+  - Racket
+  - pattern matching
+  - static analysis
+authors:
+  - name: Iulia Maria Dumitru
+    orcid: 0009-0009-6600-9191
+    affiliation: 1
+affiliations:
+  - name: University Politehnica of Bucharest
+    index: 1
+date: 9 March 2026
+bibliography: ref.bib

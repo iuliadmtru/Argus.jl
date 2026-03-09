@@ -1,0 +1,109 @@
+\begin{thebibliography}{10}
+
+\bibitem{dsl}
+{Domain-specific language}.
+
+\bibitem{audit_events}
+{IBM Documentation — Audit Events}.
+
+\bibitem{julia_aot}
+{Julia Documentation — Ahead of Time Compilation}.
+
+\bibitem{compound_exprs}
+{Julia Documentation — Compound Expressions}.
+
+\bibitem{julia_asts}
+{Julia Documentation — Developer Documentation — Julia ASTs}.
+
+\bibitem{julia_metaprogramming}
+{Julia Documentation — Metaprogramming}.
+
+\bibitem{julia_repl}
+{Julia Documentation — The Julia REPL}.
+
+\bibitem{juliasyntax}
+{JuliaSyntax.jl}.
+
+\bibitem{expr_vs_syntaxnode}
+{JuliaSyntax.jl — JuliaSyntax trees vs Expr}.
+
+\bibitem{js_kinds}
+{JuliaSyntax.jl — More about syntax kinds}.
+
+\bibitem{syntax_parse}
+{Racket Documentation — Parsing and Specifying Syntax}.
+
+\bibitem{resyntax}
+{Racket Documentation — Resyntax}.
+
+\bibitem{syntax_class}
+{Racket Documentation — Specifying Syntax with Syntax Classes}.
+
+\bibitem{pattern_forms}
+{Racket Documentation — Syntax Patterns}.
+
+\bibitem{julia_creation}
+Jeff Bezanson, Stefan Karpinski, Viral~B. Shah, and Alan Edelman.
+{Why We Created Julia}.
+2012.
+
+\bibitem{fortifying_macros}
+Ryan Culpepper.
+{Fortifying Macros}.
+{\em {Journal of Functional Programming}}, 22(4-5):439–476, 2012.
+
+\bibitem{argus_overview}
+Iulia Dumitru.
+{Argus.jl — Overview}.
+
+\bibitem{racket_manifesto}
+Matthias Felleisen, Robert~Bruce Findler, Matthew Flatt, Shriram Krishnamurthi,
+  Eli Barzilay, Jay McCarthy, and Sam Tobin-Hochstadto.
+{The Racket Manifesto}.
+{\em {First Summit on Advances in Programming Languages (SNAPL 2015)}},
+  32:113--128, 2015.
+
+\bibitem{macro_tools}
+FluxML.
+{MacroTools.jl — A library of tools for working with Julia code and
+  expressions}.
+
+\bibitem{cthulhu}
+JuliaDebug.
+{Cthulhu.jl — The slow descent into madness}.
+
+\bibitem{parse_stream}
+JuliaLang.
+{JuliaSyntax.jl — Parsing with ParseStream}.
+
+\bibitem{syntax_nodes}
+JuliaLang.
+{JuliaSyntax.jl — Syntax Trees}.
+
+\bibitem{jet}
+Shuhei Kadowaki.
+{JET.jl — An experimental code analyzer for Julia}.
+
+\bibitem{skarpinski_julia_willingness}
+Stefan Karpinski.
+{In what sense are languages like Elixir and Julia homoiconic?}, 2015.
+
+\bibitem{mbe}
+Eugene~E. Kohlbecker and Mitchell Wand.
+{Macro-by-Example: Deriving Syntactic Transformations from their
+  Specifications}.
+{\em {ACM Symposium on Principles of Programming Languages}}, pages 77--84,
+  1986.
+
+\bibitem{lisp_paper}
+John McCarthy.
+{Recursive Functions of Symbolic Expressions and Their Computation by Machine,
+  Part I}.
+{\em {Communications of the ACM}}, 3:184--195, 1960.
+
+\bibitem{mlstyle}
+Taine Zhao.
+{MLStyle.jl — Julia functional programming infrastructures and
+  metaprogramming facilities}.
+
+\end{thebibliography}
