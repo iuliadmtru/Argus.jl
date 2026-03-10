@@ -1027,6 +1027,60 @@ SyntaxNode:
           _                              :: Identifier
         [quote-:]
           expr                           :: Identifier
+
+
+julia> syntax_node_rep = Argus.desugar_expr(:( ({_}...) -> {_} ))
+SyntaxNode:
+[call-pre]
+  ~                                      :: Identifier
+  [->]
+    [tuple]
+      [call]
+        rep                              :: Identifier
+        [call-pre]
+          ~                              :: Identifier
+          [call]
+            var                          :: Identifier
+            [quote-:]
+              _                          :: Identifier
+            [quote-:]
+              expr                       :: Identifier
+    [block]
+      [call-pre]
+        ~                                :: Identifier
+        [call]
+          var                            :: Identifier
+          [quote-:]
+            _                            :: Identifier
+          [quote-:]
+            expr                         :: Identifier
+
+
+julia> Argus._restructure_node!(syntax_node_rep)
+SyntaxNode:
+[->]
+  [tuple-p]
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        rep                              :: Identifier
+        [call-pre]
+          ~                              :: Identifier
+          [call]
+            var                          :: Identifier
+            [quote-:]
+              _                          :: Identifier
+            [quote-:]
+              expr                       :: Identifier
+  [block]
+    [call-pre]
+      ~                                  :: Identifier
+      [call]
+        var                              :: Identifier
+        [quote-:]
+          _                              :: Identifier
+        [quote-:]
+          expr                           :: Identifier
 """
 function _restructure_node!(node::JS.SyntaxNode)
     # Save the index of the node in the parent's children list.
@@ -1048,8 +1102,22 @@ function _restructure_node!(node::JS.SyntaxNode)
         new_node.parent.children[idx_in_parent] = new_node
     end
 
+    # Decorate the `tuple` node with `IGNORE_FLAGS` for matching.
+    add_flag!(new_node.children[1], IGNORE_FLAGS)
+
     return new_node
 end
+
+function remove_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
+    new_flags = xor(JS.flags(node), flag)
+    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
+end
+function add_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
+    new_flags = JS.flags(node) | flag
+    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
+end
+replace_flags!(node::JS.SyntaxNode, new_flags::JS.RawFlags) =
+    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
 
 ### Pass 3 (misparse fix)
 

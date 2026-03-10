@@ -844,17 +844,6 @@ is_operator(node::JS.SyntaxNode) =
     haskey(JS._kind_str_to_int, string(node.data.val)) &&
     JS.is_operator(JS.Kind(string(node.data.val)))
 
-function remove_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
-    new_flags = xor(JS.flags(node), flag)
-    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
-end
-function add_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
-    new_flags = JS.flags(node) | flag
-    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
-end
-replace_flags!(node::JS.SyntaxNode, new_flags::JS.RawFlags) =
-    node.data = update_data_head(node.data, JS.SyntaxHead(kind(node), new_flags))
-
 function update_position_and_span(old_data::JS.SyntaxData, new_pos, new_span)
     old_raw = old_data.raw
     new_raw = JS.GreenNode(

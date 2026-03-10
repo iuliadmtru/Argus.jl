@@ -427,14 +427,19 @@
                 @test length(match_result[:args].src) == 1
             end
             let
+                src_empty = parsestmt(SyntaxNode, "() -> begin y end")
+                src_no_parens = parsestmt(SyntaxNode, "x -> begin y end")
+                src_parens = parsestmt(SyntaxNode, "(x) -> begin y end")
+
                 pattern = @pattern {_} -> {_}
-                src = "x -> begin y end"
-                match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
-                @test is_successful(match_result)
+                @test !is_successful(syntax_match(pattern, src_empty))
+                @test is_successful(syntax_match(pattern, src_no_parens))
+                @test is_successful(syntax_match(pattern, src_parens))
 
                 pattern_rep = @pattern ({_}...) -> {_}...
-                match_result_rep = syntax_match(pattern_rep, parsestmt(SyntaxNode, src))
-                @test is_successful(match_result_rep)
+                @test is_successful(syntax_match(pattern_rep, src_empty))
+                @test is_successful(syntax_match(pattern_rep, src_no_parens))
+                @test is_successful(syntax_match(pattern_rep, src_parens))
             end
             ## Templates.
             let
