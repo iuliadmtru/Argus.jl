@@ -854,7 +854,7 @@ is_malformed_pattern_form(node::JS.SyntaxNode) =
     kind(node.children[2].children[1]) == K"tuple" &&
     length(node.children[2].children[1].children) == 1 &&
     kind(node.children[2].children[1].children[1]) == K"call" &&
-    node.children[2].children[1].children[1].children[1].data.val == :var
+    node.children[2].children[1].children[1].children[1].data.val in [:var, :rep]
 
 get_pattern_form_name(node::JS.SyntaxNode) = node.children[2].children[1].val
 function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)

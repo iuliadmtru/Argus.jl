@@ -431,6 +431,10 @@
                 src = "x -> begin y end"
                 match_result = syntax_match(pattern, parsestmt(SyntaxNode, src))
                 @test is_successful(match_result)
+
+                pattern_rep = @pattern ({_}...) -> {_}...
+                match_result_rep = syntax_match(pattern_rep, parsestmt(SyntaxNode, src))
+                @test is_successful(match_result_rep)
             end
             ## Templates.
             let
