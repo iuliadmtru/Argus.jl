@@ -853,6 +853,10 @@ function is_pattern_form(node::JS.SyntaxNode)
     return pattern_form_name in PATTERN_FORMS
 end
 is_malformed_pattern_form(node::JS.SyntaxNode) =
+    is_malformed_anon_fundef(node)
+# `{_} -> ...`
+# `({_}...) -> ...`
+is_malformed_anon_fundef(node::JS.SyntaxNode) =
     kind(node) == K"call" &&
     length(node.children) == 2 &&
     node.children[1].data.val == :~ &&
@@ -1083,29 +1087,33 @@ SyntaxNode:
           expr                           :: Identifier
 """
 function _restructure_node!(node::JS.SyntaxNode)
-    # Save the index of the node in the parent's children list.
-    idx_in_parent = isnothing(node.parent) ?
-        nothing :
-        findfirst(c -> c == node, children(node.parent))
-    # Make `->` the new node.
-    new_node = node.children[2]
-    new_node.parent = node.parent
-    # Relink `call` node here: `[call-pre] ~ _`.
-    call_node = node.children[2].children[1].children[1]
-    call_node.parent = node
-    node.children = [node.children[1], call_node]
-    # Relink `call-pre` node here: `[tuple] _`
-    node.parent = new_node.children[1]
-    new_node.children[1].children = [node]
-    # Replace the node in the parent's children list
-    if !isnothing(idx_in_parent)
-        new_node.parent.children[idx_in_parent] = new_node
+    if is_malformed_anon_fundef(node)
+        # Save the index of the node in the parent's children list.
+        idx_in_parent = isnothing(node.parent) ?
+            nothing :
+            findfirst(c -> c == node, children(node.parent))
+        # Make `->` the new node.
+        new_node = node.children[2]
+        new_node.parent = node.parent
+        # Relink `call` node here: `[call-pre] ~ _`.
+        call_node = node.children[2].children[1].children[1]
+        call_node.parent = node
+        node.children = [node.children[1], call_node]
+        # Relink `call-pre` node here: `[tuple] _`
+        node.parent = new_node.children[1]
+        new_node.children[1].children = [node]
+        # Replace the node in the parent's children list
+        if !isnothing(idx_in_parent)
+            new_node.parent.children[idx_in_parent] = new_node
+        end
+
+        # Decorate the `tuple` node with `IGNORE_FLAGS` for matching.
+        add_flag!(new_node.children[1], IGNORE_FLAGS)
+
+        return new_node
+    else
+        error("unknown malformed pattern form")
     end
-
-    # Decorate the `tuple` node with `IGNORE_FLAGS` for matching.
-    add_flag!(new_node.children[1], IGNORE_FLAGS)
-
-    return new_node
 end
 
 function remove_flag!(node::JS.SyntaxNode, flag::JS.RawFlags)
