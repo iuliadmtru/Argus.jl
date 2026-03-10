@@ -1076,12 +1076,17 @@ compatible with each other one by one.
 function compatible(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
                     ex2::Union{JS.SyntaxNode, SyntaxPatternNode};
                     recurse=true)
-    head(ex1) == head(ex2) ||
-        # If the nodes differ only by `PARENS_FLAG`, they are compatible.
-        #
-        # TODO: Remove this after correctly parsing `macrocall` (with or without params).
-        _differ_by_parens(ex1, ex2) ||
-        return false
+    if ignore_flags(ex1) || ignore_flags(ex2)
+        # Only compare kinds.
+        kind(ex1) == kind(ex2) || return false
+    else
+        head(ex1) == head(ex2) ||
+            # If the nodes differ only by `PARENS_FLAG`, they are compatible.
+            #
+            # TODO: Remove this after correctly parsing `macrocall` (with or without params).
+            _differ_by_parens(ex1, ex2) ||
+            return false
+    end
     ex1.data.val == ex2.data.val || _infix_ops(ex1, ex2) ||
         return false
     xor(is_leaf(ex1), is_leaf(ex2)) && return false

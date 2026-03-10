@@ -746,6 +746,12 @@ end
 # Utils
 # -----
 
+# Flag that signals flags should be ignored during matching.
+const IGNORE_FLAGS = JS.RawFlags(1<<7)
+
+ignore_flags(node::SyntaxPatternNode) = JS.has_flags(node, IGNORE_FLAGS)
+ignore_flags(node::JS.SyntaxNode) = false
+
 ## AST utils
 
 is_symbol_node(node::JS.SyntaxNode) =
