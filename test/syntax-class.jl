@@ -58,17 +58,23 @@
         let
             macrocall = Argus.SYNTAX_CLASS_REGISTRY[:macrocall]
 
-            match1 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m()"))
+            match1 = syntax_match(macrocall,
+                                  parsestmt(SyntaxNode, "@m()");
+                                  keep_unexported=true)
             @test isa(match1, BindingSet)
             @test match1[:_mcall].name == "@m"
             @test isempty(match1[:_mcall].args)
 
-            match2 = syntax_match(macrocall, parsestmt(SyntaxNode, "@m 2 3"))
+            match2 = syntax_match(macrocall,
+                                  parsestmt(SyntaxNode, "@m 2 3");
+                                  keep_unexported=true)
             @test isa(match2, BindingSet)
             @test match2[:_mcall].name == "@m"
             @test length(match2[:_mcall].args) == 2
 
-            match3 = syntax_match(macrocall, parsestmt(SyntaxNode, "r\"abc\""))
+            match3 = syntax_match(macrocall,
+                                  parsestmt(SyntaxNode, "r\"abc\"");
+                                  keep_unexported=true)
             @test isa(match3, BindingSet)
             @test match3[:_mcall].name == "@r_str"
             @test length(match3[:_mcall].args) == 1

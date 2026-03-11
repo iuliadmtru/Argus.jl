@@ -53,7 +53,7 @@
         @test startswith(field_err.message,
                          """
                          BindingFieldError: binding `x` has no field `abc` because `abc` is not a sub-binding of `x`.
-                         Available fields: `_id`, `name`
+                         Available fields: `name`
                          """)
     end
     let

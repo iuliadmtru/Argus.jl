@@ -64,11 +64,12 @@ function syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
 end
 function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
-                      greedy=true)
+                      greedy=true,
+                      keep_unexported=false)
     syntax_class_failure = MatchFail("expected " * syntax_class.description)
     tracked_failure = MatchFail()
     for pattern in syntax_class.pattern_alternatives
-        match_result = _syntax_match(pattern, src; greedy)
+        match_result = _syntax_match(pattern, src; greedy, keep_unexported)
         # Return the first successful match.
         is_successful(match_result) && return match_result
         if !is_default_match_fail(match_result)
@@ -89,12 +90,26 @@ function syntax_match(pattern_node::SyntaxPatternNode,
 end
 
 """
-    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true)
+    _syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true, keep_unexported=false)
 
 Pattern syntax matching without template filling.
 """
-_syntax_match(pattern::Pattern, src::JS.SyntaxNode; greedy=true) =
-    syntax_match(pattern.src, src; greedy)
+function _syntax_match(pattern::Pattern,
+                       src::JS.SyntaxNode;
+                       greedy=true,
+                       keep_unexported=false)
+    match_result = syntax_match(pattern.src, src; greedy)
+    is_successful(match_result) || return match_result
+    if !keep_unexported
+        # Remove unexported pattern variables.
+        for b in keys(match_result)
+            if is_unexported(b)
+                delete!(match_result, b)
+            end
+        end
+    end
+    return match_result
+end
 
 """
     _syntax_match(pattern::SyntaxPatternNode,
@@ -706,7 +721,7 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     end
     # Bind the pattern variable and add it to the `BindingSet`, except if it's a
     # non-temporary anonymous binding.
-    is_anonymous_pattern_variable(pattern_var_name) && !tmp &&
+    is_anonymous(pattern_var_name) && !tmp &&
         return bindings
     # If the binding already exists, check if the new binding is compatible with the
     # old one.
@@ -1031,8 +1046,8 @@ end
 # Utils
 # -----
 
-is_anonymous_pattern_variable(ex) = ex === :_
-is_exported_pattern_variable(ex) = !startswith(string(ex), "_")
+is_anonymous(ex) = ex === :_
+is_unexported(ex) = startswith(string(ex), "_")
 
 # Match utils
 
@@ -1181,7 +1196,7 @@ function make_permanent(bs::BindingSet)
     for (k, v) in bs
         if is_temporary(v)
             # Only permanentise non-anonymous bindings.
-            if !is_anonymous_pattern_variable(k)
+            if !is_anonymous(k)
                 without_temp[k] = Binding(v)
             end
         else

@@ -117,8 +117,8 @@
             @test isa(match_result, BindingSet)
             x = match_result[:x]
             @test length(x.src) == length(x.bindings) == 2
-            @test x.bindings[1][:_lit].src.val == 2
-            @test source_location(x.bindings[2][:_lit].src) == (1, 8)
+            @test x.src[1].val == 2
+            @test source_location(x.src[2]) == (1, 8)
             y = match_result[:y]
             @test length(y.src) == length(y.bindings) == 2
             @test length(y.src[1]) == length(y.bindings[1]) == 1
@@ -251,7 +251,7 @@
             let
                 is_x = @pattern begin
                     ~and(({f:::identifier})(),
-                         ~fail([:f], f._id.name != "x", "not x"))
+                         ~fail([:f], f.name != "x", "not x"))
                 end
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
                 @test isa(match, BindingSet)
