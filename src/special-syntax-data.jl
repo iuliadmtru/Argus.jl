@@ -128,7 +128,15 @@ function RepSyntaxData(node::JS.SyntaxNode)
     return RepSyntaxData(rep_vars)
 end
 
-const PATTERN_FORMS = [:var, :fail, :or, :and, :rep]
+"""
+    NotSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for a `~not` pattern form. Pattern variables that appear inside the `~not` node don't
+get bound outside of it.
+"""
+struct NotSyntaxData <: AbstractPatternFormSyntaxData end
+
+const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not]
 
 # JuliaSyntax overwrites and utils
 # --------------------------------
@@ -146,6 +154,7 @@ _register_kinds() = JS.register_kinds!(Argus,
                                            "~or",
                                            "~and",
                                            "~rep",
+                                           "~not",
                                        ])
 _register_kinds()
 
@@ -154,6 +163,7 @@ JS.head(::FailSyntaxData) = JS.SyntaxHead(K"~fail", 0)
 JS.head(::OrSyntaxData)   = JS.SyntaxHead(K"~or",   0)
 JS.head(::AndSyntaxData)  = JS.SyntaxHead(K"~and",  0)
 JS.head(::RepSyntaxData)  = JS.SyntaxHead(K"~rep",  0)
+JS.head(::NotSyntaxData)  = JS.SyntaxHead(K"~not",  0)
 
 # Base overwrites
 # ---------------
@@ -183,11 +193,15 @@ Base.getproperty(data::RepSyntaxData, name::Symbol) =
     name === :val      ? nothing                   :
     getfield(data, name)
 
+Base.getproperty(data::NotSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
+
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
 Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
 Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
+Base.copy(::NotSyntaxData) = NotSyntaxData()
 
 # Utils
 # -----

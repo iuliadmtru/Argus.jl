@@ -71,9 +71,12 @@ function SyntaxPatternNode(ex)
     # Parse multiple pattern expressions as toplevel expressions. If the pattern only
     # contains one pattern expression, leave it as it is.
     syntax_pattern_node = parse_multiple_exprs_as_toplevel(syntax_pattern_node)
-    # TODO: Check that all repetitions contain pattern variables that don't appear anywhere
-    #       else in the pattern.
-    return fix_misparsed!(syntax_pattern_node)
+    syntax_pattern_node = fix_misparsed!(syntax_pattern_node)
+    # TODO: "Verify" pass.
+    #       - Check for single `~not` patterns.
+    #       - Ensure that all repetitions contain pattern variables that don't appear
+    #         anywhere else in the pattern.
+    return syntax_pattern_node
 end
 
 # Passes
@@ -362,6 +365,7 @@ function _parse_pattern_form(node::JS.SyntaxNode)
         pattern_form_name === :or   ? OrSyntaxData()                       :
         pattern_form_name === :and  ? AndSyntaxData()                      :
         pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
+        pattern_form_name === :not  ? NotSyntaxData()                      :
         nothing
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
@@ -801,6 +805,7 @@ is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
 is_or(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :or
 is_and(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_rep(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :rep
+is_not(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :not
 
 is_sugared_var(ex) =
     is_pattern_variable(ex)               ||
@@ -879,6 +884,7 @@ function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name === :or   && return _strip_quote_node.(args)
     name === :and  && return _strip_quote_node.(args)
     name === :rep  && return args
+    name === :not  && return _strip_quote_node.(args)
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
 function _get_pattern_form_args(node::JS.SyntaxNode)
@@ -891,6 +897,7 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     name === :or   && return JS.SyntaxNode[]
     name === :and  && return JS.SyntaxNode[]
     name === :rep  && return arg_nodes
+    name === :not  && return JS.SyntaxNode[]
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -1263,6 +1270,7 @@ is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
 is_or(node::SyntaxPatternNode)   = isa(node.data, OrSyntaxData)
 is_and(node::SyntaxPatternNode)  = isa(node.data, AndSyntaxData)
 is_rep(node::SyntaxPatternNode)  = isa(node.data, RepSyntaxData)
+is_not(node::SyntaxPatternNode)  = isa(node.data, NotSyntaxData)
 
 ### Getters
 

@@ -680,6 +680,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; kwargs...)
     isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; kwargs...)
     isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...; greedy)
+    isa(node_data, NotSyntaxData)  && return syntax_match_not(args...; greedy)
     return MatchFail("unknown pattern form")
 end
 
@@ -1041,6 +1042,21 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     end
     match_result = make_permanent(partial_results)
     return merge(bindings, match_result)
+end
+
+function syntax_match_not(not_node::SyntaxPatternNode,
+                          src::JS.SyntaxNode,
+                          bindings::BindingSet;
+                          greedy=true)
+    not_bindings = shared_copy(bindings)
+    match_result = _syntax_match(not_node.children[1],
+                                 src,
+                                 not_bindings;
+                                 recovery_stack=[],
+                                 greedy)
+    return is_successful(match_result) ?
+        MatchFail("`~not` subpattern match succeeded") :  # TODO: Better error message.
+        bindings
 end
 
 # Utils

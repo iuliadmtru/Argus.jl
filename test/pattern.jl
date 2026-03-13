@@ -130,6 +130,24 @@
             pattern = @pattern [{x:::identifier}..., 2]
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")), BindingSet)
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2]")), MatchFail)
+        # `~not`
+            let
+                pattern = @pattern ~not({x:::literal})
+                @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "x")))
+                @test !is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "1")))
+            end
+            let
+                pattern = @pattern ~and(
+                    {x} = {y},
+                    ~not({f:::fundef})
+                )
+                match_result = syntax_match(pattern, parsestmt(SyntaxNode, "x = 2"))
+                @test is_successful(match_result)
+                @test length(match_result) == 2
+                @test !haskey(match_result, :f)
+                fail_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
+                @test fail_result == MatchFail("`~not` subpattern match succeeded")
+            end
         end
     end
 
