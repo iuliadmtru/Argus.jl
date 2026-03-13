@@ -6,11 +6,12 @@
             description = ""
             pattern = p
         end
-        @test_throws "Expected 2 or 3 arguments, got 4" @macroexpand @rule "" begin
+        @test_throws "Expected 2, 3 or 4 arguments, got 5" @macroexpand @rule "" begin
             description = ""
             pattern = p
             template = t
-            arg4 = "bla"
+            metadata = Dict()
+            arg5 = "bla"
         end
         @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
             description => ""
@@ -28,10 +29,21 @@
             description = ""
             other = p
         end
-        @test_throws "should be `template`" @macroexpand @rule "" begin
+        @test_throws "should be `template` or `metadata`" @macroexpand @rule "" begin
             description = ""
             pattern = p
             other = t
+        end
+        @test_throws "`metadata` should be the last" @macroexpand @rule "" begin
+            description = ""
+            pattern = p
+            metadata = Dict()
+            template = t
+        end
+        @test_throws "metadata should be given as a `Dict`" @macroexpand @rule "" begin
+            description = ""
+            pattern = p
+            metadata = m
         end
     end
 
@@ -321,6 +333,47 @@
             @test length(match_result.matches) == 2
             @test match_result.matches[1][1].source_location == (4, 9)
             @test match_result.matches[2][1].source_location == (7, 6)
+        end
+    end
+
+    @testset "Rule metadata" begin
+        let
+            rule = @rule "dummy" begin
+                description = ""
+                pattern = @pattern {_}
+                metadata = Dict(
+                    :exclude_files => ["bla.jl", "blu.jl"]
+                )
+            end
+            @test_throws("no metadata defined for `:exclude_files`",
+                         rule_match(rule, parsestmt(SyntaxNode, "x"; filename="blu.jl")))
+        end
+        let
+            @define_rule_metadata :exclude_files begin
+                args = @pattern [{files}...]
+
+                pre_check = @check [:files] begin
+                    file_names = map(s -> s.children[1].val, files.src)
+                    if current_file() in file_names
+                        skip_match()
+                    end
+                end
+
+                post_check = nothing
+            end
+
+            rule = @rule "dummy" begin
+                description = ""
+                pattern = @pattern {_}
+                metadata = Dict(
+                    :exclude_files => ["bla.jl", "blu.jl"]
+                )
+            end
+
+            no_match_result = rule_match(rule, parsestmt(SyntaxNode, "x"; filename="blu.jl"))
+            @test isempty(no_match_result.matches)
+            match_result = rule_match(rule, parsestmt(SyntaxNode, "x"; filename="ble.jl"))
+            @test length(match_result.matches) == 1
         end
     end
 
