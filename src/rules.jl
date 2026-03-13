@@ -588,7 +588,7 @@ function rule_match(rule::Rule,
                 rethrow(err)
             end
             isnothing(m.pre_check) && continue
-            bound_args = syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, string(m_args)))
+            bound_args = syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, repr(m_args)))
             is_successful(bound_args) ||
                 error("Rule metadata args pattern incorrect")  # TODO: Specific error.
             skip = m.pre_check(rule, JS.filename(src), bound_args)
