@@ -2,7 +2,7 @@
 
     @testset "Pattern forms" begin
         # `~var`.
-        let
+        @testset "`~var`" begin
             @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:ex, :expr) )))
             @test_throws "invalid pattern form argument `x`" Pattern(
                 SyntaxPatternNode(:( ~var(x, :identifier) ))
@@ -10,7 +10,7 @@
         end
 
         # `~or`.
-        let
+        @testset "`~or`" begin
             pattern = @pattern begin
                 ~or({x} + 2,
                     ~and({_}, {y} + 3))
@@ -27,7 +27,7 @@
         end
 
         # `~and`.
-        let
+        @testset "`~and`" begin
             conflicting = @pattern begin
                 ~and({x} + 2, {x} + 3)
             end
@@ -36,101 +36,111 @@
         end
 
         # `~fail`.
-        let
-            pattern = @pattern ~fail([], x, "")
-            @test_throws BindingSetKeyError syntax_match(pattern,
-                                                         parsestmt(SyntaxNode, "dummy"))
-        end
-        let
-            pattern = @pattern ~fail([], :(x + 1), "")
-            @test try
-                syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            catch err
-                isa(err, MatchError) &&
-                    sprint(showerror, err) ==
-                    "MatchError: Fail condition evaluated to Expr instead of Bool (`x + 1`)\n"
-            else
-                false
+        @testset "`~fail`" begin
+            let
+                pattern = @pattern ~fail([], x, "")
+                @test_throws BindingSetKeyError syntax_match(pattern,
+                                                             parsestmt(SyntaxNode,
+                                                                       "dummy"))
+            end
+            let
+                pattern = @pattern ~fail([], :(x + 1), "")
+                @test try
+                    syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                catch err
+                    isa(err, MatchError) &&
+                        sprint(showerror, err) ==
+                        "MatchError: Fail condition evaluated to Expr instead of Bool (`x + 1`)\n"
+                else
+                    false
+                end
             end
         end
 
         # `~rep`
-        let
-            pattern = @pattern {x}...
-            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{JuliaSyntax.SyntaxNode})
-            @test length(match_result[:x].src) == 1
-            @test isa(match_result[:x].bindings, Vector{BindingSet})
-            @test length(match_result[:x].bindings) == 1
-        end
-        let
-            pattern = @pattern ({x}...)...
-            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 1
-            @test isa(match_result[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
-            @test isa(match_result[:x].bindings,
-                      Vector{Vector{BindingSet}})
-        end
-        let
-            pattern = @pattern begin
-                {f}({args}...)
+        @testset "`~rep`" begin
+            let
+                pattern = @pattern {x}...
+                    match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                @test isa(match_result, BindingSet)
+                @test length(match_result) == 1
+                @test isa(match_result[:x].src, Vector{JuliaSyntax.SyntaxNode})
+                @test length(match_result[:x].src) == 1
+                @test isa(match_result[:x].bindings, Vector{BindingSet})
+                @test length(match_result[:x].bindings) == 1
             end
-            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(a, b; c=2)"))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 2
-            args = match_result[:args]
-            @test length(args.src) == 3
-        end
-        let
-            pattern = @pattern begin
-                ({f}({args}...) = {_})...
+            let
+                pattern = @pattern ({x}...)...
+                    match_result = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                @test isa(match_result, BindingSet)
+                @test length(match_result) == 1
+                @test isa(match_result[:x].src, Vector{Vector{JuliaSyntax.SyntaxNode}})
+                @test isa(match_result[:x].bindings,
+                          Vector{Vector{BindingSet}})
             end
-            # Match.
-            src = """
+            let
+                pattern = @pattern begin
+                    {f}({args}...)
+                end
+                match_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(a, b; c=2)"))
+                @test isa(match_result, BindingSet)
+                @test length(match_result) == 2
+                args = match_result[:args]
+                @test length(args.src) == 3
+            end
+            let
+                pattern = @pattern begin
+                    ({f}({args}...) = {_})...
+                        end
+                # Match.
+                src = """
             f() = begin 2 end
             g(x) = begin x + 1 end
             h(a; b::Int=2) = begin a - b end
             """
-            match_result = syntax_match(pattern, parseall(SyntaxNode, src))
-            @test isa(match_result, BindingSet)
-            @test length(match_result) == 2
-            args_bindings = match_result[:args]
-            f_bindings = match_result[:f]
-            @test length(args_bindings.src) == length(f_bindings.src) == 3
-            src3 = args_bindings.src[3]
-            @test source_location(src3[2]) == (3, 4)
-            # Fail.
-            src_fail = """
+                match_result = syntax_match(pattern, parseall(SyntaxNode, src))
+                @test isa(match_result, BindingSet)
+                @test length(match_result) == 2
+                args_bindings = match_result[:args]
+                f_bindings = match_result[:f]
+                @test length(args_bindings.src) == length(f_bindings.src) == 3
+                src3 = args_bindings.src[3]
+                @test source_location(src3[2]) == (3, 4)
+                # Fail.
+                src_fail = """
             f() = begin 2 end
             g(x)::Int = begin x + 1 end
             h(a; b::Int=2) = begin a - b end
             """
-            fail_result = syntax_match(pattern, parseall(SyntaxNode, src_fail))
-            @test isa(fail_result, MatchFail)
+                fail_result = syntax_match(pattern, parseall(SyntaxNode, src_fail))
+                @test isa(fail_result, MatchFail)
+            end
+            let
+                pattern = @pattern [2, ({x:::literal})..., 2, ({y}...)...]
+                match_result =
+                    syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2, 2, 2, 3, 4]"))
+                @test isa(match_result, BindingSet)
+                x = match_result[:x]
+                @test length(x.src) == length(x.bindings) == 2
+                @test x.src[1].val == 2
+                @test source_location(x.src[2]) == (1, 8)
+                y = match_result[:y]
+                @test length(y.src) == length(y.bindings) == 2
+                @test length(y.src[1]) == length(y.bindings[1]) == 1
+                @test length(y.src[2]) == length(y.bindings[2]) == 1
+                @test y.src[1][1].val == 3
+                @test y.src[2][1].val == 4
+            end
+            let
+                pattern = @pattern [{x:::identifier}..., 2]
+                @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "[2, 2]")))
+            end
         end
-        let
-            pattern = @pattern [2, ({x:::literal})..., 2, ({y}...)...]
-            match_result = syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2, 2, 2, 3, 4]"))
-            @test isa(match_result, BindingSet)
-            x = match_result[:x]
-            @test length(x.src) == length(x.bindings) == 2
-            @test x.src[1].val == 2
-            @test source_location(x.src[2]) == (1, 8)
-            y = match_result[:y]
-            @test length(y.src) == length(y.bindings) == 2
-            @test length(y.src[1]) == length(y.bindings[1]) == 1
-            @test length(y.src[2]) == length(y.bindings[2]) == 1
-            @test y.src[1][1].val == 3
-            @test y.src[2][1].val == 4
-        end
-        let
-            pattern = @pattern [{x:::identifier}..., 2]
-            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[a, 2]")), BindingSet)
-            @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "[2, 2]")), MatchFail)
+
         # `~not`
+        @testset "`~not`" begin
             let
                 pattern = @pattern ~not({x:::literal})
                 @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "x")))
