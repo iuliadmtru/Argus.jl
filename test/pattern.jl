@@ -233,6 +233,11 @@
 
         @testset "Pattern matching" begin
             let
+                pattern = @pattern []
+                @test is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "[]")))
+                @test !is_successful(syntax_match(pattern, parsestmt(SyntaxNode, "Any[]")))
+            end
+            let
                 binary_funcall_pattern = @pattern ({f:::identifier})({arg1}, {_})
                 ## Match.
                 let

@@ -455,6 +455,7 @@ function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)
         ]
         return SyntaxPatternNode(nothing, new_children, node.data)
     elseif kind(node) === K"vect"            &&
+        !isempty(children(node))             &&
         kind(children(node)[1]) === K"quote" &&
         children(children(node)[1])[1].data.val === :pattern_toplevel
         # The expression has the following form:
