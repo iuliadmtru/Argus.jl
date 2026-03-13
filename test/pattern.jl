@@ -196,6 +196,13 @@
             end
         end
 
+        @testset "Misparse fixes" begin
+            let
+                pattern = @pattern const {_} = {_}
+                @test kind(pattern.src.children[1]) == K"="
+            end
+        end
+
         @testset "Pattern matching" begin
             let
                 binary_funcall_pattern = @pattern ({f:::identifier})({arg1}, {_})
