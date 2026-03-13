@@ -34,7 +34,8 @@ include("expand.jl")
 # Part 2: Rule writing mechanism
 # ==============================
 
-export Rule, @rule, RuleGroup, @define_rule_in_group, register_rule!
+export Rule, @rule, RuleMetadata, @define_rule_metadata,
+    RuleGroup, @define_rule_in_group, register_rule!
 export rule_match, rule_group_match, RuleMatchResult, RuleGroupMatchResult
 
 include("rules.jl")

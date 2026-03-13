@@ -12,9 +12,10 @@ struct Rule
     description::String
     pattern::Pattern
     template::Union{Nothing, Template}
+    metadata::Union{Nothing, Dict{Symbol, Any}}
 end
 Rule(name::String, description::String, pattern::Pattern) =
-    Rule(name, description, pattern, nothing)
+    Rule(name, description, pattern, nothing, nothing)
 
 """
     @rule(name, ex)
@@ -86,10 +87,10 @@ macro rule(name, ex)
     # Check the rule syntax.
     @isexpr(ex, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
-    length(ex.args) == 4 || length(ex.args) == 6 ||
+    length(ex.args) == 4 || length(ex.args) == 6 || length(ex.args) == 8 ||
         throw(SyntaxError("""
                           invalid `@rule` syntax
-                          Expected 2 or 3 arguments, got $(length(ex.args)/2).""",
+                          Expected 2, 3 or 4 arguments, got $(length(ex.args)/2).""",
                           __source__.file,
                           __source__.line))
     # Get the first argument, which should be the description.
@@ -122,8 +123,10 @@ macro rule(name, ex)
                           line_number_arg2.file,
                           line_number_arg2.line))
     pattern_expr = arg2.args[2]
-    # If there is one, get the third argument, which should be the template.
+    # If there is one, get the third argument, which should be either the template or
+    # the metadata.
     template_expr = nothing
+    metadata_expr = nothing
     if length(ex.args) == 6
         line_number_arg3 = ex.args[5]
         arg3 = ex.args[6]
@@ -132,16 +135,63 @@ macro rule(name, ex)
                               line_number_arg3.file,
                               line_number_arg3.line))
         arg3_name = arg3.args[1]
-        arg3_name === :template ||
+        if arg3_name === :template
+            template_expr = arg3.args[2]
+        elseif arg3_name === :metadata
+            metadata_expr = arg3.args[2]
+            @isexpr(metadata_expr, :call) && metadata_expr.args[1] == :Dict ||
+                throw(SyntaxError("""
+                                  invalid rule argument: $arg3_name
+                                  Rule metadata should be given as a `Dict`.""",
+                                  line_number_arg3.file,
+                                  line_number_arg3.line))
+        else
             throw(SyntaxError("""
                               invalid rule argument name: $arg3_name
-                              The third argument of `@rule` should be `template`.""",
+                              The third argument of `@rule` should be `template` or `metadata`.
+                              """,
                               line_number_arg3.file,
                               line_number_arg3.line))
-        template_expr = arg3.args[2]
+        end
+    end
+    # If there is one, get the fourth argument, which should be the metadata.
+    if length(ex.args) == 8
+        line_number_arg4 = ex.args[7]
+        arg3_name = ex.args[6].args[1]
+        arg3_name === :metadata &&
+            throw(SyntaxError("""
+                              invalid `@rule` syntax.
+                              `metadata` should be the last argument of `@rule`.""",
+                              line_number_arg4.file,
+                              line_number_arg4.line))
+        arg4 = ex.args[8]
+        @isexpr(arg4, :(=), 2) ||
+            throw(SyntaxError(err_msg_invalid_arg_syntax,
+                              line_number_arg4.file,
+                              line_number_arg4.line))
+        arg4_name = arg4.args[1]
+        arg4_name === :metadata ||
+            throw(SyntaxError("""
+                              invalid rule argument name: $arg4_name
+                              The fourth argument of `@rule` should be `metadata`.""",
+                              line_number_arg4.file,
+                              line_number_arg4.line))
+        metadata_expr = arg4.args[2]
+        @isexpr(metadata_expr, :call) && metadata_expr.args[1] == :Dict ||
+            throw(SyntaxError("""
+                              invalid rule argument: $arg4_name
+                              Rule metadata should be given as a `Dict`.""",
+                              line_number_arg4.file,
+                              line_number_arg4.line))
     end
 
-    return :( Rule($name, $description, $(esc(pattern_expr)), $(esc(template_expr))) )
+    return :(
+        Rule($name,
+             $description,
+             $(esc(pattern_expr)),
+             $(esc(template_expr)),
+             $(esc(metadata_expr)))
+    )
 end
 
 # Display
@@ -153,6 +203,212 @@ function Base.show(io::IO, rule::Rule)
     println(io, name, ":\n", rstrip(description))
     println(io)
     show(io, MIME("text/plain"), rule.pattern)
+    println(io)
+    println(io)
+    println(io, "Template:")
+    template = isnothing(rule.template) ?
+        "<no template>" :
+        repr(MIME("text/plain"), rule.template)
+    println(io, template)
+    println(io)
+    metadata = isnothing(rule.metadata) ?
+        "<no metadata>" :
+        replace(repr(MIME("text/plain"), rule.metadata), r".*\n" => ""; count=1)
+    println(io, "Metadata:")
+    println(io, metadata)
+end
+
+# Rule metadata
+# =============
+
+"""
+    RuleMetadata
+
+Metadata for a rule. Its contents can be extended using `@define_rule_metadata`.
+"""
+struct RuleMetadata
+    name::Symbol
+    args::Pattern
+    pre_check::Union{Nothing, Function}
+    post_check::Union{Nothing, Function}
+end
+
+"""
+    RuleMetadataRegistry
+
+Registry for storing rule metadata. Alias for `Dict{Symbol, RuleMetadata}`.
+"""
+const RuleMetadataRegistry = Dict{Symbol, RuleMetadata}
+
+RULES_METADATA = RuleMetadataRegistry()
+
+macro define_rule_metadata(name, ex)
+    err_msg_general =
+        """
+        invalid `@define_rule_metadata` syntax
+        The `@define_rule_metadata` body should be defined using a `begin ... end` block.
+        """
+    err_msg_invalid_arg_syntax =
+        """
+        invalid `@define_rule_metadata` argument syntax
+        """
+    # Check the rule syntax.
+    @isexpr(ex, :block) ||
+        throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
+    length(ex.args) == 6 ||
+        throw(SyntaxError("""
+                          invalid `@define_rule_metadata` syntax
+                          Expected 3 arguments, got $(length(ex.args)/2).
+                          """,
+                          __source__.file,
+                          __source__.line))
+    # Get the first argument, which should be the argument list.
+    line_number_arg1 = ex.args[1]
+    arg1 = ex.args[2]
+    @isexpr(arg1, :(=), 2) ||
+        throw(SyntaxError(err_msg_invalid_arg_syntax,
+                          line_number_arg1.file,
+                          line_number_arg1.line))
+    arg1_name = arg1.args[1]
+    arg1_name === :args ||
+        throw(SyntaxError("""
+                          invalid metadata argument name: $arg1_name
+                          The first argument of `@define_rule_metadata` should be `args`.
+                          """,
+                          line_number_arg1.file,
+                          line_number_arg1.line))
+    args = arg1.args[2]
+    # Get the second argument, which should be the pre-match check.
+    line_number_arg2 = ex.args[3]
+    arg2 = ex.args[4]
+    @isexpr(arg2, :(=), 2) ||
+        throw(SyntaxError(err_msg_invalid_arg_syntax,
+                          line_number_arg2.file,
+                          line_number_arg2.line))
+    arg2_name = arg2.args[1]
+    arg2_name === :pre_check ||
+        throw(SyntaxError("""
+                          invalid metadata argument name: $arg1_name
+                          The second argument of `@define_rule_metadata` should be `pre_check`.
+                          """,
+                          line_number_arg2.file,
+                          line_number_arg2.line))
+    pre_check = arg2.args[2]
+    pre_check == :nothing || is_check_macro(pre_check) ||
+        throw(SyntaxError("""
+                          invalid metadata argument: $arg1_name
+                          The `pre_check` rhs should be `nothing` or a `@check` call.
+                          """,
+                          line_number_arg2.file,
+                          line_number_arg2.line))
+    pre_check_fun = if pre_check == :nothing
+        :nothing
+    else
+        # Extract pattern variables.
+        pattern_vars = map(s -> s.value, pre_check.args[3].args)
+        # Create a function definition for the pre-match check.
+        rule_arg = gensym()
+        file_arg = gensym()
+        bindings = gensym()
+        let_bindings = [:($v = $bindings[$(QuoteNode(v))]) for v in pattern_vars]
+        @RuntimeGeneratedFunction(:(
+            ($rule_arg, $file_arg, $bindings) -> let $(let_bindings...)
+                skip = false
+                current_file() = $file_arg
+                skip_match() = (skip = true)
+                $(pre_check.args[4])
+                return skip
+            end
+        ))
+    end
+    # Get the third argument, which should be the post-match check.
+    line_number_arg3 = ex.args[5]
+    arg3 = ex.args[6]
+    @isexpr(arg3, :(=), 2) ||
+        throw(SyntaxError(err_msg_invalid_arg_syntax,
+                          line_number_arg3.file,
+                          line_number_arg3.line))
+    arg3_name = arg3.args[1]
+    arg3_name === :post_check ||
+        throw(SyntaxError("""
+                          invalid metadata argument name: $arg1_name
+                          The third argument of `@define_rule_metadata` should be `post_check`.
+                          """,
+                          line_number_arg3.file,
+                          line_number_arg3.line))
+    post_check = arg3.args[2]
+    # TODO: Remove duplicate code.
+    post_check == :nothing || is_check_macro(post_check) ||
+        throw(SyntaxError("""
+                          invalid metadata argument: $arg1_name
+                          The `post_check` rhs should be `nothing` or a `@check` call.
+                          """,
+                          line_number_arg2.file,
+                          line_number_arg2.line))
+    post_check_fun = if post_check == :nothing
+        :nothing
+    else
+        # Extract pattern variables.
+        pattern_vars = map(s -> s.value, post_check.args[3].args)
+        # Create a function definition for the pre-match check.
+        rule_arg = gensym()
+        file_arg = gensym()
+        bindings = gensym()
+        let_bindings = [:($v = $bindings[$(QuoteNode(v))]) for v in pattern_vars]
+        @RuntimeGeneratedFunction(:(
+            ($rule_arg, $file_arg, $bindings) -> let $(let_bindings...)
+                $(post_check.args[4])
+            end
+        ))
+    end
+
+    return :(
+        RULES_METADATA[$name] = RuleMetadata($name,
+                                             $(esc(args)),
+                                             $(esc(pre_check_fun)),
+                                             $(esc(post_check_fun)))
+    )
+end
+
+# Display
+# -------
+
+function Base.show(io::IO, metadata::RuleMetadata)
+    println(io, metadata.name, ":")
+    println(io)
+    println(io, "Arguments:")
+    println(io, replace(repr(MIME("text/plain"), metadata.args), r".*\n" => ""; count=1))
+    println(io)
+    println(io, "Pre-match check:")
+    pre_check = isnothing(metadata.pre_check) ?
+        "<no pre-match check>" :
+        repr(MIME("text/plain"), metadata.pre_check)
+    println(io, pre_check)
+    println(io)
+    println(io, "Pre-match check:")
+    post_check = isnothing(metadata.post_check) ?
+        "<no post-match check>" :
+        repr(MIME("text/plain"), metadata.post_check)
+    println(io, post_check)
+end
+
+Base.show(io::IO, ::Type{RuleMetadataRegistry}) = print(io, "RuleMetadataRegistry")
+
+# Utils
+# -----
+
+is_check_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@check")
+
+# Errors
+# ======
+
+struct RuleMetadataRegistryKeyError <: Exception
+    key::Symbol
+end
+
+function Base.showerror(io::IO, err::RuleMetadataRegistryKeyError)
+    print(io, "RuleMetadataRegistryKeyError: ")
+    println(io, "no metadata defined for `:", err.key, "`")
 end
 
 # Rule groups
@@ -323,6 +579,24 @@ function rule_match(rule::Rule,
                     src::JS.SyntaxNode;
                     greedy=true,
                     only_matches=true)
+    if !isnothing(rule.metadata)
+        for (m_name, m_args) in rule.metadata
+            m = try
+                RULES_METADATA[m_name]
+            catch err
+                isa(err, KeyError) && throw(RuleMetadataRegistryKeyError(err.key))
+                rethrow(err)
+            end
+            isnothing(m.pre_check) && continue
+            bound_args = syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, string(m_args)))
+            is_successful(bound_args) ||
+                error("Rule metadata args pattern incorrect")  # TODO: Specific error.
+            skip = m.pre_check(rule, JS.filename(src), bound_args)
+            if skip
+                return RuleMatchResult()
+            end
+        end
+    end
     match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
     binding_sets = match_results.matches
     matches_with_refactorings = isnothing(rule.template) ?
