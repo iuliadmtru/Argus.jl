@@ -196,6 +196,33 @@
             end
         end
 
+        @testset "`~inner" begin
+            let
+                pattern = @pattern ~inner({i:::identifier})
+                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
+                @test source_location(match_success[:i].src) == (1, 8)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
+                @test match_fail.message ==
+                    "`~inner` pattern does not match: expected identifier"
+                @test match_fail.source_location == (1, 1)
+            end
+            let
+                pattern = @pattern ~and(
+                    {_:::fundef},
+                    ~inner({i:::identifier})
+                )
+                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
+                @test source_location(match_success[:i].src) == (1, 8)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
+                @test match_fail.message ==
+                    "`~inner` pattern does not match: expected identifier"
+                @test match_fail.source_location == (1, 1)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x)"))
+                @test match_fail.message == "expected function definition"
+                @test match_fail.source_location == (1, 1)
+            end
+        end
+
     end
 
     @testset "General" begin
@@ -517,6 +544,28 @@
                 @test is_successful(syntax_match(pattern_rep, src_empty))
                 @test is_successful(syntax_match(pattern_rep, src_no_parens))
                 @test is_successful(syntax_match(pattern_rep, src_parens))
+            end
+            let
+                pattern = @pattern ~and(
+                    {m:::macrocall},
+                    ~outer(~not(println({_}...)))
+                )
+                match_fail = syntax_match_all(pattern,
+                                              parsestmt(SyntaxNode, "println(@m(x))"))
+                @test length(match_fail.matches) == 0
+                match_success = syntax_match_all(pattern,
+                                                 parsestmt(SyntaxNode, "print(@m(x))"))
+                @test length(match_success.matches) == 1
+            end
+            let
+                pattern = @pattern ~and(
+                    {m:::macrocall},
+                    ~not(~inner(println({_}...)))
+                )
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "@m println(x)")))
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "@m print(x)")))
             end
             ## Templates.
             let

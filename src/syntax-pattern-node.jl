@@ -367,6 +367,7 @@ function _parse_pattern_form(node::JS.SyntaxNode)
         pattern_form_name === :rep   ? RepSyntaxData(pattern_form_args...)  :
         pattern_form_name === :not   ? NotSyntaxData()                      :
         pattern_form_name === :outer ? OuterSyntaxData()                    :
+        pattern_form_name === :inner ? InnerSyntaxData()                    :
         error("cannot parse pattern form `~$(pattern_form_name)`")
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
@@ -810,6 +811,7 @@ is_and(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_rep(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :rep
 is_not(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :not
 is_outer(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :outer
+is_inner(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :inner
 
 is_sugared_var(ex) =
     is_pattern_variable(ex)               ||
@@ -890,6 +892,7 @@ function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name === :rep   && return args
     name === :not   && return _strip_quote_node.(args)
     name === :outer && return _strip_quote_node.(args)
+    name === :inner && return _strip_quote_node.(args)
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
 function _get_pattern_form_args(node::JS.SyntaxNode)
@@ -904,6 +907,7 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     name === :rep   && return arg_nodes
     name === :not   && return JS.SyntaxNode[]
     name === :outer && return JS.SyntaxNode[]
+    name === :inner && return JS.SyntaxNode[]
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -1278,6 +1282,7 @@ is_and(node::SyntaxPatternNode)   = isa(node.data, AndSyntaxData)
 is_rep(node::SyntaxPatternNode)   = isa(node.data, RepSyntaxData)
 is_not(node::SyntaxPatternNode)   = isa(node.data, NotSyntaxData)
 is_outer(node::SyntaxPatternNode) = isa(node.data, OuterSyntaxData)
+is_inner(node::SyntaxPatternNode) = isa(node.data, InnerSyntaxData)
 
 ### Getters
 

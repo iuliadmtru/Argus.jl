@@ -143,7 +143,14 @@ Data for an `~outer` pattern form.
 """
 struct OuterSyntaxData <: AbstractPatternFormSyntaxData end
 
-const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not, :outer]
+"""
+    InnerSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for an `~inner` pattern form.
+"""
+struct InnerSyntaxData <: AbstractPatternFormSyntaxData end
+
+const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not, :outer, :inner]
 
 # JuliaSyntax overwrites and utils
 # --------------------------------
@@ -163,6 +170,7 @@ _register_kinds() = JS.register_kinds!(Argus,
                                            "~rep",
                                            "~not",
                                            "~outer",
+                                           "~inner",
                                        ])
 _register_kinds()
 
@@ -173,6 +181,7 @@ JS.head(::AndSyntaxData)   = JS.SyntaxHead(K"~and",   0)
 JS.head(::RepSyntaxData)   = JS.SyntaxHead(K"~rep",   0)
 JS.head(::NotSyntaxData)   = JS.SyntaxHead(K"~not",   0)
 JS.head(::OuterSyntaxData) = JS.SyntaxHead(K"~outer", 0)
+JS.head(::InnerSyntaxData) = JS.SyntaxHead(K"~inner", 0)
 
 # Base overwrites
 # ---------------
@@ -208,6 +217,9 @@ Base.getproperty(data::NotSyntaxData, name::Symbol) =
 Base.getproperty(data::OuterSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
+Base.getproperty(data::InnerSyntaxData, name::Symbol) =
+    name === :val ? nothing : getfield(data, name)
+
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
 Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
 Base.copy(::OrSyntaxData) = OrSyntaxData()
@@ -215,6 +227,7 @@ Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 Base.copy(::NotSyntaxData) = NotSyntaxData()
 Base.copy(::OuterSyntaxData) = OuterSyntaxData()
+Base.copy(::InnerSyntaxData) = InnerSyntaxData()
 
 # Utils
 # -----
