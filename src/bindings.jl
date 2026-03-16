@@ -369,6 +369,11 @@ Base.mergewith!(c, bs::BindingSet, others::BindingSet...) =
 Base.keytype(bs::BindingSet) = keytype(bs.bindings)
 Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 
+# JuliaSyntax overwrites
+# ----------------------
+
+JS.source_location(bs::BindingSet) = bs.source_location
+
 # Utils
 # -----
 
