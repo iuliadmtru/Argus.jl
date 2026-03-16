@@ -1153,7 +1153,7 @@ end
                        tmp=false)
 
 Try to match an `~inner` pattern with a source node. If the pattern enclosed in `~inner`
-is found among the source node's children, return the bindings resulting from the match.
+is found inside thesource node ay any depth, return the bindings resulting from the match.
 Otherwise, return a match failure.
 """
 function syntax_match_inner(inner_node::SyntaxPatternNode,
@@ -1174,15 +1174,9 @@ function syntax_match_inner(inner_node::SyntaxPatternNode,
     failure = MatchFail(fail_message, fail_location, fail_file)
     # Return the first successful match, but store the others as recovery states.
     for (i, s) in enumerate(children(src))
-        recovery_stack_child = []
-        match_result = _syntax_match(inner_node.children[1],
-                                     s,
-                                     bindings_inner;
-                                     recovery_stack=recovery_stack_child,
-                                     recover=true,
-                                     greedy,
-                                     tmp)
-        if is_successful(match_result)
+        match_results =
+            syntax_match_all(inner_node.children[1], s; greedy, only_matches=false)
+        if length(match_results.matches) > 0
             # If this is not the last child, we might be able to recover from one of the
             # next children in the encompassing pattern fails to match.
             if i < length(children(src))
@@ -1191,16 +1185,19 @@ function syntax_match_inner(inner_node::SyntaxPatternNode,
                 [c.parent = next_try for c in next_try_children]
                 push!(recovery_stack, (inner_node, next_try, bindings))
             end
-            return match_result
+            # Return the first match.
+            return match_results.matches[1]
         end
         # Reset the bindings.
         bindings_inner = shared_copy(bindings)
-        extended_fail_message = is_default_match_fail(match_result) ?
+        # TODO: Find most specific error.
+        inner_fail =
+            findfirst(m -> !is_default_match_fail(m), match_results.failures)
+        extended_fail_message = isnothing(inner_fail) ?
             fail_message :
-            fail_message * ": " * (match_result::MatchFail).message
+            fail_message * ": " * match_results.failures[inner_fail].message
         failure = MatchFail(extended_fail_message, fail_location, fail_file)
     end
-    # TODO: Return the most specific error.
     return failure
 end
 

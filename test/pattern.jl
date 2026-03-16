@@ -200,25 +200,25 @@
             let
                 pattern = @pattern ~inner({i:::identifier})
                 match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
-                @test source_location(match_success[:i].src) == (1, 8)
-                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
+                @test source_location(match_success[:i].src) == (1, 1)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "() -> ()"))
                 @test match_fail.message ==
                     "`~inner` pattern does not match: expected identifier"
                 @test match_fail.source_location == (1, 1)
             end
             let
                 pattern = @pattern ~and(
-                    {_:::fundef},
-                    ~inner({i:::identifier})
+                    {_:::macrocall},
+                    ~inner({l:::literal})
                 )
-                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
-                @test source_location(match_success[:i].src) == (1, 8)
-                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
+                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "@m 4"))
+                @test source_location(match_success[:l].src) == (1, 4)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "@m x"))
                 @test match_fail.message ==
-                    "`~inner` pattern does not match: expected identifier"
+                    "`~inner` pattern does not match: expected literal"
                 @test match_fail.source_location == (1, 1)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x)"))
-                @test match_fail.message == "expected function definition"
+                @test match_fail.message == "expected macro call"
                 @test match_fail.source_location == (1, 1)
             end
         end
