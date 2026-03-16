@@ -1,7 +1,7 @@
 @testset "Pattern" begin
 
     @testset "Pattern forms" begin
-        # `~var`.
+
         @testset "`~var`" begin
             @test_nowarn Pattern(SyntaxPatternNode(:( ~var(:ex, :expr) )))
             @test_throws "invalid pattern form argument `x`" Pattern(
@@ -9,7 +9,6 @@
             )
         end
 
-        # `~or`.
         @testset "`~or`" begin
             pattern = @pattern begin
                 ~or({x} + 2,
@@ -26,7 +25,6 @@
             @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "2 + 1")), MatchFail)
         end
 
-        # `~and`.
         @testset "`~and`" begin
             conflicting = @pattern begin
                 ~and({x} + 2, {x} + 3)
@@ -35,7 +33,6 @@
             @test match_result == MatchFail("no match", (1, 5), "")
         end
 
-        # `~fail`.
         @testset "`~fail`" begin
             let
                 pattern = @pattern ~fail([], x, "")
@@ -57,7 +54,6 @@
             end
         end
 
-        # `~rep`
         @testset "`~rep`" begin
             let
                 pattern = @pattern {x}...
@@ -139,7 +135,6 @@
             end
         end
 
-        # `~not`
         @testset "`~not`" begin
             let
                 pattern = @pattern ~not({x:::literal})

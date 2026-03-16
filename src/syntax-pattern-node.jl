@@ -367,6 +367,7 @@ function _parse_pattern_form(node::JS.SyntaxNode)
         pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
         pattern_form_name === :not  ? NotSyntaxData()                      :
         nothing
+        error("cannot parse pattern form `~$(pattern_form_name)`")
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
     # `block` children inside `~or` patterns should be interpreted as `toplevel`.
@@ -436,6 +437,7 @@ SyntaxPatternNode:
 ```
 """
 function parse_multiple_exprs_as_toplevel(node::SyntaxPatternNode)
+    # TODO: Error handling for empty `~and`.
     if kind(node) === K"~and" && kind(children(node)[1]) === K"vect"
         # The expression has the following form:
         #
