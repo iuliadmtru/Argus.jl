@@ -1096,6 +1096,17 @@ function syntax_match_not(not_node::SyntaxPatternNode,
         bindings
 end
 
+"""
+    syntax_match_outer(outer_node::SyntaxPatternNode,
+                       src::JS.SyntaxNode,
+                       bindings::BindingSet;
+                       recovery_stack=[],
+                       greedy=true,
+                       tmp=false)
+
+Try to match an `~outer` pattern with a source node. The match succeeds if `outer_node`
+matches `src`'s parent and fails otherwise.
+"""
 function syntax_match_outer(outer_node::SyntaxPatternNode,
                             src::JS.SyntaxNode,
                             bindings::BindingSet;
@@ -1113,11 +1124,15 @@ function syntax_match_outer(outer_node::SyntaxPatternNode,
                                        recovery_stack,
                                        greedy,
                                        tmp)
-    is_successful(outer_match_result) ||
-        return MatchFail(fail_message * ": " * (outer_match_result::MatchFail).message,
-                         (outer_match_result::MatchFail).source_location,
-                         (outer_match_result::MatchFail).file_name)
-    return outer_match_result
+    is_successful(outer_match_result) && return outer_match_result
+    # Return a specific error message.
+    extended_fail_message = is_default_match_fail(outer_match_result) ?
+        fail_message :
+        fail_message * ": " * (outer_match_result::MatchFail).message
+    return MatchFail(extended_fail_message,
+                     (outer_match_result::MatchFail).source_location,
+                     (outer_match_result::MatchFail).file_name)
+end
 end
 
 # Utils
