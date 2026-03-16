@@ -334,6 +334,36 @@
             @test match_result.matches[1][1].source_location == (4, 9)
             @test match_result.matches[2][1].source_location == (7, 6)
         end
+        let
+            rule = @rule "outer fundef" begin
+                description = ""
+                pattern = @pattern ~and(
+                    {x:::identifier},
+                    ~outer({_:::fundef})
+                )
+            end
+            match_result =
+                rule_match(rule, parsestmt(SyntaxNode, "f(x) = x"); only_matches=false)
+            @test length(match_result.matches) == 1
+            @test match_result.matches[1][1].source_location == (1, 8)
+            @test length(match_result.failures) == 4
+            @test match_result.failures[1].message == match_result.failures[2].message ==
+                "expected identifier"
+            @test match_result.failures[1].source_location ==
+                match_result.failures[2].source_location ==
+                (1, 1)
+            @test match_result.failures[3].message == match_result.failures[4].message ==
+                "`~outer` pattern does not match: expected function definition"
+            @test match_result.failures[3].source_location ==
+                match_result.failures[4].source_location ==
+                (1, 1)
+            match_result =
+                rule_match(rule, parsestmt(SyntaxNode, "f(x) = 2"); only_matches=false)
+            @test isempty(match_result.matches)
+            @test length(match_result.failures) == 5
+            @test match_result.failures[5].message == "expected identifier"
+            @test match_result.failures[5].source_location == (1, 8)
+        end
     end
 
     @testset "Rule metadata" begin

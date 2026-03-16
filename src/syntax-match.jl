@@ -699,13 +699,13 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     kwargs = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     node_data = pattern_node.data
     # Dispatch on form type.
-    isa(node_data, FailSyntaxData) && return syntax_match_fail(pattern_node, bindings)
-    isa(node_data, VarSyntaxData)  && return syntax_match_var(args...; greedy, tmp)
-    isa(node_data, OrSyntaxData)   && return syntax_match_or(args...; kwargs...)
-    isa(node_data, AndSyntaxData)  && return syntax_match_and(args...; kwargs...)
-    isa(node_data, RepSyntaxData)  && return syntax_match_rep(args...; greedy)
-    isa(node_data, NotSyntaxData)  && return syntax_match_not(args...; greedy)
-    return MatchFail("unknown pattern form")
+    isa(node_data, FailSyntaxData)  && return syntax_match_fail(args...)
+    isa(node_data, VarSyntaxData)   && return syntax_match_var(args...; greedy, tmp)
+    isa(node_data, OrSyntaxData)    && return syntax_match_or(args...; kwargs...)
+    isa(node_data, AndSyntaxData)   && return syntax_match_and(args...; kwargs...)
+    isa(node_data, RepSyntaxData)   && return syntax_match_rep(args...; greedy)
+    isa(node_data, NotSyntaxData)   && return syntax_match_not(args...; greedy)
+    isa(node_data, OuterSyntaxData) && return syntax_match_outer(args...; kwargs...)
     return MatchFail("unknown pattern form",
                      JS.source_location(src),
                      JS.filename(src))
@@ -1094,6 +1094,30 @@ function syntax_match_not(not_node::SyntaxPatternNode,
                   JS.source_location(src),
                   JS.filename(src)) :
         bindings
+end
+
+function syntax_match_outer(outer_node::SyntaxPatternNode,
+                            src::JS.SyntaxNode,
+                            bindings::BindingSet;
+                            recovery_stack=[],
+                            greedy=true,
+                            tmp=false)
+    fail_message = "`~outer` pattern does not match"
+    fail_location = JS.source_location(src)
+    fail_file = JS.filename(src)
+    isnothing(src.parent) && return MatchFail(fail_message, fail_location, fail_file)
+    bindings = shared_copy(bindings)
+    outer_match_result = _syntax_match(outer_node.children[1],
+                                       src.parent,
+                                       bindings;
+                                       recovery_stack,
+                                       greedy,
+                                       tmp)
+    is_successful(outer_match_result) ||
+        return MatchFail(fail_message * ": " * (outer_match_result::MatchFail).message,
+                         (outer_match_result::MatchFail).source_location,
+                         (outer_match_result::MatchFail).file_name)
+    return outer_match_result
 end
 
 # Utils

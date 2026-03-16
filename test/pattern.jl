@@ -154,6 +154,48 @@
                 @test fail_result == MatchFail("`~not` subpattern match succeeded", (1, 1), "")
             end
         end
+
+        @testset "`~outer" begin
+            let
+                pattern = @pattern ~outer({a:::assign})
+                match_result = syntax_match_all(pattern,
+                                                parsestmt(SyntaxNode, "x = y = 2");
+                                                only_matches=false)
+                @test length(match_result.matches) == 4
+                @test source_location(match_result.matches[1][:a].lhs.src) == (1, 1)
+                @test source_location(match_result.matches[1][:a].rhs.src) == (1, 5)
+                @test source_location(match_result.matches[2][:a].lhs.src) == (1, 1)
+                @test source_location(match_result.matches[2][:a].rhs.src) == (1, 5)
+                @test source_location(match_result.matches[3][:a].lhs.src) == (1, 5)
+                @test source_location(match_result.matches[3][:a].rhs.src) == (1, 9)
+                @test source_location(match_result.matches[4][:a].lhs.src) == (1, 5)
+                @test source_location(match_result.matches[4][:a].rhs.src) == (1, 9)
+                # The overall pattern has no outer pattern.
+                @test length(match_result.failures) == 1
+                @test match_result.failures[1].message == "`~outer` pattern does not match"
+                @test match_result.failures[1].source_location == (1, 1)
+            end
+            let
+                pattern = @pattern ~and({a:::assign}, ~outer({_:::assign}))
+                match_result = syntax_match_all(pattern,
+                                                parsestmt(SyntaxNode, "x = y = 2");
+                                                only_matches=false)
+                @test length(match_result.matches) == 1
+                @test source_location(match_result.matches[1][:a].lhs.src) == (1, 5)
+                @test source_location(match_result.matches[1][:a].rhs.src) == (1, 9)
+                @test length(match_result.failures) == 4
+                @test match_result.failures[1].message == "`~outer` pattern does not match"
+                @test match_result.failures[1].source_location == (1, 1)
+                @test match_result.failures[2].message ==
+                    match_result.failures[3].message ==
+                    match_result.failures[4].message ==
+                    "expected assignment"
+                @test match_result.failures[2].source_location == (1, 1)
+                @test match_result.failures[3].source_location == (1, 5)
+                @test match_result.failures[4].source_location == (1, 9)
+            end
+        end
+
     end
 
     @testset "General" begin

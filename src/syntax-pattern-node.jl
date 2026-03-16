@@ -360,13 +360,13 @@ function _parse_pattern_form(node::JS.SyntaxNode)
     pattern_form_args = _get_pattern_form_args(node)
     # Construct a node with the specific special data.
     pattern_data =
-        pattern_form_name === :fail ? FailSyntaxData(pattern_form_args...) :
-        pattern_form_name === :var  ? VarSyntaxData(pattern_form_args...)  :
-        pattern_form_name === :or   ? OrSyntaxData()                       :
-        pattern_form_name === :and  ? AndSyntaxData()                      :
-        pattern_form_name === :rep  ? RepSyntaxData(pattern_form_args...)  :
-        pattern_form_name === :not  ? NotSyntaxData()                      :
-        nothing
+        pattern_form_name === :fail  ? FailSyntaxData(pattern_form_args...) :
+        pattern_form_name === :var   ? VarSyntaxData(pattern_form_args...)  :
+        pattern_form_name === :or    ? OrSyntaxData()                       :
+        pattern_form_name === :and   ? AndSyntaxData()                      :
+        pattern_form_name === :rep   ? RepSyntaxData(pattern_form_args...)  :
+        pattern_form_name === :not   ? NotSyntaxData()                      :
+        pattern_form_name === :outer ? OuterSyntaxData()                    :
         error("cannot parse pattern form `~$(pattern_form_name)`")
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
@@ -803,12 +803,13 @@ is_pattern_form(ex) =
     Meta.isexpr(ex.args[2], :call) &&
     get_pattern_form_name(ex) in PATTERN_FORMS
 
-is_var(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :var
-is_fail(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :fail
-is_or(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :or
-is_and(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :and
-is_rep(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :rep
-is_not(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :not
+is_var(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :var
+is_fail(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :fail
+is_or(ex)    = is_pattern_form(ex) && ex.args[2].args[1] === :or
+is_and(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :and
+is_rep(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :rep
+is_not(ex)   = is_pattern_form(ex) && ex.args[2].args[1] === :not
+is_outer(ex) = is_pattern_form(ex) && ex.args[2].args[1] === :outer
 
 is_sugared_var(ex) =
     is_pattern_variable(ex)               ||
@@ -882,25 +883,27 @@ get_pattern_form_name(node::JS.SyntaxNode) = node.children[2].children[1].val
 function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
     args = @views node.children[2].children[2:end]
-    name === :var  && return args
-    name === :fail && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
-    name === :or   && return _strip_quote_node.(args)
-    name === :and  && return _strip_quote_node.(args)
-    name === :rep  && return args
-    name === :not  && return _strip_quote_node.(args)
+    name === :var   && return args
+    name === :fail  && return [_strip_quote_node(args[1]), _strip_string_node(args[2])]
+    name === :or    && return _strip_quote_node.(args)
+    name === :and   && return _strip_quote_node.(args)
+    name === :rep   && return args
+    name === :not   && return _strip_quote_node.(args)
+    name === :outer && return _strip_quote_node.(args)
     error("Trying to extract argument nodes for unimplemented pattern form ~$name.")
 end
 function _get_pattern_form_args(node::JS.SyntaxNode)
     name = get_pattern_form_name(node)
     arg_nodes = @views node.children[2].children[2:end]
-    name === :var  && return _get_var_arg_names(arg_nodes)
-    name === :fail && return [_get_symbols(arg_nodes[1]),
-                              JS.to_expr(arg_nodes[2]),
-                              _strip_string_node(arg_nodes[3]).data.val]
-    name === :or   && return JS.SyntaxNode[]
-    name === :and  && return JS.SyntaxNode[]
-    name === :rep  && return arg_nodes
-    name === :not  && return JS.SyntaxNode[]
+    name === :var   && return _get_var_arg_names(arg_nodes)
+    name === :fail  && return [_get_symbols(arg_nodes[1]),
+                               JS.to_expr(arg_nodes[2]),
+                               _strip_string_node(arg_nodes[3]).data.val]
+    name === :or    && return JS.SyntaxNode[]
+    name === :and   && return JS.SyntaxNode[]
+    name === :rep   && return arg_nodes
+    name === :not   && return JS.SyntaxNode[]
+    name === :outer && return JS.SyntaxNode[]
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -1268,12 +1271,13 @@ is_var(node::JS.SyntaxNode) =
 is_rep(node::JS.SyntaxNode) =
     is_pattern_form(node) && get_pattern_form_name(node) === :rep
 
-is_var(node::SyntaxPatternNode)  = isa(node.data, VarSyntaxData)
-is_fail(node::SyntaxPatternNode) = isa(node.data, FailSyntaxData)
-is_or(node::SyntaxPatternNode)   = isa(node.data, OrSyntaxData)
-is_and(node::SyntaxPatternNode)  = isa(node.data, AndSyntaxData)
-is_rep(node::SyntaxPatternNode)  = isa(node.data, RepSyntaxData)
-is_not(node::SyntaxPatternNode)  = isa(node.data, NotSyntaxData)
+is_var(node::SyntaxPatternNode)   = isa(node.data, VarSyntaxData)
+is_fail(node::SyntaxPatternNode)  = isa(node.data, FailSyntaxData)
+is_or(node::SyntaxPatternNode)    = isa(node.data, OrSyntaxData)
+is_and(node::SyntaxPatternNode)   = isa(node.data, AndSyntaxData)
+is_rep(node::SyntaxPatternNode)   = isa(node.data, RepSyntaxData)
+is_not(node::SyntaxPatternNode)   = isa(node.data, NotSyntaxData)
+is_outer(node::SyntaxPatternNode) = isa(node.data, OuterSyntaxData)
 
 ### Getters
 
