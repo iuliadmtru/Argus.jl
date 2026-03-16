@@ -32,7 +32,7 @@
                 ~and({x} + 2, {x} + 3)
             end
             match_result = syntax_match(conflicting, parsestmt(SyntaxNode, "1 + 2"))
-            @test match_result == MatchFail("no match")
+            @test match_result == MatchFail("no match", (1, 5), "")
         end
 
         # `~fail`.
@@ -156,7 +156,7 @@
                 @test length(match_result) == 2
                 @test !haskey(match_result, :f)
                 fail_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
-                @test fail_result == MatchFail("`~not` subpattern match succeeded")
+                @test fail_result == MatchFail("`~not` subpattern match succeeded", (1, 1), "")
             end
         end
     end
@@ -286,7 +286,7 @@
                 match = syntax_match(even, parsestmt(SyntaxNode, "2"))
                 @test isa(match, BindingSet)
                 fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
-                @test fail == MatchFail("not even")
+                @test fail == MatchFail("not even", (1, 1), "")
             end
             let
                 is_x = @pattern begin
@@ -296,11 +296,11 @@
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
                 @test isa(match, BindingSet)
                 fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
-                @test fail_name == MatchFail("not x")
+                @test fail_name == MatchFail("not x", (1, 1), "")
                 fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
-                @test fail_inner == MatchFail("expected identifier")
+                @test fail_inner == MatchFail("expected identifier", (1, 1), "")
                 fail = syntax_match(is_x, parsestmt(SyntaxNode, "2"))
-                @test fail == MatchFail("no match")
+                @test fail == MatchFail("no match", (1, 1), "")
             end
             let
                 pattern = @pattern begin
@@ -333,7 +333,7 @@
                                                 a = 2
                                                 """)
                 @test syntax_match(pattern, src_fail) ==
-                    MatchFail("conflicting bindings for pattern variable ex")
+                    MatchFail("conflicting bindings for pattern variable ex", (2, 1), "")
             end
             let
                 pattern = @pattern begin
@@ -378,7 +378,7 @@
                     x = 3
                     """)
                     @test syntax_match(pattern, src) ==
-                        MatchFail("conflicting bindings for pattern variable a")
+                        MatchFail("conflicting bindings for pattern variable a", (2, 1), "")
                 end
                 let
                     src = parseall(SyntaxNode, """
@@ -386,7 +386,7 @@
                     x = 3
                     """)
                     @test syntax_match(pattern, src) ==
-                        MatchFail("is x")
+                        MatchFail("is x", (1, 1), "")
                 end
                 let
                     src = parseall(SyntaxNode, """
@@ -401,7 +401,7 @@
                     a = 3
                     a + 1
                     """)
-                    @test syntax_match(pattern, src) == MatchFail()
+                    @test syntax_match(pattern, src) == MatchFail((3, 1), "")
                 end
             end
             let
@@ -441,7 +441,7 @@
                       """
                 match_result =
                     syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
-                @test match_result == MatchFail("fail")
+                @test match_result == MatchFail("fail", (1, 1), "")
             end
             let
                 pattern = @pattern begin

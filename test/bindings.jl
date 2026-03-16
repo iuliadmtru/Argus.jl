@@ -7,7 +7,8 @@
             @fail [:x] x.name == "a" "is a"
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "b")), BindingSet)
-        @test syntax_match(pattern, parsestmt(SyntaxNode, "a")) == MatchFail("is a")
+        @test syntax_match(pattern, parsestmt(SyntaxNode, "a")) ==
+            MatchFail("is a", (1, 1), "")
         field_err_literal = syntax_match(pattern, parsestmt(SyntaxNode, "2"))
         @test isa(field_err_literal, MatchFail)
         @test field_err_literal.message ==
@@ -32,9 +33,9 @@
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
         @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) ==
-            MatchFail("expected assignment")
+            MatchFail("expected assignment", (1, 1), "")
         @test syntax_match(pattern, parsestmt(SyntaxNode, "x = 2")) ==
-            MatchFail("rhs is two")
+            MatchFail("rhs is two", (1, 1), "")
         field_err = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
         @test isa(field_err, MatchFail)
         @test startswith(field_err.message,

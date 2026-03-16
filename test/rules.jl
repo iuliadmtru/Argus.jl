@@ -91,8 +91,8 @@
                 rule_match(rule, parsestmt(SyntaxNode, "a = 2"); only_matches=false)
             @test length(match_result.matches) == 1
             @test length(match_result.failures) == 2
-            @test match_result.failures[1] == match_result.failures[2] ==
-                MatchFail("expected identifier")
+            @test match_result.failures[1] == MatchFail("expected identifier", (1, 1), "")
+            @test match_result.failures[2] == MatchFail("expected identifier", (1, 5), "")
         end
         let
             rule = @rule "" begin
