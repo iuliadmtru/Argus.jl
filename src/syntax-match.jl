@@ -1079,6 +1079,15 @@ function syntax_match_rep(rep_node::SyntaxPatternNode,
     return merge(bindings, match_result)
 end
 
+"""
+    syntax_match_not(not_node::SyntaxPatternNode,
+                     src::JS.SyntaxNode,
+                     bindings::BindingSet;
+                     greedy=true)
+
+Try to match the pattern enclosed in `not_node`. If the match succeeds, return a match
+failure. Otherwise, return a success.
+"""
 function syntax_match_not(not_node::SyntaxPatternNode,
                           src::JS.SyntaxNode,
                           bindings::BindingSet;
