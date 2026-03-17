@@ -137,20 +137,20 @@ get bound outside of it.
 struct NotSyntaxData <: AbstractPatternFormSyntaxData end
 
 """
-    OuterSyntaxData <: AbstractPatternFormSyntaxData
+    InsideSyntaxData <: AbstractPatternFormSyntaxData
 
-Data for an `~outer` pattern form.
+Data for an `~inside` pattern form.
 """
-struct OuterSyntaxData <: AbstractPatternFormSyntaxData end
+struct InsideSyntaxData <: AbstractPatternFormSyntaxData end
 
 """
-    InnerSyntaxData <: AbstractPatternFormSyntaxData
+    ContainsSyntaxData <: AbstractPatternFormSyntaxData
 
-Data for an `~inner` pattern form.
+Data for an `~contains` pattern form.
 """
-struct InnerSyntaxData <: AbstractPatternFormSyntaxData end
+struct ContainsSyntaxData <: AbstractPatternFormSyntaxData end
 
-const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not, :outer, :inner]
+const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not, :inside, :contains]
 
 # JuliaSyntax overwrites and utils
 # --------------------------------
@@ -169,19 +169,19 @@ _register_kinds() = JS.register_kinds!(Argus,
                                            "~and",
                                            "~rep",
                                            "~not",
-                                           "~outer",
-                                           "~inner",
+                                           "~inside",
+                                           "~contains",
                                        ])
 _register_kinds()
 
-JS.head(::VarSyntaxData)   = JS.SyntaxHead(K"~var",   0)
-JS.head(::FailSyntaxData)  = JS.SyntaxHead(K"~fail",  0)
-JS.head(::OrSyntaxData)    = JS.SyntaxHead(K"~or",    0)
-JS.head(::AndSyntaxData)   = JS.SyntaxHead(K"~and",   0)
-JS.head(::RepSyntaxData)   = JS.SyntaxHead(K"~rep",   0)
-JS.head(::NotSyntaxData)   = JS.SyntaxHead(K"~not",   0)
-JS.head(::OuterSyntaxData) = JS.SyntaxHead(K"~outer", 0)
-JS.head(::InnerSyntaxData) = JS.SyntaxHead(K"~inner", 0)
+JS.head(::VarSyntaxData)      = JS.SyntaxHead(K"~var",      0)
+JS.head(::FailSyntaxData)     = JS.SyntaxHead(K"~fail",     0)
+JS.head(::OrSyntaxData)       = JS.SyntaxHead(K"~or",       0)
+JS.head(::AndSyntaxData)      = JS.SyntaxHead(K"~and",      0)
+JS.head(::RepSyntaxData)      = JS.SyntaxHead(K"~rep",      0)
+JS.head(::NotSyntaxData)      = JS.SyntaxHead(K"~not",      0)
+JS.head(::InsideSyntaxData)   = JS.SyntaxHead(K"~inside",   0)
+JS.head(::ContainsSyntaxData) = JS.SyntaxHead(K"~contains", 0)
 
 # Base overwrites
 # ---------------
@@ -214,10 +214,10 @@ Base.getproperty(data::RepSyntaxData, name::Symbol) =
 Base.getproperty(data::NotSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
-Base.getproperty(data::OuterSyntaxData, name::Symbol) =
+Base.getproperty(data::InsideSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
-Base.getproperty(data::InnerSyntaxData, name::Symbol) =
+Base.getproperty(data::ContainsSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
@@ -226,8 +226,8 @@ Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 Base.copy(::NotSyntaxData) = NotSyntaxData()
-Base.copy(::OuterSyntaxData) = OuterSyntaxData()
-Base.copy(::InnerSyntaxData) = InnerSyntaxData()
+Base.copy(::InsideSyntaxData) = InsideSyntaxData()
+Base.copy(::ContainsSyntaxData) = ContainsSyntaxData()
 
 # Utils
 # -----

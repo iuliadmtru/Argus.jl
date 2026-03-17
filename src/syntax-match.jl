@@ -699,14 +699,14 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     kwargs = (recovery_stack=recovery_stack, greedy=greedy, tmp=tmp)
     node_data = pattern_node.data
     # Dispatch on form type.
-    isa(node_data, FailSyntaxData)  && return syntax_match_fail(args...)
-    isa(node_data, VarSyntaxData)   && return syntax_match_var(args...; greedy, tmp)
-    isa(node_data, OrSyntaxData)    && return syntax_match_or(args...; kwargs...)
-    isa(node_data, AndSyntaxData)   && return syntax_match_and(args...; kwargs...)
-    isa(node_data, RepSyntaxData)   && return syntax_match_rep(args...; greedy)
-    isa(node_data, NotSyntaxData)   && return syntax_match_not(args...; greedy)
-    isa(node_data, OuterSyntaxData) && return syntax_match_outer(args...; kwargs...)
-    isa(node_data, InnerSyntaxData) && return syntax_match_inner(args...; kwargs...)
+    isa(node_data, FailSyntaxData)     && return syntax_match_fail(args...)
+    isa(node_data, VarSyntaxData)      && return syntax_match_var(args...; greedy, tmp)
+    isa(node_data, OrSyntaxData)       && return syntax_match_or(args...; kwargs...)
+    isa(node_data, AndSyntaxData)      && return syntax_match_and(args...; kwargs...)
+    isa(node_data, RepSyntaxData)      && return syntax_match_rep(args...; greedy)
+    isa(node_data, NotSyntaxData)      && return syntax_match_not(args...; greedy)
+    isa(node_data, InsideSyntaxData)   && return syntax_match_inside(args...; kwargs...)
+    isa(node_data, ContainsSyntaxData) && return syntax_match_contains(args...; kwargs...)
     return MatchFail("unknown pattern form",
                      JS.source_location(src),
                      JS.filename(src))
@@ -1107,62 +1107,62 @@ function syntax_match_not(not_node::SyntaxPatternNode,
 end
 
 """
-    syntax_match_outer(outer_node::SyntaxPatternNode,
-                       src::JS.SyntaxNode,
-                       bindings::BindingSet;
-                       recovery_stack=[],
-                       greedy=true,
-                       tmp=false)
+    syntax_match_inside(inside_node::SyntaxPatternNode,
+                        src::JS.SyntaxNode,
+                        bindings::BindingSet;
+                        recovery_stack=[],
+                        greedy=true,
+                        tmp=false)
 
-Try to match an `~outer` pattern with a source node. The match succeeds if `outer_node`
+Try to match an `~inside` pattern with a source node. The match succeeds if `inside_node`
 matches `src`'s parent and fails otherwise.
 """
-function syntax_match_outer(outer_node::SyntaxPatternNode,
-                            src::JS.SyntaxNode,
-                            bindings::BindingSet;
-                            recovery_stack=[],
-                            greedy=true,
-                            tmp=false)
-    fail_message = "`~outer` pattern does not match"
+function syntax_match_inside(inside_node::SyntaxPatternNode,
+                             src::JS.SyntaxNode,
+                             bindings::BindingSet;
+                             recovery_stack=[],
+                             greedy=true,
+                             tmp=false)
+    fail_message = "`~inside` pattern does not match"
     fail_location = JS.source_location(src)
     fail_file = JS.filename(src)
     isnothing(src.parent) && return MatchFail(fail_message, fail_location, fail_file)
     bindings = shared_copy(bindings)
-    outer_match_result = _syntax_match(outer_node.children[1],
-                                       src.parent,
-                                       bindings;
-                                       recovery_stack,
-                                       greedy,
-                                       tmp)
-    is_successful(outer_match_result) && return outer_match_result
+    inside_match_result = _syntax_match(inside_node.children[1],
+                                        src.parent,
+                                        bindings;
+                                        recovery_stack,
+                                        greedy,
+                                        tmp)
+    is_successful(inside_match_result) && return inside_match_result
     # Return a specific error message.
-    extended_fail_message = is_default_match_fail(outer_match_result) ?
+    extended_fail_message = is_default_match_fail(inside_match_result) ?
         fail_message :
-        fail_message * ": " * (outer_match_result::MatchFail).message
+        fail_message * ": " * (inside_match_result::MatchFail).message
     return MatchFail(extended_fail_message,
-                     (outer_match_result::MatchFail).source_location,
-                     (outer_match_result::MatchFail).file_name)
+                     (inside_match_result::MatchFail).source_location,
+                     (inside_match_result::MatchFail).file_name)
 end
 
 """
-    syntax_match_inner(inner_node::SyntaxPatternNode,
-                       src::JS.SyntaxNode,
-                       bindings::BindingSet;
-                       recovery_stack=[],
-                       greedy=true,
-                       tmp=false)
+    syntax_match_contains(contains_node::SyntaxPatternNode,
+                          src::JS.SyntaxNode,
+                          bindings::BindingSet;
+                          recovery_stack=[],
+                          greedy=true,
+                          tmp=false)
 
-Try to match an `~inner` pattern with a source node. If the pattern enclosed in `~inner`
-is found inside thesource node ay any depth, return the bindings resulting from the match.
-Otherwise, return a match failure.
+Try to match an `~contains` pattern with a source node. If the pattern enclosed in
+`~contains` is found inside thesource node ay any depth, return the bindings resulting
+from the match. Otherwise, return a match failure.
 """
-function syntax_match_inner(inner_node::SyntaxPatternNode,
-                            src::JS.SyntaxNode,
-                            bindings::BindingSet;
-                            recovery_stack=[],
-                            greedy=true,
-                            tmp=false)
-    fail_message = "`~inner` pattern does not match"
+function syntax_match_contains(contains_node::SyntaxPatternNode,
+                               src::JS.SyntaxNode,
+                               bindings::BindingSet;
+                               recovery_stack=[],
+                               greedy=true,
+                               tmp=false)
+    fail_message = "`~contains` pattern does not match"
     fail_location = JS.source_location(src)
     fail_file = JS.filename(src)
     # Fail if the source has no children.
@@ -1170,12 +1170,12 @@ function syntax_match_inner(inner_node::SyntaxPatternNode,
         return MatchFail(fail_message * ": source has no children",
                          fail_location,
                          fail_file)
-    bindings_inner = shared_copy(bindings)
+    bindings_contains = shared_copy(bindings)
     failure = MatchFail(fail_message, fail_location, fail_file)
     # Return the first successful match, but store the others as recovery states.
     for (i, s) in enumerate(children(src))
         match_results =
-            syntax_match_all(inner_node.children[1], s; greedy, only_matches=false)
+            syntax_match_all(contains_node.children[1], s; greedy, only_matches=false)
         if length(match_results.matches) > 0
             # If this is not the last child, we might be able to recover from one of the
             # next children in the encompassing pattern fails to match.
@@ -1183,19 +1183,19 @@ function syntax_match_inner(inner_node::SyntaxPatternNode,
                 next_try_children = children(src)[i+1:end]
                 next_try = JS.SyntaxNode(src.parent, next_try_children, src.data)
                 [c.parent = next_try for c in next_try_children]
-                push!(recovery_stack, (inner_node, next_try, bindings))
+                push!(recovery_stack, (contains_node, next_try, bindings))
             end
             # Return the first match.
             return match_results.matches[1]
         end
         # Reset the bindings.
-        bindings_inner = shared_copy(bindings)
+        bindings_contains = shared_copy(bindings)
         # TODO: Find most specific error.
-        inner_fail =
+        contains_fail =
             findfirst(m -> !is_default_match_fail(m), match_results.failures)
-        extended_fail_message = isnothing(inner_fail) ?
+        extended_fail_message = isnothing(contains_fail) ?
             fail_message :
-            fail_message * ": " * match_results.failures[inner_fail].message
+            fail_message * ": " * match_results.failures[contains_fail].message
         failure = MatchFail(extended_fail_message, fail_location, fail_file)
     end
     return failure

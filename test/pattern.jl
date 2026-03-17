@@ -151,13 +151,14 @@
                 @test length(match_result) == 2
                 @test !haskey(match_result, :f)
                 fail_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
-                @test fail_result == MatchFail("`~not` subpattern match succeeded", (1, 1), "")
+                @test fail_result ==
+                    MatchFail("`~not` subpattern match succeeded", (1, 1), "")
             end
         end
 
-        @testset "`~outer" begin
+        @testset "`~inside" begin
             let
-                pattern = @pattern ~outer({a:::assign})
+                pattern = @pattern ~inside({a:::assign})
                 match_result = syntax_match_all(pattern,
                                                 parsestmt(SyntaxNode, "x = y = 2");
                                                 only_matches=false)
@@ -172,11 +173,12 @@
                 @test source_location(match_result.matches[4][:a].rhs.src) == (1, 9)
                 # The overall pattern has no outer pattern.
                 @test length(match_result.failures) == 1
-                @test match_result.failures[1].message == "`~outer` pattern does not match"
+                @test match_result.failures[1].message ==
+                    "`~inside` pattern does not match"
                 @test match_result.failures[1].source_location == (1, 1)
             end
             let
-                pattern = @pattern ~and({a:::assign}, ~outer({_:::assign}))
+                pattern = @pattern ~and({a:::assign}, ~inside({_:::assign}))
                 match_result = syntax_match_all(pattern,
                                                 parsestmt(SyntaxNode, "x = y = 2");
                                                 only_matches=false)
@@ -184,7 +186,8 @@
                 @test source_location(match_result.matches[1][:a].lhs.src) == (1, 5)
                 @test source_location(match_result.matches[1][:a].rhs.src) == (1, 9)
                 @test length(match_result.failures) == 4
-                @test match_result.failures[1].message == "`~outer` pattern does not match"
+                @test match_result.failures[1].message ==
+                    "`~inside` pattern does not match"
                 @test match_result.failures[1].source_location == (1, 1)
                 @test match_result.failures[2].message ==
                     match_result.failures[3].message ==
@@ -196,26 +199,26 @@
             end
         end
 
-        @testset "`~inner" begin
+        @testset "`~contains" begin
             let
-                pattern = @pattern ~inner({i:::identifier})
+                pattern = @pattern ~contains({i:::identifier})
                 match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
                 @test source_location(match_success[:i].src) == (1, 1)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "() -> ()"))
                 @test match_fail.message ==
-                    "`~inner` pattern does not match: expected identifier"
+                    "`~contains` pattern does not match: expected identifier"
                 @test match_fail.source_location == (1, 1)
             end
             let
                 pattern = @pattern ~and(
                     {_:::macrocall},
-                    ~inner({l:::literal})
+                    ~contains({l:::literal})
                 )
                 match_success = syntax_match(pattern, parsestmt(SyntaxNode, "@m 4"))
                 @test source_location(match_success[:l].src) == (1, 4)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "@m x"))
                 @test match_fail.message ==
-                    "`~inner` pattern does not match: expected literal"
+                    "`~contains` pattern does not match: expected literal"
                 @test match_fail.source_location == (1, 1)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x)"))
                 @test match_fail.message == "expected macro call"
@@ -548,7 +551,7 @@
             let
                 pattern = @pattern ~and(
                     {m:::macrocall},
-                    ~outer(~not(println({_}...)))
+                    ~not(~inside(println({_}...)))
                 )
                 match_fail = syntax_match_all(pattern,
                                               parsestmt(SyntaxNode, "println(@m(x))"))
@@ -560,7 +563,7 @@
             let
                 pattern = @pattern ~and(
                     {m:::macrocall},
-                    ~not(~inner(println({_}...)))
+                    ~not(~contains(println({_}...)))
                 )
                 @test !is_successful(syntax_match(pattern,
                                                   parsestmt(SyntaxNode, "@m println(x)")))

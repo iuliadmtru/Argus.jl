@@ -335,11 +335,11 @@
             @test match_result.matches[2][1].source_location == (7, 6)
         end
         let
-            rule = @rule "outer fundef" begin
+            rule = @rule "inside fundef" begin
                 description = ""
                 pattern = @pattern ~and(
                     {x:::identifier},
-                    ~outer({_:::fundef})
+                    ~inside({_:::fundef})
                 )
             end
             match_result =
@@ -353,7 +353,7 @@
                 match_result.failures[2].source_location ==
                 (1, 1)
             @test match_result.failures[3].message == match_result.failures[4].message ==
-                "`~outer` pattern does not match: expected function definition"
+                "`~inside` pattern does not match: expected function definition"
             @test match_result.failures[3].source_location ==
                 match_result.failures[4].source_location ==
                 (1, 1)
