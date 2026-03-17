@@ -16,6 +16,10 @@ struct Rule
 end
 Rule(name::String, description::String, pattern::Pattern) =
     Rule(name, description, pattern, nothing, nothing)
+Rule(name::String, description::String, pattern::Pattern, template::Template) =
+    Rule(name, description, pattern, template, nothing)
+Rule(name::String, description::String, pattern::Pattern, hooks::Dict) =
+    Rule(name, description, pattern, nothing, hooks)
 
 """
     @rule(name, ex)
