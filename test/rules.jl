@@ -344,25 +344,58 @@
             end
             match_result =
                 rule_match(rule, parsestmt(SyntaxNode, "f(x) = x"); only_matches=false)
-            @test length(match_result.matches) == 1
-            @test match_result.matches[1][1].source_location == (1, 8)
-            @test length(match_result.failures) == 4
+            @test length(match_result.matches) == 3
+            @test match_result.matches[1][1].source_location == (1, 1)
+            @test match_result.matches[2][1].source_location == (1, 3)
+            @test match_result.matches[3][1].source_location == (1, 8)
+            @test length(match_result.failures) == 2
             @test match_result.failures[1].message == match_result.failures[2].message ==
                 "expected identifier"
             @test match_result.failures[1].source_location ==
                 match_result.failures[2].source_location ==
                 (1, 1)
-            @test match_result.failures[3].message == match_result.failures[4].message ==
-                "`~inside` pattern does not match: expected function definition"
-            @test match_result.failures[3].source_location ==
-                match_result.failures[4].source_location ==
-                (1, 1)
             match_result =
-                rule_match(rule, parsestmt(SyntaxNode, "f(x) = 2"); only_matches=false)
+                rule_match(rule, parsestmt(SyntaxNode, "x = 2"); only_matches=false)
             @test isempty(match_result.matches)
-            @test length(match_result.failures) == 5
-            @test match_result.failures[5].message == "expected identifier"
-            @test match_result.failures[5].source_location == (1, 8)
+            @test length(match_result.failures) == 3
+            @test match_result.failures[1].message == match_result.failures[3].message ==
+                "expected identifier"
+            @test match_result.failures[1].source_location == (1, 1)
+            @test match_result.failures[3].source_location == (1, 5)
+            @test match_result.failures[2].message ==
+                "`~inside` pattern does not match: expected function definition"
+            @test match_result.failures[2].source_location == (1, 1)
+        end
+        let
+            rule = @rule "not inside macrocall" begin
+                description = ""
+                pattern = @pattern ~and(
+                    x,
+                    ~not(~inside(~and(
+                        {m:::macrocall},
+                        ~fail([:m], m.name != "@m", "not @m")
+                    )))
+                )
+            end
+            match_result = rule_match(rule,
+                                      parseall(SyntaxNode, """
+                                                           @m a
+                                                           @m x
+                                                           @mm x
+                                                           @mm (1 + x)
+                                                           @mm a
+                                                           x
+                                                           f(x)
+                                                           """);
+                                      only_matches=false)
+            @test length(match_result.matches) == 4
+            @test match_result.matches[1][1].source_location == (3, 5)
+            @test match_result.matches[2][1].source_location == (4, 10)
+            @test match_result.matches[3][1].source_location == (6, 1)
+            @test match_result.matches[4][1].source_location == (7, 3)
+            @test length(match_result.failures) == 1
+            @test match_result.failures[1].message == "`~not` subpattern match succeeded"
+            @test match_result.failures[1].source_location == (2, 4)
         end
     end
 

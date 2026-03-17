@@ -1114,8 +1114,8 @@ end
                         greedy=true,
                         tmp=false)
 
-Try to match an `~inside` pattern with a source node. The match succeeds if `inside_node`
-matches `src`'s parent and fails otherwise.
+Try to match an `~inside` pattern with a source node. The match succeeds if `src` is
+enclosed in `inside_node` and fails otherwise.
 """
 function syntax_match_inside(inside_node::SyntaxPatternNode,
                              src::JS.SyntaxNode,
@@ -1123,25 +1123,32 @@ function syntax_match_inside(inside_node::SyntaxPatternNode,
                              recovery_stack=[],
                              greedy=true,
                              tmp=false)
+    bindings = shared_copy(bindings)
     fail_message = "`~inside` pattern does not match"
     fail_location = JS.source_location(src)
     fail_file = JS.filename(src)
-    isnothing(src.parent) && return MatchFail(fail_message, fail_location, fail_file)
-    bindings = shared_copy(bindings)
-    inside_match_result = _syntax_match(inside_node.children[1],
-                                        src.parent,
-                                        bindings;
-                                        recovery_stack,
-                                        greedy,
-                                        tmp)
-    is_successful(inside_match_result) && return inside_match_result
-    # Return a specific error message.
-    extended_fail_message = is_default_match_fail(inside_match_result) ?
-        fail_message :
-        fail_message * ": " * (inside_match_result::MatchFail).message
-    return MatchFail(extended_fail_message,
-                     (inside_match_result::MatchFail).source_location,
-                     (inside_match_result::MatchFail).file_name)
+    failure = MatchFail(fail_message, fail_location, fail_file)
+    # Try to match enlcosing nodes until we find a match or until we reach the root.
+    while !isnothing(src.parent)
+        isnothing(src.parent) && return failure
+        inside_match_result = _syntax_match(inside_node.children[1],
+                                            src.parent,
+                                            bindings;
+                                            recovery_stack,
+                                            greedy,
+                                            tmp)
+        is_successful(inside_match_result) && return inside_match_result
+        # Track failures.
+        extended_fail_message = is_default_match_fail(inside_match_result) ?
+            fail_message :
+            fail_message * ": " * (inside_match_result::MatchFail).message
+        failure = MatchFail(extended_fail_message,
+                            (inside_match_result::MatchFail).source_location,
+                            (inside_match_result::MatchFail).file_name)
+        src = src.parent
+    end
+    # Return the match failure.
+    return failure
 end
 
 """
