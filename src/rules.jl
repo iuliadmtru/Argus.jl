@@ -4,15 +4,15 @@
 """
     Rule
 
-Rule for syntax matching. Consists of a name, description, pattern and, optionally, a
-refactoring template.
+Rule for syntax matching. Primarily consists of a name, description and pattern.
+Optionally, a rule can define a refactoring template and hooks that run before matching.
 """
 struct Rule
     name::String
     description::String
     pattern::Pattern
     template::Union{Nothing, Template}
-    metadata::Union{Nothing, Dict{Symbol, Any}}
+    hooks::Union{Nothing, Dict{Symbol, Any}}
 end
 Rule(name::String, description::String, pattern::Pattern) =
     Rule(name, description, pattern, nothing, nothing)
@@ -124,9 +124,9 @@ macro rule(name, ex)
                           line_number_arg2.line))
     pattern_expr = arg2.args[2]
     # If there is one, get the third argument, which should be either the template or
-    # the metadata.
+    # the hooks.
     template_expr = nothing
-    metadata_expr = nothing
+    hooks_expr = nothing
     if length(ex.args) == 6
         line_number_arg3 = ex.args[5]
         arg3 = ex.args[6]
@@ -137,31 +137,31 @@ macro rule(name, ex)
         arg3_name = arg3.args[1]
         if arg3_name === :template
             template_expr = arg3.args[2]
-        elseif arg3_name === :metadata
-            metadata_expr = arg3.args[2]
-            @isexpr(metadata_expr, :call) && metadata_expr.args[1] == :Dict ||
+        elseif arg3_name === :hooks
+            hooks_expr = arg3.args[2]
+            @isexpr(hooks_expr, :call) && hooks_expr.args[1] == :Dict ||
                 throw(SyntaxError("""
                                   invalid rule argument: $arg3_name
-                                  Rule metadata should be given as a `Dict`.""",
+                                  Rule hooks should be given as a `Dict`.""",
                                   line_number_arg3.file,
                                   line_number_arg3.line))
         else
             throw(SyntaxError("""
                               invalid rule argument name: $arg3_name
-                              The third argument of `@rule` should be `template` or `metadata`.
+                              The third argument of `@rule` should be `template` or `hooks`.
                               """,
                               line_number_arg3.file,
                               line_number_arg3.line))
         end
     end
-    # If there is one, get the fourth argument, which should be the metadata.
+    # If there is one, get the fourth argument, which should be the hooks.
     if length(ex.args) == 8
         line_number_arg4 = ex.args[7]
         arg3_name = ex.args[6].args[1]
-        arg3_name === :metadata &&
+        arg3_name === :hooks &&
             throw(SyntaxError("""
                               invalid `@rule` syntax.
-                              `metadata` should be the last argument of `@rule`.""",
+                              `hooks` should be the last argument of `@rule`.""",
                               line_number_arg4.file,
                               line_number_arg4.line))
         arg4 = ex.args[8]
@@ -170,17 +170,17 @@ macro rule(name, ex)
                               line_number_arg4.file,
                               line_number_arg4.line))
         arg4_name = arg4.args[1]
-        arg4_name === :metadata ||
+        arg4_name === :hooks ||
             throw(SyntaxError("""
                               invalid rule argument name: $arg4_name
-                              The fourth argument of `@rule` should be `metadata`.""",
+                              The fourth argument of `@rule` should be `hooks`.""",
                               line_number_arg4.file,
                               line_number_arg4.line))
-        metadata_expr = arg4.args[2]
-        @isexpr(metadata_expr, :call) && metadata_expr.args[1] == :Dict ||
+        hooks_expr = arg4.args[2]
+        @isexpr(hooks_expr, :call) && hooks_expr.args[1] == :Dict ||
             throw(SyntaxError("""
                               invalid rule argument: $arg4_name
-                              Rule metadata should be given as a `Dict`.""",
+                              Rule hooks should be given as a `Dict`.""",
                               line_number_arg4.file,
                               line_number_arg4.line))
     end
@@ -190,7 +190,7 @@ macro rule(name, ex)
              $description,
              $(esc(pattern_expr)),
              $(esc(template_expr)),
-             $(esc(metadata_expr)))
+             $(esc(hooks_expr)))
     )
 end
 
@@ -211,22 +211,22 @@ function Base.show(io::IO, rule::Rule)
         repr(MIME("text/plain"), rule.template)
     println(io, template)
     println(io)
-    metadata = isnothing(rule.metadata) ?
-        "<no metadata>" :
-        replace(repr(MIME("text/plain"), rule.metadata), r".*\n" => ""; count=1)
-    println(io, "Metadata:")
-    println(io, metadata)
+    hooks = isnothing(rule.hooks) ?
+        "<no hooks>" :
+        replace(repr(MIME("text/plain"), rule.hooks), r".*\n" => ""; count=1)
+    println(io, "Hooks:")
+    println(io, hooks)
 end
 
-# Rule metadata
+# Rule hook
 # =============
 
 """
-    RuleMetadata
+    RuleHooks
 
-Metadata for a rule. Its contents can be extended using `@define_rule_metadata`.
+Hook for a rule. Its contents can be extended using `@define_rule_hook`.
 """
-struct RuleMetadata
+struct RuleHook
     name::Symbol
     args::Pattern
     pre_check::Union{Nothing, Function}
@@ -234,30 +234,30 @@ struct RuleMetadata
 end
 
 """
-    RuleMetadataRegistry
+    RuleHookRegistry
 
-Registry for storing rule metadata. Alias for `Dict{Symbol, RuleMetadata}`.
+Registry for storing rule hooks. Alias for `Dict{Symbol, RuleHook}`.
 """
-const RuleMetadataRegistry = Dict{Symbol, RuleMetadata}
+const RuleHookRegistry = Dict{Symbol, RuleHook}
 
-RULES_METADATA = RuleMetadataRegistry()
+RULES_HOOKS = RuleHookRegistry()
 
-macro define_rule_metadata(name, ex)
+macro define_rule_hook(name, ex)
     err_msg_general =
         """
-        invalid `@define_rule_metadata` syntax
-        The `@define_rule_metadata` body should be defined using a `begin ... end` block.
+        invalid `@define_rule_hook` syntax
+        The `@define_rule_hook` body should be defined using a `begin ... end` block.
         """
     err_msg_invalid_arg_syntax =
         """
-        invalid `@define_rule_metadata` argument syntax
+        invalid `@define_rule_hook` argument syntax
         """
     # Check the rule syntax.
     @isexpr(ex, :block) ||
         throw(SyntaxError(err_msg_general, __source__.file, __source__.line))
     length(ex.args) == 6 ||
         throw(SyntaxError("""
-                          invalid `@define_rule_metadata` syntax
+                          invalid `@define_rule_hook` syntax
                           Expected 3 arguments, got $(length(ex.args)/2).
                           """,
                           __source__.file,
@@ -272,8 +272,8 @@ macro define_rule_metadata(name, ex)
     arg1_name = arg1.args[1]
     arg1_name === :args ||
         throw(SyntaxError("""
-                          invalid metadata argument name: $arg1_name
-                          The first argument of `@define_rule_metadata` should be `args`.
+                          invalid hook argument name: $arg1_name
+                          The first argument of `@define_rule_hook` should be `args`.
                           """,
                           line_number_arg1.file,
                           line_number_arg1.line))
@@ -288,15 +288,15 @@ macro define_rule_metadata(name, ex)
     arg2_name = arg2.args[1]
     arg2_name === :pre_check ||
         throw(SyntaxError("""
-                          invalid metadata argument name: $arg1_name
-                          The second argument of `@define_rule_metadata` should be `pre_check`.
+                          invalid hook argument name: $arg1_name
+                          The second argument of `@define_rule_hook` should be `pre_check`.
                           """,
                           line_number_arg2.file,
                           line_number_arg2.line))
     pre_check = arg2.args[2]
     pre_check == :nothing || is_check_macro(pre_check) ||
         throw(SyntaxError("""
-                          invalid metadata argument: $arg1_name
+                          invalid hook argument: $arg1_name
                           The `pre_check` rhs should be `nothing` or a `@check` call.
                           """,
                           line_number_arg2.file,
@@ -331,8 +331,8 @@ macro define_rule_metadata(name, ex)
     arg3_name = arg3.args[1]
     arg3_name === :post_check ||
         throw(SyntaxError("""
-                          invalid metadata argument name: $arg1_name
-                          The third argument of `@define_rule_metadata` should be `post_check`.
+                          invalid hook argument name: $arg1_name
+                          The third argument of `@define_rule_hook` should be `post_check`.
                           """,
                           line_number_arg3.file,
                           line_number_arg3.line))
@@ -340,7 +340,7 @@ macro define_rule_metadata(name, ex)
     # TODO: Remove duplicate code.
     post_check == :nothing || is_check_macro(post_check) ||
         throw(SyntaxError("""
-                          invalid metadata argument: $arg1_name
+                          invalid hook argument: $arg1_name
                           The `post_check` rhs should be `nothing` or a `@check` call.
                           """,
                           line_number_arg2.file,
@@ -363,7 +363,7 @@ macro define_rule_metadata(name, ex)
     end
 
     return :(
-        RULES_METADATA[$name] = RuleMetadata($name,
+        RULES_HOOKS[$name] = RuleHook($name,
                                              $(esc(args)),
                                              $(esc(pre_check_fun)),
                                              $(esc(post_check_fun)))
@@ -373,26 +373,26 @@ end
 # Display
 # -------
 
-function Base.show(io::IO, metadata::RuleMetadata)
-    println(io, metadata.name, ":")
+function Base.show(io::IO, hook::RuleHook)
+    println(io, hook.name, ":")
     println(io)
     println(io, "Arguments:")
-    println(io, replace(repr(MIME("text/plain"), metadata.args), r".*\n" => ""; count=1))
+    println(io, replace(repr(MIME("text/plain"), hook.args), r".*\n" => ""; count=1))
     println(io)
     println(io, "Pre-match check:")
-    pre_check = isnothing(metadata.pre_check) ?
+    pre_check = isnothing(hook.pre_check) ?
         "<no pre-match check>" :
-        repr(MIME("text/plain"), metadata.pre_check)
+        repr(MIME("text/plain"), hook.pre_check)
     println(io, pre_check)
     println(io)
     println(io, "Pre-match check:")
-    post_check = isnothing(metadata.post_check) ?
+    post_check = isnothing(hook.post_check) ?
         "<no post-match check>" :
-        repr(MIME("text/plain"), metadata.post_check)
+        repr(MIME("text/plain"), hook.post_check)
     println(io, post_check)
 end
 
-Base.show(io::IO, ::Type{RuleMetadataRegistry}) = print(io, "RuleMetadataRegistry")
+Base.show(io::IO, ::Type{RuleHookRegistry}) = print(io, "RuleHookRegistry")
 
 # Utils
 # -----
@@ -402,13 +402,13 @@ is_check_macro(ex) = @isexpr(ex, :macrocall, 4) && ex.args[1] === Symbol("@check
 # Errors
 # ======
 
-struct RuleMetadataRegistryKeyError <: Exception
+struct RuleHookRegistryKeyError <: Exception
     key::Symbol
 end
 
-function Base.showerror(io::IO, err::RuleMetadataRegistryKeyError)
-    print(io, "RuleMetadataRegistryKeyError: ")
-    println(io, "no metadata defined for `:", err.key, "`")
+function Base.showerror(io::IO, err::RuleHookRegistryKeyError)
+    print(io, "RuleHookRegistryKeyError: ")
+    println(io, "no hook defined for `:", err.key, "`")
 end
 
 # Rule groups
@@ -579,18 +579,18 @@ function rule_match(rule::Rule,
                     src::JS.SyntaxNode;
                     greedy=true,
                     only_matches=true)
-    if !isnothing(rule.metadata)
-        for (m_name, m_args) in rule.metadata
+    if !isnothing(rule.hooks)
+        for (m_name, m_args) in rule.hooks
             m = try
-                RULES_METADATA[m_name]
+                RULES_HOOKS[m_name]
             catch err
-                isa(err, KeyError) && throw(RuleMetadataRegistryKeyError(err.key))
+                isa(err, KeyError) && throw(RuleHookRegistryKeyError(err.key))
                 rethrow(err)
             end
             isnothing(m.pre_check) && continue
             bound_args = syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, repr(m_args)))
             is_successful(bound_args) ||
-                error("Rule metadata args pattern incorrect")  # TODO: Specific error.
+                error("Rule hook args pattern incorrect")  # TODO: Specific error.
             skip = m.pre_check(rule, JS.filename(src), bound_args)
             if skip
                 return RuleMatchResult()

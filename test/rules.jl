@@ -10,7 +10,7 @@
             description = ""
             pattern = p
             template = t
-            metadata = Dict()
+            hooks = Dict()
             arg5 = "bla"
         end
         @test_throws "invalid `@rule` argument syntax" @macroexpand @rule "" begin
@@ -29,21 +29,21 @@
             description = ""
             other = p
         end
-        @test_throws "should be `template` or `metadata`" @macroexpand @rule "" begin
+        @test_throws "should be `template` or `hooks`" @macroexpand @rule "" begin
             description = ""
             pattern = p
             other = t
         end
-        @test_throws "`metadata` should be the last" @macroexpand @rule "" begin
+        @test_throws "`hooks` should be the last" @macroexpand @rule "" begin
             description = ""
             pattern = p
-            metadata = Dict()
+            hooks = Dict()
             template = t
         end
-        @test_throws "metadata should be given as a `Dict`" @macroexpand @rule "" begin
+        @test_throws "hooks should be given as a `Dict`" @macroexpand @rule "" begin
             description = ""
             pattern = p
-            metadata = m
+            hooks = m
         end
     end
 
@@ -399,20 +399,20 @@
         end
     end
 
-    @testset "Rule metadata" begin
+    @testset "Rule hooks" begin
         let
             rule = @rule "dummy" begin
                 description = ""
                 pattern = @pattern {_}
-                metadata = Dict(
+                hooks = Dict(
                     :exclude_files => ["bla.jl", "blu.jl"]
                 )
             end
-            @test_throws("no metadata defined for `:exclude_files`",
+            @test_throws("no hook defined for `:exclude_files`",
                          rule_match(rule, parsestmt(SyntaxNode, "x"; filename="blu.jl")))
         end
         let
-            @define_rule_metadata :exclude_files begin
+            @define_rule_hook :exclude_files begin
                 args = @pattern [{files}...]
 
                 pre_check = @check [:files] begin
@@ -428,7 +428,7 @@
             rule = @rule "dummy" begin
                 description = ""
                 pattern = @pattern {_}
-                metadata = Dict(
+                hooks = Dict(
                     :exclude_files => ["bla.jl", "blu.jl"]
                 )
             end
