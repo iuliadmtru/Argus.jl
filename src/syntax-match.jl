@@ -1222,10 +1222,10 @@ end
                           greedy=true,
                           tmp=false)
 
-Try to match an `~contains` pattern with a source node. If the pattern enclosed in
-`~contains` is found inside the source node ay any depth, return the bindings resulting
+Try to match a `~contains` pattern with a source node. If the pattern enclosed in
+`~contains` is found inside the source node at any depth, return the bindings resulting
 from the match. Otherwise, return a match failure. If a search depth is given, only
-search for matching inner patterns up to that depth.
+search for matching inner patterns at that depth.
 """
 function syntax_match_contains(contains_node::SyntaxPatternNode,
                                src::JS.SyntaxNode,
@@ -1261,7 +1261,7 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
             fail_message * ": " * match_results.failures[contains_fail].message
         failure = MatchFail(extended_fail_message, fail_location, fail_file)
     else
-        inner_nodes = get_all_nodes_up_to_depth(src, contains_node.depth)
+        inner_nodes = get_all_nodes_at_depth(src, contains_node.depth)
         for n in inner_nodes
             match_result =
                 _syntax_match(p, n, bindings_contains; recovery_stack, greedy, tmp)
@@ -1583,9 +1583,9 @@ function deep_push!(vec::Vector, el)
 end
 
 """
-    get_all_nodes_up_to_depth(src::JS.SyntaxNode, depth::Int)
+    get_all_nodes_at_depth(src::JS.SyntaxNode, depth::Int)
 
-Return the pre-order list of all nodes in `src` up to `depth`.
+Return the pre-order list of all nodes in `src` found at `depth`.
 
 # Examples
 
@@ -1599,41 +1599,32 @@ SyntaxNode:
   2                                      :: Integer
 
 
-julia> Argus.get_all_nodes_up_to_depth(src, 0)
+julia> Argus.get_all_nodes_at_depth(src, 0)
 1-element Vector{SyntaxNode}:
  (function-= (call f x) 2)
 
-julia> Argus.get_all_nodes_up_to_depth(src, 1)
-3-element Vector{SyntaxNode}:
- (function-= (call f x) 2)
+julia> Argus.get_all_nodes_at_depth(src, 1)
+2-element Vector{SyntaxNode}:
  (call f x)
  2
 
-julia> Argus.get_all_nodes_up_to_depth(src, 2)
-5-element Vector{SyntaxNode}:
- (function-= (call f x) 2)
- (call f x)
- 2
+julia> Argus.get_all_nodes_at_depth(src, 2)
+2-element Vector{SyntaxNode}:
  f
  x
 
-julia> Argus.get_all_nodes_up_to_depth(src, 3)
-5-element Vector{SyntaxNode}:
- (function-= (call f x) 2)
- (call f x)
- 2
- f
- x
+julia> Argus.get_all_nodes_at_depth(src, 3)
+SyntaxNode[]
 ```
 """
-function get_all_nodes_up_to_depth(src::JS.SyntaxNode, depth::I) where I <: Integer
+function get_all_nodes_at_depth(src::JS.SyntaxNode, depth::I) where I <: Integer
     depth == 0 && return [src]
-    is_leaf(src) && return [src]
-    depth == 1 && return [src, children(src)...]
-    nodes = [src, children(src)...]
+    is_leaf(src) && return JS.SyntaxNode[]
+    depth == 1 && return children(src)
+    nodes = JS.SyntaxNode[]
     for c in children(src)
-        c_nodes = get_all_nodes_up_to_depth(c, depth - 1)
-        append!(nodes, c_nodes[2:end])
+        c_nodes = get_all_nodes_at_depth(c, depth - 1)
+        append!(nodes, c_nodes)
     end
     return nodes
 end
