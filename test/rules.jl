@@ -195,17 +195,14 @@
         let
             rule = @rule "test no ellipses children 2" begin
                 description = ""
-                pattern = @pattern begin
+                pattern = @pattern ~and(
                     function {f:::identifier}()
                         {a1}...
                         a
                         {a2}...
-                    end
-                    @fail [:f] begin
-                        println("Function name: ", f.name)
-                        false
-                    end ""
-                end
+                    end,
+                    ~execute([:f], println("Function name: ", f.name))
+                )
             end
             src = """
                   function f()
@@ -213,7 +210,7 @@
                       a
                       a
                   end
-                  """;
+                  """
             original_stdout = stdout
             (read_pipe, write_pipe) = redirect_stdout()
             match_result = rule_match(rule, parseall(SyntaxNode, src))

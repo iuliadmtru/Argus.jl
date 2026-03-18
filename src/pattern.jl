@@ -358,7 +358,9 @@ function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     print(io, treestr)
     if !is_leaf(node) && !is_var(node)
         new_indent = indent * "  "
-        cs = is_cond(node) ? @views(children(node)[2:end]) : children(node)
+        cs = is_cond(node) || is_execute(node) ?
+            @views(children(node)[2:end]) :
+            children(node)
         for n in cs
             println(io)
             _show_pattern_syntax_node(io, n, new_indent)

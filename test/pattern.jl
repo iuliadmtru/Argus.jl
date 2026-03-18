@@ -95,6 +95,23 @@
             end
         end
 
+        @testset "`~execute`" begin
+            let
+                @test_throws("""
+                             invalid `~execute` syntax
+                             The `~execute` pattern form expects 2 arguments""",
+                             Pattern(SyntaxPatternNode(:( ~execute([], x, "") ))))
+                @test_throws("""
+                             invalid `~execute` syntax
+                             The first argument should be a vector of `Symbol`s""",
+                             Pattern(SyntaxPatternNode(:( ~execute([x], x) ))))
+                pattern = @pattern ~execute([], x)
+                @test_throws BindingSetKeyError syntax_match(pattern,
+                                                             parsestmt(SyntaxNode,
+                                                                       "dummy"))
+            end
+        end
+
         @testset "`~rep`" begin
             let
                 pattern = @pattern {x}...
@@ -618,6 +635,22 @@
                                                   parsestmt(SyntaxNode, "@m println(x)")))
                 @test is_successful(syntax_match(pattern,
                                                  parsestmt(SyntaxNode, "@m print(x)")))
+            end
+            let
+                pattern = @pattern ~and(
+                    {i:::infix_dotcall},
+                    ~when([:i], JuliaSyntax.is_identifier(i.rhs.src)),
+                    ~execute([:i], println(i.rhs.name))
+                )
+                original_stdout = stdout
+                (read_pipe, write_pipe) = redirect_stdout()
+                match_result = syntax_match(pattern, parsestmt(SyntaxNode, "x .+ y"))
+                redirect_stdout(original_stdout)
+                close(write_pipe)
+                @test is_successful(match_result)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "x .+ 2"))
+                @test !is_successful(match_fail)
+                @test match_fail.message == "`~when` condition not satisfied"
             end
             ## Templates.
             let

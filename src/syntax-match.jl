@@ -701,6 +701,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     # Dispatch on form type.
     isa(node_data, FailSyntaxData)     && return syntax_match_fail(args...)
     isa(node_data, WhenSyntaxData)     && return syntax_match_when(args...)
+    isa(node_data, ExecuteSyntaxData)  && return syntax_match_execute(args...)
     isa(node_data, VarSyntaxData)      && return syntax_match_var(args...; greedy, tmp)
     isa(node_data, OrSyntaxData)       && return syntax_match_or(args...; kwargs...)
     isa(node_data, AndSyntaxData)      && return syntax_match_and(args...; kwargs...)
@@ -833,6 +834,33 @@ function syntax_match_when(when_node::SyntaxPatternNode,
     end
     isa(cond, Bool) || throw(MatchError(cond))
     return cond ? bindings : MatchFail(message, JS.source_location(src), JS.filename(src))
+end
+
+"""
+    syntax_match_execute(execute_node::SyntaxPatternNode,
+                         src::JS.SyntaxNode
+                         bindings::BindingSet)
+
+Run the code contained in the `~execute` node. No matching is performed.
+"""
+function syntax_match_execute(execute_node::SyntaxPatternNode,
+                              src::JS.SyntaxNode,
+                              bindings::BindingSet)
+    code = get_code(execute_node)
+    # Evaluate the condition.
+    message = try
+        code(bindings)
+        ""
+    catch err
+        if isa(err, BindingFieldError)
+            sprint(showerror, err)
+        else
+            rethrow(err)
+        end
+    end
+    return isempty(message) ?
+        bindings :
+        MatchFail(message, JS.source_location(src), JS.filename(src))
 end
 
 """

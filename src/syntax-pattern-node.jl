@@ -360,15 +360,16 @@ function _parse_pattern_form(node::JS.SyntaxNode)
     pattern_form_args = _get_pattern_form_args(node)
     # Construct a node with the specific special data.
     pattern_data =
-        pattern_form_name === :var      ? VarSyntaxData(pattern_form_args...)  :
-        pattern_form_name === :fail     ? FailSyntaxData(pattern_form_args...) :
-        pattern_form_name === :when     ? WhenSyntaxData(pattern_form_args...) :
-        pattern_form_name === :or       ? OrSyntaxData()                       :
-        pattern_form_name === :and      ? AndSyntaxData()                      :
-        pattern_form_name === :rep      ? RepSyntaxData(pattern_form_args...)  :
-        pattern_form_name === :not      ? NotSyntaxData()                      :
-        pattern_form_name === :inside   ? InsideSyntaxData()                   :
-        pattern_form_name === :contains ? ContainsSyntaxData()                 :
+        pattern_form_name === :var      ? VarSyntaxData(pattern_form_args...)     :
+        pattern_form_name === :fail     ? FailSyntaxData(pattern_form_args...)    :
+        pattern_form_name === :when     ? WhenSyntaxData(pattern_form_args...)    :
+        pattern_form_name === :execute  ? ExecuteSyntaxData(pattern_form_args...) :
+        pattern_form_name === :or       ? OrSyntaxData()                          :
+        pattern_form_name === :and      ? AndSyntaxData()                         :
+        pattern_form_name === :rep      ? RepSyntaxData(pattern_form_args...)     :
+        pattern_form_name === :not      ? NotSyntaxData()                         :
+        pattern_form_name === :inside   ? InsideSyntaxData()                      :
+        pattern_form_name === :contains ? ContainsSyntaxData()                    :
         error("cannot parse pattern form `~$(pattern_form_name)`")
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
@@ -808,6 +809,7 @@ is_pattern_form(ex) =
 is_var(ex)      = is_pattern_form(ex) && ex.args[2].args[1] === :var
 is_fail(ex)     = is_pattern_form(ex) && ex.args[2].args[1] === :fail
 is_when(ex)     = is_pattern_form(ex) && ex.args[2].args[1] === :when
+is_execute(ex)  = is_pattern_form(ex) && ex.args[2].args[1] === :execute
 is_or(ex)       = is_pattern_form(ex) && ex.args[2].args[1] === :or
 is_and(ex)      = is_pattern_form(ex) && ex.args[2].args[1] === :and
 is_rep(ex)      = is_pattern_form(ex) && ex.args[2].args[1] === :rep
@@ -890,6 +892,7 @@ function _get_pattern_form_arg_nodes(node::JS.SyntaxNode)
     name === :var      && return args
     name === :fail     && return _strip_node.(args)
     name === :when     && return _strip_node.(args)
+    name === :execute  && return _strip_node.(args)
     name === :or       && return _strip_node.(args)
     name === :and      && return _strip_node.(args)
     name === :rep      && return args
@@ -903,7 +906,8 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     arg_nodes = @views node.children[2].children[2:end]
     name === :var      && return _get_var_arg_names(arg_nodes)
     name === :fail     && return _get_fail_args(arg_nodes)
-    name === :when     && return _get_when_args(arg_nodes)
+    name === :when     && return _get_code_args(arg_nodes, "~when")
+    name === :execute  && return _get_code_args(arg_nodes, "~execute")
     name === :or       && return JS.SyntaxNode[]
     name === :and      && return JS.SyntaxNode[]
     name === :rep      && return arg_nodes
@@ -1262,6 +1266,7 @@ is_rep(node::JS.SyntaxNode) =
 is_var(node::SyntaxPatternNode)      = isa(node.data, VarSyntaxData)
 is_fail(node::SyntaxPatternNode)     = isa(node.data, FailSyntaxData)
 is_when(node::SyntaxPatternNode)     = isa(node.data, WhenSyntaxData)
+is_execute(node::SyntaxPatternNode)  = isa(node.data, ExecuteSyntaxData)
 is_or(node::SyntaxPatternNode)       = isa(node.data, OrSyntaxData)
 is_and(node::SyntaxPatternNode)      = isa(node.data, AndSyntaxData)
 is_rep(node::SyntaxPatternNode)      = isa(node.data, RepSyntaxData)
@@ -1313,16 +1318,16 @@ function _get_fail_args(args::T) where T <: AbstractVector{JS.SyntaxNode}
             JS.to_expr(args[2]),
             fail_message]
 end
-function _get_when_args(args::T) where T <: AbstractVector{JS.SyntaxNode}
+function _get_code_args(args::T, pattern_form_name) where T <: AbstractVector{JS.SyntaxNode}
     length(args) == 2 ||
         throw(SyntaxError("""
-                          invalid `~when` syntax
-                          The `~when` pattern form expects 2 arguments: a list of \
-                          `Symbol`s and a condition.""",
+                          invalid `$(pattern_form_name)` syntax
+                          The `$(pattern_form_name)` pattern form expects 2 arguments: \
+                          a list of `Symbol`s and a condition.""",
                           JS.filename(args[1]),
                           JS.source_location(args[1])[1],
                           JS.source_location(args[1])[2] - 1))
-    return [_get_symbols(args[1], "~when"), JS.to_expr(args[2])]
+    return [_get_symbols(args[1], pattern_form_name), JS.to_expr(args[2])]
 end
 function _get_symbols(node::JS.SyntaxNode, pattern_form_name::String)
     error = SyntaxError("""
@@ -1348,6 +1353,8 @@ get_condition(node::SyntaxPatternNode) = is_fail(node) || is_when(node) ?
     node.data.condition :
     nothing
 get_fail_message(node::SyntaxPatternNode) = is_fail(node) ? node.data.message : nothing
+
+get_code(node::SyntaxPatternNode) = is_execute(node) ? node.data.code : nothing
 
 get_rep_vars(node::SyntaxPatternNode) = is_rep(node) ? node.data.rep_vars : nothing
 

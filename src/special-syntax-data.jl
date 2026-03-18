@@ -58,6 +58,9 @@ Supertype for all pattern form syntax data types.
 """
 abstract type AbstractPatternFormSyntaxData end
 
+# Active patterns
+# ---------------
+
 """
     VarSyntaxData <: AbstractPatternFormSyntaxData
 
@@ -125,6 +128,18 @@ struct WhenSyntaxData <: AbstractPatternFormSyntaxData
 end
 
 """
+"""
+struct ExecuteSyntaxData <: AbstractPatternFormSyntaxData
+    code::Function
+
+    ExecuteSyntaxData(code::Function) = new(code)
+    ExecuteSyntaxData(pattern_vars, code) = new(create_function(code, pattern_vars))
+end
+
+# Passive patterns
+# ----------------
+
+"""
     OrSyntaxData <: AbstractPatternFormSyntaxData
 
 Data for an `~or` pattern form.
@@ -189,6 +204,7 @@ const PATTERN_FORMS = [
     :var,
     :fail,
     :when,
+    :execute,
     :or,
     :and,
     :rep,
@@ -211,6 +227,7 @@ _register_kinds() = JS.register_kinds!(Argus,
                                            "~var",
                                            "~fail",
                                            "~when",
+                                           "~execute",
                                            "~or",
                                            "~and",
                                            "~rep",
@@ -223,6 +240,7 @@ _register_kinds()
 JS.head(::VarSyntaxData)      = JS.SyntaxHead(K"~var",      0)
 JS.head(::FailSyntaxData)     = JS.SyntaxHead(K"~fail",     0)
 JS.head(::WhenSyntaxData)     = JS.SyntaxHead(K"~when",     0)
+JS.head(::ExecuteSyntaxData)  = JS.SyntaxHead(K"~execute",  0)
 JS.head(::OrSyntaxData)       = JS.SyntaxHead(K"~or",       0)
 JS.head(::AndSyntaxData)      = JS.SyntaxHead(K"~and",      0)
 JS.head(::RepSyntaxData)      = JS.SyntaxHead(K"~rep",      0)
@@ -253,6 +271,11 @@ Base.getproperty(data::WhenSyntaxData, name::Symbol) =
     name === :val       ? nothing                    :
     getfield(data, name)
 
+Base.getproperty(data::ExecuteSyntaxData, name::Symbol) =
+    name === :code ? getfield(data, :code) :
+    name === :val  ? nothing               :
+    getfield(data, name)
+
 Base.getproperty(data::OrSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
@@ -276,6 +299,7 @@ Base.getproperty(data::ContainsSyntaxData, name::Symbol) =
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
 Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
 Base.copy(data::WhenSyntaxData) = WhenSyntaxData(data.condition)
+Base.copy(data::ExecuteSyntaxData) = ExecuteSyntaxData(data.code)
 Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
@@ -289,13 +313,13 @@ Base.copy(::ContainsSyntaxData) = ContainsSyntaxData()
 """
     create_function(condition)
 
-Parse and evaluate a pattenr condition `Expr` as a `Function`. The resulting function takes
-a `BindingSet` as argument and returns a `Bool` (`true` if the condition is satisfied,
-`false` otherwise). `JuliaSyntax` is imported in the evaluation context.
+Parse and evaluate code in a pattern as a `Function`. The resulting function takes a
+`BindingSet` as argument. `JuliaSyntax` is imported in the evaluation context.
 
 Pattern match time exceptions:
-  - [`MatchError`](@ref)
   - [`BindingSetKeyError`](@ref)
+  - [`MatchError`](@ref) – in the case of `~when` and `~fail`, when the function call does
+                           not evaluate to `Bool`
   - Any exception caused by the evaluation of the condition
 
 Exceptions caught and returned as a [`MatchFail`] message:
