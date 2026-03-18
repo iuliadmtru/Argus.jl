@@ -229,7 +229,7 @@
                 pattern = @pattern begin
                     {a:::identifier} = {_}
                     {rest}...
-                    @fail [:a] a.name == "x" "is x"
+                    @when [:a] a.name != "x"
                 end
             end
             let

@@ -65,6 +65,30 @@
                 end
             end
         end
+
+        @testset "`~when`" begin
+            let
+                @test_throws("""
+                             invalid `~when` syntax
+                             The `~when` pattern form expects 2 arguments""",
+                             Pattern(SyntaxPatternNode(:( ~when([], x, "") ))))
+                @test_throws("""
+                             invalid `~when` syntax
+                             The first argument should be a vector of `Symbol`s""",
+                             Pattern(SyntaxPatternNode(:( ~when([x], x) ))))
+                pattern = @pattern ~when([], x)
+                @test_throws BindingSetKeyError syntax_match(pattern,
+                                                             parsestmt(SyntaxNode,
+                                                                       "dummy"))
+            end
+            let
+                pattern = @pattern ~when([], :(x + 1))
+                @test try
+                    syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                catch err
+                    isa(err, MatchError) &&
+                        sprint(showerror, err) ==
+                        "MatchError: Condition evaluated to Expr instead of Bool (`x + 1`)\n"
                 else
                     false
                 end
@@ -252,9 +276,17 @@
             @test_throws "first expression cannot be a cond" @macroexpand @pattern begin
                 @fail [:ex] ex.value == 2 "is two"
             end
+            @test_throws "first expression cannot be a cond" @macroexpand @pattern begin
+                @when [:ex] ex.value == 2
+            end
             @test_throws "interspersed" @macroexpand @pattern begin
                 ex1
                 @fail [] cond ""
+                ex2
+            end
+            @test_throws "interspersed" @macroexpand @pattern begin
+                ex1
+                @when [] cond
                 ex2
             end
         end
@@ -392,7 +424,7 @@
                         {b} || {_}...,
                         {_}... || {b}
                     )
-                    @fail [:b] typeof(b.value) != Bool "not `Bool`"
+                    @when [:b] typeof(b.value) == Bool
                 end
                 src = parsestmt(SyntaxNode, "cond || true")
                 match_result = syntax_match(pattern, src)
@@ -422,7 +454,7 @@
             let
                 pattern = @pattern begin
                     @show {x}
-                    @fail [:x] x.name != "x" "not x"
+                    @when [:x] x.name == "x"
                 end
                 @test is_successful(syntax_match(pattern,
                                                  parsestmt(SyntaxNode, "@show x")))

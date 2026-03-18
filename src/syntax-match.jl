@@ -700,6 +700,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     node_data = pattern_node.data
     # Dispatch on form type.
     isa(node_data, FailSyntaxData)     && return syntax_match_fail(args...)
+    isa(node_data, WhenSyntaxData)     && return syntax_match_when(args...)
     isa(node_data, VarSyntaxData)      && return syntax_match_var(args...; greedy, tmp)
     isa(node_data, OrSyntaxData)       && return syntax_match_or(args...; kwargs...)
     isa(node_data, AndSyntaxData)      && return syntax_match_and(args...; kwargs...)
@@ -783,11 +784,12 @@ end
 
 Try to match a `~fail` pattern form. If the fail condition is satisfied return a
 [`MatchFail`](@ref) with an informative fail message. Otherwise, return `bindings`.
+The behaviour is opposite to that of [`syntax_match_when`](@ref).
 """
 function syntax_match_fail(fail_node::SyntaxPatternNode,
                            src::JS.SyntaxNode,
                            bindings::BindingSet)
-    condition = get_fail_condition(fail_node)
+    condition = get_condition(fail_node)
     message = get_fail_message(fail_node)
     # Evaluate the fail condition.
     fail = try
@@ -802,6 +804,35 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
     end
     isa(fail, Bool) || throw(MatchError(fail))
     return fail ? MatchFail(message, JS.source_location(src), JS.filename(src)) : bindings
+end
+
+"""
+    syntax_match_when(when_node::SyntaxPatternNode,
+                      src::JS.SyntaxNode
+                      bindings::BindingSet)
+
+Try to match a `~when` pattern form. If the condition is satisfied return `bindings`.
+Otherwise, return `MatchFail`. The behaviour is opposite to that of
+[`syntax_match_fail`](@ref).
+"""
+function syntax_match_when(when_node::SyntaxPatternNode,
+                           src::JS.SyntaxNode,
+                           bindings::BindingSet)
+    condition = get_condition(when_node)
+    message = "`~when` condition not satisfied"
+    # Evaluate the condition.
+    cond = try
+        condition(bindings)
+    catch err
+        if isa(err, BindingFieldError)
+            message = sprint(showerror, err)
+            true
+        else
+            rethrow(err)
+        end
+    end
+    isa(cond, Bool) || throw(MatchError(cond))
+    return cond ? bindings : MatchFail(message, JS.source_location(src), JS.filename(src))
 end
 
 """

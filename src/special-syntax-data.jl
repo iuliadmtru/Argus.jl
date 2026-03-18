@@ -76,7 +76,8 @@ Data for a `~fail` pattern form containing a fail condition and a message. The f
 condition is a function that, given a binding context (`::BindingSet`), creates an
 evaluation context where the pattern variables found in the fail condition are defined as
 their corresponding bindings. When the function is called, the fail condition is evaluated
-in this evaluation context.
+in this evaluation context. The match behaviour is opposite to that of
+[`WhenSyntaxData`](@ref).
 
 Pattern match time exceptions:
   - [`MatchError`](@ref)
@@ -85,6 +86,8 @@ Pattern match time exceptions:
 
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
+
+See also: [`WhenSyntaxData`](@ref)
 """
 struct FailSyntaxData <: AbstractPatternFormSyntaxData
     condition::Function
@@ -92,7 +95,33 @@ struct FailSyntaxData <: AbstractPatternFormSyntaxData
 
     FailSyntaxData(cond::Function, msg::String) = new(cond, msg)
     FailSyntaxData(pattern_vars, cond, msg::String) =
-        new(fail_condition(cond, pattern_vars), msg)
+        new(create_function(cond, pattern_vars), msg)
+end
+
+"""
+    WhenSyntaxData <: AbstractPatternFormSyntaxData
+
+Data for a `~when` pattern form containing a condition and a message. The condition is a
+function that, given a binding context (`::BindingSet`), creates an evaluation context
+where the pattern variables found in the condition are defined as their corresponding
+bindings. When the function is called, the condition is evaluated in this evaluation
+context. The match behaviour is opposite to that of [`FailSyntaxData`](@ref).
+
+Pattern match time exceptions:
+  - [`MatchError`](@ref)
+  - [`BindingSetKeyError`](@ref)
+  - Any exception caused by the evaluation of the condition
+
+Exceptions caught and returned as a [`MatchFail`] message:
+  - [`BindingFieldError`](@ref)
+
+See also: [`FailSyntaxData`](@ref)
+"""
+struct WhenSyntaxData <: AbstractPatternFormSyntaxData
+    condition::Function
+
+    WhenSyntaxData(cond::Function) = new(cond)
+    WhenSyntaxData(pattern_vars, cond) = new(create_function(cond, pattern_vars))
 end
 
 """
@@ -156,7 +185,17 @@ Data for an `~contains` pattern form.
 """
 struct ContainsSyntaxData <: AbstractPatternFormSyntaxData end
 
-const PATTERN_FORMS = [:var, :fail, :or, :and, :rep, :not, :inside, :contains]
+const PATTERN_FORMS = [
+    :var,
+    :fail,
+    :when,
+    :or,
+    :and,
+    :rep,
+    :not,
+    :inside,
+    :contains,
+]
 
 # JuliaSyntax overwrites and utils
 # --------------------------------
@@ -171,6 +210,7 @@ _register_kinds() = JS.register_kinds!(Argus,
                                        [
                                            "~var",
                                            "~fail",
+                                           "~when",
                                            "~or",
                                            "~and",
                                            "~rep",
@@ -182,6 +222,7 @@ _register_kinds()
 
 JS.head(::VarSyntaxData)      = JS.SyntaxHead(K"~var",      0)
 JS.head(::FailSyntaxData)     = JS.SyntaxHead(K"~fail",     0)
+JS.head(::WhenSyntaxData)     = JS.SyntaxHead(K"~when",     0)
 JS.head(::OrSyntaxData)       = JS.SyntaxHead(K"~or",       0)
 JS.head(::AndSyntaxData)      = JS.SyntaxHead(K"~and",      0)
 JS.head(::RepSyntaxData)      = JS.SyntaxHead(K"~rep",      0)
@@ -206,6 +247,10 @@ Base.getproperty(data::FailSyntaxData, name::Symbol) =
     name === :message   ? getfield(data, :message)   :
     name === :val       ? nothing                    :
     getfield(data, name)
+
+Base.getproperty(data::WhenSyntaxData, name::Symbol) =
+    name === :condition ? getfield(data, :condition) :
+    name === :val       ? nothing                    :
     getfield(data, name)
 
 Base.getproperty(data::OrSyntaxData, name::Symbol) =
@@ -230,6 +275,7 @@ Base.getproperty(data::ContainsSyntaxData, name::Symbol) =
 
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
 Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
+Base.copy(data::WhenSyntaxData) = WhenSyntaxData(data.condition)
 Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
@@ -241,21 +287,21 @@ Base.copy(::ContainsSyntaxData) = ContainsSyntaxData()
 # -----
 
 """
-    fail_condition(condition)
+    create_function(condition)
 
-Parse and evaluate a fail condition `Expr` as a `Function`. The resulting function takes a
-`BindingSet` as argument and returns a `Bool` (`true` if the pattern match should fail,
+Parse and evaluate a pattenr condition `Expr` as a `Function`. The resulting function takes
+a `BindingSet` as argument and returns a `Bool` (`true` if the condition is satisfied,
 `false` otherwise). `JuliaSyntax` is imported in the evaluation context.
 
 Pattern match time exceptions:
   - [`MatchError`](@ref)
   - [`BindingSetKeyError`](@ref)
-  - Any exception caused by the evaluation of the fail condition
+  - Any exception caused by the evaluation of the condition
 
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
 """
-function fail_condition(condition, pattern_vars)
+function create_function(condition, pattern_vars)
     # Create the `let` bindings that will be bound in the returned function.
     bindings_sym = gensym()
     let_bindings = [:($v = $bindings_sym[$(QuoteNode(v))]) for v in pattern_vars]

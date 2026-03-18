@@ -150,15 +150,15 @@ macro pattern(expr)
         |   end
          -- ```
          """
-    err_msg_should_not_be_fail =
+    err_msg_should_not_be_cond =
         """
         invalid `@pattern` syntax
-        The first expression cannot be a fail condition.
+        The first expression cannot be a condition.
         """
-    err_msg_should_be_fail =
+    err_msg_should_be_cond =
         """
         invalid `@pattern` syntax
-        Pattern expressions and fail conditions cannot be interspersed.
+        Pattern expressions and conditions cannot be interspersed.
         """
 
     @isexpr(expr, :quote) &&
@@ -178,8 +178,8 @@ macro pattern(expr)
     #                the last `expr` possibility.
     if @isexpr(expr, :block)
         first_expr_line_number = expr.args[1]
-        length(expr.args) == 2 && is_fail_macro(expr.args[2]) &&
-                throw(SyntaxError(err_msg_should_not_be_fail,
+        length(expr.args) == 2 && is_cond_macro(expr.args[2]) &&
+                throw(SyntaxError(err_msg_should_not_be_cond,
                                   first_expr_line_number.file,
                                   first_expr_line_number.line))
         # The pattern has at least one pattern expression.
@@ -188,12 +188,13 @@ macro pattern(expr)
         #   @pattern begin
         #       <pattern_expr>
         #       <pattern_expr>*
-        #       (@fail <pattern_vars> <condition> <msg>)*
+        #       ((@fail <pattern_vars> <condition> <msg>)*
+        #        (@when <pattern_vars> <condition> <msg>)*)*
         #   end
         #   ```
         idx = 4  # Index of expressions inside the macro body, skipping `LineNumberNode`s.
         toplevel_children = [pattern_expr]
-        while idx <= length(expr.args) && !is_fail_macro(expr.args[idx])
+        while idx <= length(expr.args) && !is_cond_macro(expr.args[idx])
             # The pattern has more than one pattern expression.
             #
             #   ```
@@ -201,7 +202,8 @@ macro pattern(expr)
             #       <pattern_expr>
             #       <pattern_expr>
             #       <pattern_expr>*
-            #       (@fail <pattern_vars> <condition> <msg>)*
+            #       ((@fail <pattern_vars> <condition> <msg>)*
+            #        (@when <pattern_vars> <condition> <msg>)*)*
             #   end
             #   ```
             #
@@ -225,28 +227,32 @@ macro pattern(expr)
             # `@pattern const _:::identifier = (_..., _...)`
             pattern_expr = :( [:pattern_toplevel, $(Meta.quot.(toplevel_children)...)] )
         end
-        # All expressions from `idx` onwards, if any, should be fail conditions.
+        # All expressions from `idx` onwards, if any, should be `fail` or `when` conditions.
         if idx <= length(expr.args)
-            # Turn `@fail` macros into `~fail` expressions.
+            # Turn `@fail` and `@when` macros into `~fail` and `~when` expressions.
             # Skip `LineNumberNode`s when iterating but include them in the error message.
-            fail_exprs = Expr[]
-            for (line_number_idx, fail_macro) in zip(Iterators.countfrom(idx - 1, 2),
+            cond_exprs = Expr[]
+            for (line_number_idx, cond_macro) in zip(Iterators.countfrom(idx - 1, 2),
                                                      @views expr.args[idx:2:end])
-                fail_macro_line_number = expr.args[line_number_idx]
+                cond_macro_line_number = expr.args[line_number_idx]
                 # Pattern expressions and fail conditions cannot be interspersed.
-                is_fail_macro(fail_macro) ||
-                    throw(SyntaxError(err_msg_should_be_fail,
-                                      fail_macro_line_number.file,
-                                      fail_macro_line_number.line))
-                pattern_vars = map(s -> s.value, fail_macro.args[3].args)
-                condition_expr = fail_macro.args[4]
-                message = fail_macro.args[5]
-                push!(fail_exprs, :( ~fail($pattern_vars, $condition_expr, $message) ))
+                is_cond_macro(cond_macro) ||
+                    throw(SyntaxError(err_msg_should_be_cond,
+                                      cond_macro_line_number.file,
+                                      cond_macro_line_number.line))
+                pattern_vars = map(s -> s.value, cond_macro.args[3].args)
+                condition_expr = cond_macro.args[4]
+                if is_fail_macro(cond_macro)
+                    message = cond_macro.args[5]
+                    push!(cond_exprs, :( ~fail($pattern_vars, $condition_expr, $message) ))
+                else
+                    push!(cond_exprs, :( ~when($pattern_vars, $condition_expr) ))
+                end
             end
             # Create the pattern as an `~and` between the pattern expression and the
-            # fail conditions.
-            if !isempty(fail_exprs)
-                pattern_expr = :( ~and($(Meta.quot(pattern_expr)), $(fail_exprs...)) )
+            # conditions.
+            if !isempty(cond_exprs)
+                pattern_expr = :( ~and($(Meta.quot(pattern_expr)), $(cond_exprs...)) )
             end
         end
     end
@@ -271,6 +277,40 @@ function is_fail_macro(ex)
                           invalid `~fail` syntax
                           The `~fail` pattern form expects 3 arguments: a list of \
                           `Symbol`s, a fail condition and a fail message.
+                          """,
+                          ex.args[2].file,
+                          ex.args[2].line
+                          ))
+    return true
+end
+function is_when_macro(ex)
+    @isexpr(ex, :macrocall) && ex.args[1] === Symbol("@when") ||
+        return false
+    length(ex.args) == 4 ||
+        throw(SyntaxError("""
+                          invalid `~when` syntax
+                          The `~when` pattern form expects 2 arguments: a list of \
+                          `Symbol`s and a condition.
+                          """,
+                          ex.args[2].file,
+                          ex.args[2].line
+                          ))
+    return true
+end
+function is_cond_macro(ex)
+    pattern_form_name =
+        if is_fail_macro(ex)
+            "~fail"
+        elseif is_when_macro(ex)
+            "~when"
+        else
+            return false
+        end
+    pattern_vars = ex.args[3]
+    all(v -> isa(v, QuoteNode), pattern_vars.args) ||
+        throw(SyntaxError("""
+                          invalid `$(pattern_form_name)` syntax
+                          The first argument should be a vector of `Symbol`s.
                           """,
                           ex.args[2].file,
                           ex.args[2].line
@@ -318,7 +358,8 @@ function _show_pattern_syntax_node(io::IO, node::SyntaxPatternNode, indent)
     print(io, treestr)
     if !is_leaf(node) && !is_var(node)
         new_indent = indent * "  "
-        for n in children(node)
+        cs = is_cond(node) ? @views(children(node)[2:end]) : children(node)
+        for n in cs
             println(io)
             _show_pattern_syntax_node(io, n, new_indent)
         end
