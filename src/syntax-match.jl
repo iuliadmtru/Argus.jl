@@ -1174,7 +1174,8 @@ end
                         tmp=false)
 
 Try to match an `~inside` pattern with a source node. The match succeeds if `src` is
-enclosed in `inside_node` and fails otherwise.
+enclosed in `inside_node` and fails otherwise. If a search level is given, only search for
+matching enclosing patterns up to that level.
 """
 function syntax_match_inside(inside_node::SyntaxPatternNode,
                              src::JS.SyntaxNode,
@@ -1188,7 +1189,9 @@ function syntax_match_inside(inside_node::SyntaxPatternNode,
     fail_file = JS.filename(src)
     failure = MatchFail(fail_message, fail_location, fail_file)
     # Try to match enlcosing nodes until we find a match or until we reach the root.
-    while !isnothing(src.parent)
+    # Stop when the search level is reached, is one is given.
+    search_level = inside_node.data.level
+    while !isnothing(src.parent) && search_level > 0
         isnothing(src.parent) && return failure
         inside_match_result = _syntax_match(inside_node.children[1],
                                             src.parent,
@@ -1205,6 +1208,7 @@ function syntax_match_inside(inside_node::SyntaxPatternNode,
                             (inside_match_result::MatchFail).source_location,
                             (inside_match_result::MatchFail).file_name)
         src = src.parent
+        search_level -= 1
     end
     # Return the match failure.
     return failure
@@ -1219,8 +1223,9 @@ end
                           tmp=false)
 
 Try to match an `~contains` pattern with a source node. If the pattern enclosed in
-`~contains` is found inside thesource node ay any depth, return the bindings resulting
-from the match. Otherwise, return a match failure.
+`~contains` is found inside the source node ay any depth, return the bindings resulting
+from the match. Otherwise, return a match failure. If a search depth is given, only
+search for matching inner patterns up to that depth.
 """
 function syntax_match_contains(contains_node::SyntaxPatternNode,
                                src::JS.SyntaxNode,
@@ -1239,21 +1244,13 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
     bindings_contains = shared_copy(bindings)
     failure = MatchFail(fail_message, fail_location, fail_file)
     # Return the first successful match, but store the others as recovery states.
-    for (i, s) in enumerate(children(src))
+    p = contains_node.children[1]
+    if contains_node.depth == typemax(Argus.InsideSyntaxData.types[1])
         match_results =
-            syntax_match_all(contains_node.children[1], s; greedy, only_matches=false)
-        if length(match_results.matches) > 0
-            # If this is not the last child, we might be able to recover from one of the
-            # next children in the encompassing pattern fails to match.
-            if i < length(children(src))
-                next_try_children = children(src)[i+1:end]
-                next_try = JS.SyntaxNode(src.parent, next_try_children, src.data)
-                [c.parent = next_try for c in next_try_children]
-                push!(recovery_stack, (contains_node, next_try, bindings))
-            end
+            syntax_match_all(p, src; greedy, only_matches=false)
+        length(match_results.matches) > 0 &&
             # Return the first match.
             return match_results.matches[1]
-        end
         # Reset the bindings.
         bindings_contains = shared_copy(bindings)
         # TODO: Find most specific error.
@@ -1263,6 +1260,22 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
             fail_message :
             fail_message * ": " * match_results.failures[contains_fail].message
         failure = MatchFail(extended_fail_message, fail_location, fail_file)
+    else
+        inner_nodes = get_all_nodes_up_to_depth(src, contains_node.depth)
+        for n in inner_nodes
+            match_result =
+                _syntax_match(p, n, bindings_contains; recovery_stack, greedy, tmp)
+            is_successful(match_result) &&
+                # Return the match.
+                return match_result
+            # Reset the bindings.
+            bindings_contains = shared_copy(bindings)
+            # TODO: Find most specific error.
+            extended_fail_message = is_default_match_fail(match_result) ?
+                fail_message :
+                fail_message * ": " * match_result.message
+            failure = MatchFail(extended_fail_message, fail_location, fail_file)
+        end
     end
     return failure
 end
@@ -1567,6 +1580,62 @@ function deep_push!(vec::Vector, el)
         if eltype(vec) == typeof(el)
         end
     end
+end
+
+"""
+    get_all_nodes_up_to_depth(src::JS.SyntaxNode, depth::Int)
+
+Return the pre-order list of all nodes in `src` up to `depth`.
+
+# Examples
+
+```
+julia> src = parsestmt(SyntaxNode, "f(x) = 2")
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  2                                      :: Integer
+
+
+julia> Argus.get_all_nodes_up_to_depth(src, 0)
+1-element Vector{SyntaxNode}:
+ (function-= (call f x) 2)
+
+julia> Argus.get_all_nodes_up_to_depth(src, 1)
+3-element Vector{SyntaxNode}:
+ (function-= (call f x) 2)
+ (call f x)
+ 2
+
+julia> Argus.get_all_nodes_up_to_depth(src, 2)
+5-element Vector{SyntaxNode}:
+ (function-= (call f x) 2)
+ (call f x)
+ 2
+ f
+ x
+
+julia> Argus.get_all_nodes_up_to_depth(src, 3)
+5-element Vector{SyntaxNode}:
+ (function-= (call f x) 2)
+ (call f x)
+ 2
+ f
+ x
+```
+"""
+function get_all_nodes_up_to_depth(src::JS.SyntaxNode, depth::I) where I <: Integer
+    depth == 0 && return [src]
+    is_leaf(src) && return [src]
+    depth == 1 && return [src, children(src)...]
+    nodes = [src, children(src)...]
+    for c in children(src)
+        c_nodes = get_all_nodes_up_to_depth(c, depth - 1)
+        append!(nodes, c_nodes[2:end])
+    end
+    return nodes
 end
 
 # Match all utils

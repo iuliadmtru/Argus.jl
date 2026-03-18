@@ -360,16 +360,16 @@ function _parse_pattern_form(node::JS.SyntaxNode)
     pattern_form_args = _get_pattern_form_args(node)
     # Construct a node with the specific special data.
     pattern_data =
-        pattern_form_name === :var      ? VarSyntaxData(pattern_form_args...)     :
-        pattern_form_name === :fail     ? FailSyntaxData(pattern_form_args...)    :
-        pattern_form_name === :when     ? WhenSyntaxData(pattern_form_args...)    :
-        pattern_form_name === :execute  ? ExecuteSyntaxData(pattern_form_args...) :
-        pattern_form_name === :or       ? OrSyntaxData()                          :
-        pattern_form_name === :and      ? AndSyntaxData()                         :
-        pattern_form_name === :rep      ? RepSyntaxData(pattern_form_args...)     :
-        pattern_form_name === :not      ? NotSyntaxData()                         :
-        pattern_form_name === :inside   ? InsideSyntaxData()                      :
-        pattern_form_name === :contains ? ContainsSyntaxData()                    :
+        pattern_form_name === :var      ? VarSyntaxData(pattern_form_args...)      :
+        pattern_form_name === :fail     ? FailSyntaxData(pattern_form_args...)     :
+        pattern_form_name === :when     ? WhenSyntaxData(pattern_form_args...)     :
+        pattern_form_name === :execute  ? ExecuteSyntaxData(pattern_form_args...)  :
+        pattern_form_name === :or       ? OrSyntaxData()                           :
+        pattern_form_name === :and      ? AndSyntaxData()                          :
+        pattern_form_name === :rep      ? RepSyntaxData(pattern_form_args...)      :
+        pattern_form_name === :not      ? NotSyntaxData()                          :
+        pattern_form_name === :inside   ? InsideSyntaxData(pattern_form_args...)   :
+        pattern_form_name === :contains ? ContainsSyntaxData(pattern_form_args...) :
         error("cannot parse pattern form `~$(pattern_form_name)`")
     # Link the node with its children.
     cs = parse_pattern_forms.(pattern_form_arg_nodes)
@@ -912,8 +912,8 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
     name === :and      && return JS.SyntaxNode[]
     name === :rep      && return arg_nodes
     name === :not      && return JS.SyntaxNode[]
-    name === :inside   && return JS.SyntaxNode[]
-    name === :contains && return JS.SyntaxNode[]
+    name === :inside   && return [_get_search_level(arg_nodes, "~inside")]
+    name === :contains && return [_get_search_level(arg_nodes, "~contains")]
     error("Trying to extract arguments for unimplemented pattern form ~$name.")
 end
 
@@ -1318,7 +1318,8 @@ function _get_fail_args(args::T) where T <: AbstractVector{JS.SyntaxNode}
             JS.to_expr(args[2]),
             fail_message]
 end
-function _get_code_args(args::T, pattern_form_name) where T <: AbstractVector{JS.SyntaxNode}
+function _get_code_args(args::T,
+                        pattern_form_name) where T <: AbstractVector{JS.SyntaxNode}
     length(args) == 2 ||
         throw(SyntaxError("""
                           invalid `$(pattern_form_name)` syntax
@@ -1347,6 +1348,28 @@ function _get_symbols(node::JS.SyntaxNode, pattern_form_name::String)
     all(c -> kind(c) == K"quote", node.children) || throw(error)
 
     return map(n -> n.children[1].data.val, node.children)
+end
+
+function _get_search_level(args::T,
+                           pattern_form_name) where T <: AbstractVector{JS.SyntaxNode}
+    (isempty(args) || length(args) > 2) &&
+        throw(SyntaxError("""
+                          invalid `$(pattern_form_name)` syntax
+                          `$(pattern_form_name)` should contain a pattern and, \
+                          optionally, a search level.""",
+                          JS.filename(args[3]),
+                          JS.source_location(args[3])[1],
+                          JS.source_location(args[3])[2]))
+    length(args) == 1 && return typemax(Argus.InsideSyntaxData.types[1])
+    length(args) == 2 && !isa(args[2].data.val, Int) &&
+        throw(SyntaxError("""
+                          invalid `$(pattern_form_name)` syntax
+                          The search level for `$(pattern_form_name)` should be an `Int`.
+                          """,
+                          JS.filename(args[2]),
+                          JS.source_location(args[2])[1],
+                          JS.source_location(args[2])[2]))
+    return args[2].data.val
 end
 
 get_condition(node::SyntaxPatternNode) = is_fail(node) || is_when(node) ?

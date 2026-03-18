@@ -216,6 +216,17 @@
 
         @testset "`~inside" begin
             let
+                @test_throws("""
+                             invalid `~inside` syntax
+                             `~inside` should contain a pattern and, optionally, \
+                             a search level.""",
+                             Pattern(SyntaxPatternNode(:( ~inside(x, 1, 2) ))))
+                @test_throws("""
+                             invalid `~inside` syntax
+                             The search level for `~inside` should be an `Int`.""",
+                             Pattern(SyntaxPatternNode(:( ~inside(x, "") ))))
+            end
+            let
                 pattern = @pattern ~inside({a:::assign})
                 match_result = syntax_match_all(pattern,
                                                 parsestmt(SyntaxNode, "x = y = 2");
@@ -259,10 +270,30 @@
 
         @testset "`~contains" begin
             let
+                @test_throws("""
+                             invalid `~contains` syntax
+                             `~contains` should contain a pattern and, optionally, \
+                             a search level.""",
+                             Pattern(SyntaxPatternNode(:( ~contains(x, 1, 2) ))))
+                @test_throws("""
+                             invalid `~contains` syntax
+                             The search level for `~contains` should be an `Int`.""",
+                             Pattern(SyntaxPatternNode(:( ~contains(x, "") ))))
+            end
+            let
                 pattern = @pattern ~contains({i:::identifier})
-                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
+                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
                 @test source_location(match_success[:i].src) == (1, 1)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "() -> ()"))
+                @test match_fail.message ==
+                    "`~contains` pattern does not match: expected identifier"
+                @test match_fail.source_location == (1, 1)
+            end
+            let
+                pattern = @pattern ~contains({i:::identifier}, 1)
+                match_success = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = x"))
+                @test source_location(match_success[:i].src) == (1, 8)
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
                 @test match_fail.message ==
                     "`~contains` pattern does not match: expected identifier"
                 @test match_fail.source_location == (1, 1)

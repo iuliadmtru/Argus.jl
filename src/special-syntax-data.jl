@@ -189,16 +189,21 @@ struct NotSyntaxData <: AbstractPatternFormSyntaxData end
 """
     InsideSyntaxData <: AbstractPatternFormSyntaxData
 
-Data for an `~inside` pattern form.
+Data for an `~inside` pattern form. Contains the number of parent nodes to be searched.
 """
-struct InsideSyntaxData <: AbstractPatternFormSyntaxData end
+struct InsideSyntaxData <: AbstractPatternFormSyntaxData
+    level::Int16
+end
 
 """
     ContainsSyntaxData <: AbstractPatternFormSyntaxData
 
-Data for an `~contains` pattern form.
+Data for an `~contains` pattern form. Contains the depth up to which the matching
+algorithm should search.
 """
-struct ContainsSyntaxData <: AbstractPatternFormSyntaxData end
+struct ContainsSyntaxData <: AbstractPatternFormSyntaxData
+    depth::Int16
+end
 
 const PATTERN_FORMS = [
     :var,
@@ -291,10 +296,14 @@ Base.getproperty(data::NotSyntaxData, name::Symbol) =
     name === :val ? nothing : getfield(data, name)
 
 Base.getproperty(data::InsideSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
+    name === :level ? getfield(data, :level) :
+    name === :val   ? nothing                :
+    getfield(data, name)
 
 Base.getproperty(data::ContainsSyntaxData, name::Symbol) =
-    name === :val ? nothing : getfield(data, name)
+    name === :depth ? getfield(data, :depth) :
+    name === :val   ? nothing                :
+    getfield(data, name)
 
 Base.copy(data::VarSyntaxData) = VarSyntaxData(data.var_name, data.syntax_class_name)
 Base.copy(data::FailSyntaxData) = FailSyntaxData(data.condition, data.message)
@@ -304,8 +313,8 @@ Base.copy(::OrSyntaxData) = OrSyntaxData()
 Base.copy(::AndSyntaxData) = AndSyntaxData()
 Base.copy(data::RepSyntaxData) = RepSyntaxData(data.rep_vars)
 Base.copy(::NotSyntaxData) = NotSyntaxData()
-Base.copy(::InsideSyntaxData) = InsideSyntaxData()
-Base.copy(::ContainsSyntaxData) = ContainsSyntaxData()
+Base.copy(data::InsideSyntaxData) = InsideSyntaxData(data.level)
+Base.copy(data::ContainsSyntaxData) = ContainsSyntaxData(data.depth)
 
 # Utils
 # -----
