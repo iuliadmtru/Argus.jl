@@ -228,7 +228,7 @@ end
 """
     RuleHooks
 
-Hook for a rule. Its contents can be extended using `@define_rule_hook`.
+Pre-match hook for a rule.
 """
 struct RuleHook
     name::Symbol
@@ -240,11 +240,19 @@ end
 """
     RuleHookRegistry
 
-Registry for storing rule hooks. Alias for `Dict{Symbol, RuleHook}`.
+Registry for storing rule hooks. Its contents can be extended using `@define_rule_hook`.
+Alias for `Dict{Symbol, RuleHook}`.
 """
 const RuleHookRegistry = Dict{Symbol, RuleHook}
 
 RULES_HOOKS = RuleHookRegistry()
+
+"""
+    register_rule_hook!(name::Symbol, hook::RuleHook)
+
+Register a rule hook in the rule hook registry.
+"""
+register_rule_hook!(name::Symbol, hook::RuleHook) = RULES_HOOKS[name] = hook
 
 macro define_rule_hook(name, ex)
     err_msg_general =
@@ -367,10 +375,11 @@ macro define_rule_hook(name, ex)
     end
 
     return :(
-        RULES_HOOKS[$name] = RuleHook($name,
-                                             $(esc(args)),
-                                             $(esc(pre_check_fun)),
-                                             $(esc(post_check_fun)))
+        register_rule_hook!($name,
+                            RuleHook($name,
+                                     $(esc(args)),
+                                     $(esc(pre_check_fun)),
+                                     $(esc(post_check_fun))))
     )
 end
 
