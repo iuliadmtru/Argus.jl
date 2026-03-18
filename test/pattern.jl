@@ -35,6 +35,18 @@
 
         @testset "`~fail`" begin
             let
+                @test_throws("""
+                             invalid `~fail` syntax
+                             The `~fail` pattern form expects 3 arguments""",
+                             Pattern(SyntaxPatternNode(:( ~fail([], x) ))))
+                @test_throws("""
+                             invalid `~fail` syntax
+                             The first argument should be a vector of `Symbol`s""",
+                             Pattern(SyntaxPatternNode(:( ~fail([x], x, "") ))))
+                @test_throws("""
+                             invalid `~fail` syntax
+                             The last argument should be a `String`""",
+                             Pattern(SyntaxPatternNode(:( ~fail([:x], x, y) ))))
                 pattern = @pattern ~fail([], x, "")
                 @test_throws BindingSetKeyError syntax_match(pattern,
                                                              parsestmt(SyntaxNode,
@@ -47,7 +59,12 @@
                 catch err
                     isa(err, MatchError) &&
                         sprint(showerror, err) ==
-                        "MatchError: Fail condition evaluated to Expr instead of Bool (`x + 1`)\n"
+                        "MatchError: Condition evaluated to Expr instead of Bool (`x + 1`)\n"
+                else
+                    false
+                end
+            end
+        end
                 else
                     false
                 end
@@ -232,7 +249,7 @@
 
         @testset "Invalid syntax" begin
             @test_throws SyntaxError @macroexpand @pattern quote {x:::expr} = 2 end
-            @test_throws "first expression cannot be a fail" @macroexpand @pattern begin
+            @test_throws "first expression cannot be a cond" @macroexpand @pattern begin
                 @fail [:ex] ex.value == 2 "is two"
             end
             @test_throws "interspersed" @macroexpand @pattern begin

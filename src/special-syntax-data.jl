@@ -10,8 +10,11 @@ struct SyntaxError <: Exception
     msg::String
     file::Union{Nothing, Symbol, String}
     line::Union{Nothing, Int64}
+    column::Union{Nothing, Int64}
 end
-SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing)
+SyntaxError(msg::String) = SyntaxError(msg, nothing, nothing, nothing)
+SyntaxError(msg::String, file::Union{Symbol, String}, line::Int64) =
+    SyntaxError(msg, file, line, nothing)
 
 """
     MatchError <: Exception
@@ -28,14 +31,17 @@ end
 function Base.showerror(io::IO, err::SyntaxError)
     print(io, "SyntaxError: ")
     println(io, err.msg)
-    isnothing(err.file) && return
-    println(io, "@ $(err.file):$(err.line)")
+    file_name = isnothing(err.file) || isa(err.file, String) && isempty(err.file) ?
+        "<no file>" :
+        err.file
+    print(io, "@ $(file_name):$(err.line)")
+    isnothing(err.column) ? println(io) : println(io, ":$(err.column)")
 end
 
 function Base.showerror(io::IO, err::MatchError)
     print(io, "MatchError: ")
     println(io,
-            "Fail condition evaluated to ",
+            "Condition evaluated to ",
             typeof(err.eval_result),
             " instead of Bool (`",
             err.eval_result,
@@ -196,8 +202,10 @@ Base.getproperty(data::VarSyntaxData, name::Symbol) =
     getfield(data, name)
 
 Base.getproperty(data::FailSyntaxData, name::Symbol) =
-    name === :message ? getfield(data, :message) :
-    name === :val     ? nothing                  :
+    name === :condition ? getfield(data, :condition) :
+    name === :message   ? getfield(data, :message)   :
+    name === :val       ? nothing                    :
+    getfield(data, name)
     getfield(data, name)
 
 Base.getproperty(data::OrSyntaxData, name::Symbol) =

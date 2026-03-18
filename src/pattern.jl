@@ -263,7 +263,20 @@ JuliaSyntax.children(p::Pattern) = children(p.src)
 # Utils
 # -----
 
-is_fail_macro(ex) = @isexpr(ex, :macrocall, 5) && ex.args[1] === Symbol("@fail")
+function is_fail_macro(ex)
+    @isexpr(ex, :macrocall) && ex.args[1] === Symbol("@fail") ||
+        return false
+    length(ex.args) == 5 ||
+        throw(SyntaxError("""
+                          invalid `~fail` syntax
+                          The `~fail` pattern form expects 3 arguments: a list of \
+                          `Symbol`s, a fail condition and a fail message.
+                          """,
+                          ex.args[2].file,
+                          ex.args[2].line
+                          ))
+    return true
+end
 is_template_macro(ex) = @isexpr(ex, :macrocall, 3) && ex.args[1] === Symbol("@template")
 
 """
