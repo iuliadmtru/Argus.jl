@@ -827,7 +827,7 @@ function syntax_match_when(when_node::SyntaxPatternNode,
     catch err
         if isa(err, BindingFieldError)
             message = sprint(showerror, err)
-            true
+            false
         else
             rethrow(err)
         end
