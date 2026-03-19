@@ -1152,9 +1152,9 @@ function is_misparsed(node::SyntaxPatternNode)
             # An `=` node constrained to `:identifier` should be interpreted as an
             # assignment, not a function definition.
             syntax_class_name === :identifier && return true
-            # An `=` node constrained to `:funcall` should indeed be interpreted as a
+            # An `=` node constrained to `:*funcall` should indeed be interpreted as a
             # function definition.
-            syntax_class_name === :funcall && return false
+            endswith(string(syntax_class_name), "funcall") && return false
             # Any other constraint on the lhs causes makes the `=` node ambiguous.
             return true
         elseif k_lhs == K"call"
