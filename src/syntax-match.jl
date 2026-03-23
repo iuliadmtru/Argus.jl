@@ -558,6 +558,7 @@ end
 """
     syntax_match_all(pattern_node::SyntaxPatternNode,
                      src::JS.SyntaxNode;
+                     match_results::MatchResults=MatchResults(),
                      greedy=true,
                      only_matches=true,
                      recurse=true)
@@ -567,10 +568,11 @@ Try to match a pattern node against a source node. Return all successful matches
 """
 function syntax_match_all(pattern::Pattern,
                           src::JS.SyntaxNode;
+                          match_results::MatchResults=MatchResults(),
                           greedy=true,
                           only_matches=true,
                           recurse=true)
-    return syntax_match_all(pattern.src, src; greedy, only_matches, recurse)
+    return syntax_match_all(pattern.src, src; match_results, greedy, only_matches, recurse)
 end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode;
@@ -616,10 +618,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 # Recurse on source children, if any.
                 (is_leaf(src) || !recurse) && return match_results
                 for c in children(src)
-                    # match_result_child =
                     syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
-                    # append!(match_results.failures, match_result_child.failures)
-                    # append!(match_results.matches, match_result_child.matches)
                 end
                 return match_results
             else
@@ -653,10 +652,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             (isnothing(src.children) || isempty(src.children) || length(src.children) == 1) &&
                 return match_results
             next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
-            # match_result =
             syntax_match_all(pattern_node, next_src; match_results, greedy, only_matches, recurse)
-            # append!(match_result_all.failures, match_result.failures)
-            # append!(match_result_all.matches, match_result.matches)
             # Return all accumulated match results.
             return match_results
         else
@@ -1694,10 +1690,7 @@ function match_and_recover!(match_results::MatchResults,
     # Recurse on the source's children, if any.
     (is_leaf(src) || !recurse) && return match_results
     for c in children(src)
-        rule_result_child =
-            syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
-        # append!(match_all_result.failures, rule_result_child.failures)
-        # append!(match_all_result.matches, rule_result_child.matches)
+        syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
     end
     return match_results
 end
