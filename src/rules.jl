@@ -610,11 +610,13 @@ function rule_match(rule::Rule,
             end
         end
     end
+
     match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
     binding_sets = match_results.matches
     matches_with_refactorings = isnothing(rule.template) ?
         [(bs, nothing) for bs in binding_sets] :
         [(bs, expand(rule.template, bs)) for bs in binding_sets]
+
     return RuleMatchResult(matches_with_refactorings, match_results.failures)
 end
 function rule_match(rule::Rule,
@@ -634,6 +636,90 @@ function rule_match(rule::Rule,
         for f in files
             match_result = rule_match(rule, f; greedy, only_matches)
             append!(match_results, match_result)
+        end
+        return match_results
+    end
+    error("not a file or directory: $src")
+end
+
+function _rules_match(rules::Vector{Rule},
+                      src::JS.SyntaxNode;
+                      match_results=RuleGroupMatchResult(),
+                      greedy=true,
+                      only_matches=true)
+    for rule in rules
+        match_result::MatchResults =
+            syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
+        # If no relevant results were found, continue to the next rule.
+        if isempty(match_result.matches) && isempty(match_result.failures)
+            insert_or_append!(match_results, rule.name)
+            continue
+        end
+        # Add refactorings.
+        binding_sets = match_result.matches
+        matches_with_refactorings = isempty(binding_sets) ?
+            Tuple{BindingSet, Union{Nothing, JS.SyntaxNode}}[] : isnothing(rule.template) ?
+            [(bs, nothing) for bs in binding_sets] :
+            [(bs, expand(rule.template, bs)) for bs in binding_sets]
+        # Add the (match, refactoring) pair to the results dict.
+        rule_match_result =
+            RuleMatchResult(matches_with_refactorings, match_result.failures)
+        insert_or_append!(match_results, rule.name, rule_match_result)
+    end
+    if !is_leaf(src)
+        for c in children(src)
+            _rules_match(rules, c; match_results, greedy, only_matches)
+        end
+    end
+
+    return match_results
+end
+function rules_match(rules::Vector{Rule},
+                     src::JS.SyntaxNode;
+                     match_results=RuleGroupMatchResult(),
+                     greedy=true,
+                     only_matches=true)
+    kept_rules = Rule[]
+    for rule in rules
+        if !isnothing(rule.hooks)
+            for (m_name, m_args) in rule.hooks
+                m = try
+                    RULES_HOOKS[m_name]
+                catch err
+                    isa(err, KeyError) && throw(RuleHookRegistryKeyError(err.key))
+                    rethrow(err)
+                end
+                isnothing(m.pre_check) && continue
+                bound_args =
+                    syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, repr(m_args)))
+                is_successful(bound_args) ||
+                    error("Rule hook args pattern incorrect")  # TODO: Specific error.
+                skip = m.pre_check(rule, JS.filename(src), bound_args)
+                skip || push!(kept_rules, rule)
+            end
+        else
+            push!(kept_rules, rule)
+        end
+    end
+
+    return _rules_match(kept_rules, src; match_results, greedy, only_matches)
+end
+function rules_match(rules::Vector{Rule},
+                     src::AbstractString;
+                     greedy=true,
+                     only_matches=true)
+    match_results = RuleGroupMatchResult()
+    sizehint!(match_results, length(rules))
+    if isfile(src)
+        src_txt = read(src, String)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        src_node = _normalise!(src_node)
+        return rules_match(rules, src_node; match_results, greedy, only_matches)
+    end
+    if isdir(src)
+        files = source_files(src)
+        for f in files
+            rules_match(rules, f; match_results, greedy, only_matches)
         end
         return match_results
     end
@@ -670,6 +756,7 @@ function rule_group_match(group::RuleGroup,
     end
 
     return match_result
+    # return rules_match(collect(values(group)), src; greedy, only_matches)
 end
 function rule_group_match(group::RuleGroup,
                           src::AbstractString;
@@ -698,6 +785,13 @@ function rule_group_match(group::RuleGroup,
 end
 
 # Utils
+
+insert_or_append!(r::RuleGroupMatchResult, key::String, val::RuleMatchResult) =
+    haskey(r, key) ? append!(r[key], val) : r[key] = val
+insert_or_append!(r::RuleGroupMatchResult, key::String) =
+    if !haskey(r, key)
+        r[key] = RuleMatchResult()
+    end
 
 # TODO: More efficient way?
 source_files(dir::AbstractString) = read(`find $dir -name '*.jl'`, String) |> split

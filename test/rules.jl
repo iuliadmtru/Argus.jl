@@ -358,7 +358,7 @@
                     (1, 1)
             end
             let
-                 match_result =
+                match_result =
                     rule_match(rule, parsestmt(SyntaxNode, "f(x) = 2"); only_matches=false)
                 @test length(match_result.matches) == 0
                 @test length(match_result.failures) == 5
@@ -839,6 +839,18 @@
         # (x for a in as, b in bs if z)     --- error
         # [@foo]                            --- macrocall-p vs macrocall
         # @S[a].b                           --- same
+    end
+
+    @testset "Bulk rule mathcing" begin
+        src = """
+        f(x) = x
+        f(x, y)
+        g(x) = f(x + 1)
+        """
+        rule = Rule("rule", "", (@pattern f({_}...)))
+        match_results = rules_match([rule], parseall(SyntaxNode, src))
+        @test haskey(match_results, "rule")
+        @test length(match_results["rule"].matches) == 3
     end
 
 end
