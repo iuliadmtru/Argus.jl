@@ -7,8 +7,10 @@
             @fail [:x] x.name == "a" "is a"
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "b")), BindingSet)
-        @test syntax_match(pattern, parsestmt(SyntaxNode, "a")) ==
-            MatchFail("is a", (1, 1), "")
+        match_result = syntax_match(pattern, parsestmt(SyntaxNode, "a"))
+        @test !is_successful(match_result)
+        @test match_result.message == "is a"
+        @test source_location(match_result.src) == (1, 1)
         field_err_literal = syntax_match(pattern, parsestmt(SyntaxNode, "2"))
         @test isa(field_err_literal, MatchFail)
         @test field_err_literal.message ==
@@ -32,10 +34,18 @@
             @fail [:x] x.rhs.value == 2 "rhs is two"
         end
         @test isa(syntax_match(pattern, parsestmt(SyntaxNode, "a = 3")), BindingSet)
-        @test syntax_match(pattern, parsestmt(SyntaxNode, "3")) ==
-            MatchFail("expected assignment", (1, 1), "")
-        @test syntax_match(pattern, parsestmt(SyntaxNode, "x = 2")) ==
-            MatchFail("rhs is two", (1, 1), "")
+        let
+            fail = syntax_match(pattern, parsestmt(SyntaxNode, "3"))
+            @test !is_successful(fail)
+            @test fail.message == "expected assignment"
+            @test source_location(fail.src) == (1, 1)
+        end
+        let
+            fail = syntax_match(pattern, parsestmt(SyntaxNode, "x = 2"))
+            @test !is_successful(fail)
+            @test fail.message == "rhs is two"
+            @test source_location(fail.src) == (1, 1)
+        end
         field_err = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
         @test isa(field_err, MatchFail)
         @test startswith(field_err.message,

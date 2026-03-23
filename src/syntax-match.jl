@@ -10,13 +10,11 @@ failure.
 """
 struct MatchFail
     message::String
-    source_location::Tuple{Int64, Int64}
-    file_name::String
+    src::Union{Nothing, JS.SyntaxNode}
 end
-MatchFail() = MatchFail("no match", (0, 0), "")
-MatchFail(message::String) = MatchFail(message, (0, 0), "")
-MatchFail(source_location::Tuple{Int64, Int64}, file_name::String) =
-    MatchFail("no match", source_location, file_name)
+MatchFail() = MatchFail("no match", nothing)
+MatchFail(message::String) = MatchFail(message, nothing)
+MatchFail(src::JS.SyntaxNode) = MatchFail("no match", src)
 
 """
     MatchResult
@@ -39,6 +37,12 @@ struct MatchResults
 end
 MatchResults() = MatchResults(BindingSet[], MatchFail[])
 
+# JuliaSyntax overwrites
+# ----------------------
+
+JS.source_location(fail::MatchFail) = JS.source_location(fail.src)
+JS.filename(fail::MatchFail) = JS.filename(fail.src)
+
 # Utils
 # -----
 
@@ -52,11 +56,14 @@ is_default_match_fail(result::MatchFail) =
 
 function Base.show(io::IO, fail::MatchFail)
     print(io, "MatchFail: ")
-    fail_message = fail.message * " @ "
-    if !isempty(fail.file_name)
-        fail_message *= fail.file_name * ":"
+    fail_message = fail.message
+    if !isnothing(fail.src)
+        file_name = JS.filename(fail.src)
+        source_location = JS.source_location(fail.src)
+        fail_message *=  " @ "
+        fail_message *=
+            file_name * ":" * repr(source_location[1]) * ":" * repr(source_location[2])
     end
-    fail_message *= repr(fail.source_location[1]) * ":" * repr(fail.source_location[2])
     print(io, fail_message)
 end
 
@@ -115,10 +122,8 @@ function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
                       greedy=true,
                       keep_unexported=false)
-    syntax_class_failure = MatchFail("expected " * syntax_class.description,
-                                     JS.source_location(src),
-                                     JS.filename(src))
-    tracked_failure = MatchFail(JS.source_location(src), JS.filename(src))
+    syntax_class_failure = MatchFail("expected " * syntax_class.description, src)
+    tracked_failure = MatchFail(src)
     for pattern in syntax_class.pattern_alternatives
         match_result = _syntax_match(pattern, src; greedy, keep_unexported)
         # Return the first successful match.
@@ -305,7 +310,7 @@ function _syntax_match(pattern::SyntaxPatternNode,
         return recover!(recovery_stack,
                         _syntax_match;
                         recover,
-                        fail_ret=MatchFail(JS.source_location(src), JS.filename(src)),
+                        fail_ret=MatchFail(src),
                         greedy,
                         tmp)
     end
@@ -361,8 +366,7 @@ function _syntax_match(pattern_nodes::Vector{SyntaxPatternNode},
     isempty(srcs) || return recover!(recovery_stack,
                                      _syntax_match;
                                      recover,
-                                     fail_ret=MatchFail(JS.source_location(srcs[1]),
-                                                        JS.filename(srcs[1])),
+                                     fail_ret=MatchFail(srcs[1]),
                                      greedy,
                                      tmp)
     return match_result
@@ -633,12 +637,9 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                        only_matches)
                     # If there are recovery paths, try them all and store the results.
                     while !isempty(recovery_stack)
-                        fail_loc = JS.source_location(srcs[1])
-                        fail_file = JS.filename(srcs[1])
                         partial_recovered_result, _ = recover!(recovery_stack,
                                                                partial_syntax_match;
-                                                               fail_ret=MatchFail(fail_loc,
-                                                                                  fail_file),
+                                                               fail_ret=MatchFail(srcs[1]),
                                                                greedy)
                         push_match_result!(match_results,
                                            partial_recovered_result,
@@ -750,9 +751,7 @@ function syntax_match_pattern_form(pattern_node::SyntaxPatternNode,
     isa(node_data, NotSyntaxData)      && return syntax_match_not(args...; greedy)
     isa(node_data, InsideSyntaxData)   && return syntax_match_inside(args...; kwargs...)
     isa(node_data, ContainsSyntaxData) && return syntax_match_contains(args...; kwargs...)
-    return MatchFail("unknown pattern form",
-                     JS.source_location(src),
-                     JS.filename(src))
+    return MatchFail("unknown pattern form", src)
 end
 
 """
@@ -799,15 +798,13 @@ function syntax_match_var(var_node::SyntaxPatternNode,
     # old one.
     if haskey(bindings, pattern_var_name)
         b = bindings[pattern_var_name]
-        fail_location = JS.source_location(src)
-        fail_file = JS.filename(src)
-        is_invalid(b) && return MatchFail(b._msg, fail_location, fail_file)
+        is_invalid(b) && return MatchFail(b._msg, src)
         # If the bindings are not compatible, mark the binding so that it won't bind
         # further.
         if !compatible(b.src, src)
             fail_msg = "conflicting bindings for pattern variable $pattern_var_name"
             bindings[pattern_var_name] = Binding(pattern_var_name, fail_msg)
-            return MatchFail(fail_msg, fail_location, fail_file)
+            return MatchFail(fail_msg, src)
         end
     end
     if tmp
@@ -845,7 +842,7 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
         end
     end
     isa(fail, Bool) || throw(MatchError(fail))
-    return fail ? MatchFail(message, JS.source_location(src), JS.filename(src)) : bindings
+    return fail ? MatchFail(message, src) : bindings
 end
 
 """
@@ -874,7 +871,7 @@ function syntax_match_when(when_node::SyntaxPatternNode,
         end
     end
     isa(cond, Bool) || throw(MatchError(cond))
-    return cond ? bindings : MatchFail(message, JS.source_location(src), JS.filename(src))
+    return cond ? bindings : MatchFail(message, src)
 end
 
 """
@@ -901,7 +898,7 @@ function syntax_match_execute(execute_node::SyntaxPatternNode,
     end
     return isempty(message) ?
         bindings :
-        MatchFail(message, JS.source_location(src), JS.filename(src))
+        MatchFail(message, src)
 end
 
 """
@@ -925,9 +922,7 @@ function syntax_match_or(or_node::SyntaxPatternNode,
                          greedy=true,
                          tmp=false)
     bindings_alt::BindingSet = shared_copy(bindings)
-    failure = MatchFail("no matching alternative",
-                        JS.source_location(src),
-                        JS.filename(src))
+    failure = MatchFail("no matching alternative", src)
     for (i, p) in enumerate(children(or_node))
         # Each `~or` alternative is independent: it has its own recovery stack and should
         # recover from failures.
@@ -1200,9 +1195,7 @@ function syntax_match_not(not_node::SyntaxPatternNode,
                                  recovery_stack=_RecoveryStack(),
                                  greedy)
     return is_successful(match_result) ?
-        MatchFail("`~not` subpattern match succeeded",
-                  JS.source_location(src),
-                  JS.filename(src)) :
+        MatchFail("`~not` subpattern match succeeded", src) :
         bindings
 end
 
@@ -1226,9 +1219,7 @@ function syntax_match_inside(inside_node::SyntaxPatternNode,
                              tmp=false)
     bindings = shared_copy(bindings)
     fail_message = "`~inside` pattern does not match"
-    fail_location = JS.source_location(src)
-    fail_file = JS.filename(src)
-    failure = MatchFail(fail_message, fail_location, fail_file)
+    failure = MatchFail(fail_message, src)
     # Try to match enlcosing nodes until we find a match or until we reach the root.
     # Stop when the search level is reached, is one is given.
     search_level = inside_node.data.level
@@ -1245,9 +1236,7 @@ function syntax_match_inside(inside_node::SyntaxPatternNode,
         extended_fail_message = is_default_match_fail(inside_match_result) ?
             fail_message :
             fail_message * ": " * (inside_match_result::MatchFail).message
-        failure = MatchFail(extended_fail_message,
-                            (inside_match_result::MatchFail).source_location,
-                            (inside_match_result::MatchFail).file_name)
+        failure = MatchFail(extended_fail_message, (inside_match_result::MatchFail).src)
         src = src.parent
         search_level -= 1
     end
@@ -1275,15 +1264,11 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
                                greedy=true,
                                tmp=false)
     fail_message = "`~contains` pattern does not match"
-    fail_location = JS.source_location(src)
-    fail_file = JS.filename(src)
     # Fail if the source has no children.
     (is_leaf(src) || isempty(children(src))) &&
-        return MatchFail(fail_message * ": source has no children",
-                         fail_location,
-                         fail_file)
+        return MatchFail(fail_message * ": source has no children", src)
     bindings_contains = shared_copy(bindings)
-    failure = MatchFail(fail_message, fail_location, fail_file)
+    failure = MatchFail(fail_message, src)
     # Return the first successful match, but store the others as recovery states.
     p = contains_node.children[1]
     if contains_node.depth == typemax(Argus.InsideSyntaxData.types[1])
@@ -1300,7 +1285,7 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
         extended_fail_message = isnothing(contains_fail) ?
             fail_message :
             fail_message * ": " * match_results.failures[contains_fail].message
-        failure = MatchFail(extended_fail_message, fail_location, fail_file)
+        failure = MatchFail(extended_fail_message, src)
     else
         inner_nodes = get_all_nodes_at_depth(src, contains_node.depth)
         for n in inner_nodes
@@ -1315,7 +1300,7 @@ function syntax_match_contains(contains_node::SyntaxPatternNode,
             extended_fail_message = is_default_match_fail(match_result) ?
                 fail_message :
                 fail_message * ": " * match_result.message
-            failure = MatchFail(extended_fail_message, fail_location, fail_file)
+            failure = MatchFail(extended_fail_message, src)
         end
     end
     return failure

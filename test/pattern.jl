@@ -30,7 +30,9 @@
                 ~and({x} + 2, {x} + 3)
             end
             match_result = syntax_match(conflicting, parsestmt(SyntaxNode, "1 + 2"))
-            @test match_result == MatchFail("no match", (1, 5), "")
+            @test !is_successful(match_result)
+            @test match_result.message == "no match"
+            @test source_location(match_result) == (1, 5)
         end
 
         @testset "`~fail`" begin
@@ -209,8 +211,9 @@
                 @test length(match_result) == 2
                 @test !haskey(match_result, :f)
                 fail_result = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
-                @test fail_result ==
-                    MatchFail("`~not` subpattern match succeeded", (1, 1), "")
+                @test !is_successful(fail_result)
+                @test fail_result.message == "`~not` subpattern match succeeded"
+                @test source_location(fail_result) == (1, 1)
             end
         end
 
@@ -244,7 +247,7 @@
                 @test length(match_result.failures) == 1
                 @test match_result.failures[1].message ==
                     "`~inside` pattern does not match"
-                @test match_result.failures[1].source_location == (1, 1)
+                @test source_location(match_result.failures[1]) == (1, 1)
             end
             let
                 pattern = @pattern ~and({a:::assign}, ~inside({_:::assign}))
@@ -257,14 +260,14 @@
                 @test length(match_result.failures) == 4
                 @test match_result.failures[1].message ==
                     "`~inside` pattern does not match"
-                @test match_result.failures[1].source_location == (1, 1)
+                @test source_location(match_result.failures[1]) == (1, 1)
                 @test match_result.failures[2].message ==
                     match_result.failures[3].message ==
                     match_result.failures[4].message ==
                     "expected assignment"
-                @test match_result.failures[2].source_location == (1, 1)
-                @test match_result.failures[3].source_location == (1, 5)
-                @test match_result.failures[4].source_location == (1, 9)
+                @test source_location(match_result.failures[2]) == (1, 1)
+                @test source_location(match_result.failures[3]) == (1, 5)
+                @test source_location(match_result.failures[4]) == (1, 9)
             end
         end
 
@@ -287,7 +290,7 @@
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "() -> ()"))
                 @test match_fail.message ==
                     "`~contains` pattern does not match: expected identifier"
-                @test match_fail.source_location == (1, 1)
+                @test source_location(match_fail) == (1, 1)
             end
             let
                 pattern = @pattern ~contains({i:::identifier}, 1)
@@ -296,7 +299,7 @@
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x) = 2"))
                 @test match_fail.message ==
                     "`~contains` pattern does not match: expected identifier"
-                @test match_fail.source_location == (1, 1)
+                @test source_location(match_fail) == (1, 1)
             end
             let
                 pattern = @pattern ~and(
@@ -308,10 +311,10 @@
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "@m x"))
                 @test match_fail.message ==
                     "`~contains` pattern does not match: expected literal"
-                @test match_fail.source_location == (1, 1)
+                @test source_location(match_fail) == (1, 1)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "f(x)"))
                 @test match_fail.message == "expected macro call"
-                @test match_fail.source_location == (1, 1)
+                @test source_location(match_fail) == (1, 1)
             end
         end
 
@@ -450,7 +453,9 @@
                 match = syntax_match(even, parsestmt(SyntaxNode, "2"))
                 @test isa(match, BindingSet)
                 fail = syntax_match(even, parsestmt(SyntaxNode, "3"))
-                @test fail == MatchFail("not even", (1, 1), "")
+                @test !is_successful(fail)
+                @test fail.message == "not even"
+                @test source_location(fail) == (1, 1)
             end
             let
                 is_x = @pattern begin
@@ -460,11 +465,17 @@
                 match = syntax_match(is_x, parsestmt(SyntaxNode, "x()"))
                 @test isa(match, BindingSet)
                 fail_name = syntax_match(is_x, parsestmt(SyntaxNode, "b()"))
-                @test fail_name == MatchFail("not x", (1, 1), "")
+                @test !is_successful(fail_name)
+                @test fail_name.message == "not x"
+                @test source_location(fail_name) == (1, 1)
                 fail_inner = syntax_match(is_x, parsestmt(SyntaxNode, "f()()"))
-                @test fail_inner == MatchFail("expected identifier", (1, 1), "")
+                @test !is_successful(fail_inner)
+                @test fail_inner.message == "expected identifier"
+                @test source_location(fail_inner) == (1, 1)
                 fail = syntax_match(is_x, parsestmt(SyntaxNode, "2"))
-                @test fail == MatchFail("no match", (1, 1), "")
+                @test !is_successful(fail)
+                @test fail.message == "no match"
+                @test source_location(fail) == (1, 1)
             end
             let
                 pattern = @pattern begin
@@ -496,8 +507,10 @@
                                                 a = 1
                                                 a = 2
                                                 """)
-                @test syntax_match(pattern, src_fail) ==
-                    MatchFail("conflicting bindings for pattern variable ex", (2, 1), "")
+                fail = syntax_match(pattern, src_fail)
+                @test !is_successful(fail)
+                @test fail.message == "conflicting bindings for pattern variable ex"
+                @test source_location(fail) == (2, 1)
             end
             let
                 pattern = @pattern begin
@@ -541,16 +554,20 @@
                     a = 2
                     x = 3
                     """)
-                    @test syntax_match(pattern, src) ==
-                        MatchFail("conflicting bindings for pattern variable a", (2, 1), "")
+                    fail = syntax_match(pattern, src)
+                    @test !is_successful(fail)
+                    @test fail.message == "conflicting bindings for pattern variable a"
+                    @test source_location(fail) == (2, 1)
                 end
                 let
                     src = parseall(SyntaxNode, """
                     x = 2
                     x = 3
                     """)
-                    @test syntax_match(pattern, src) ==
-                        MatchFail("is x", (1, 1), "")
+                    fail = syntax_match(pattern, src)
+                    @test !is_successful(fail)
+                    @test fail.message == "is x"
+                    @test source_location(fail) == (1, 1)
                 end
                 let
                     src = parseall(SyntaxNode, """
@@ -565,7 +582,10 @@
                     a = 3
                     a + 1
                     """)
-                    @test syntax_match(pattern, src) == MatchFail((3, 1), "")
+                    fail = syntax_match(pattern, src)
+                    @test !is_successful(fail)
+                    @test fail.message == "no match"
+                    @test source_location(fail) == (3, 1)
                 end
             end
             let
@@ -605,7 +625,9 @@
                       """
                 match_result =
                     syntax_match(pattern, parsestmt(SyntaxNode, src); greedy=false)
-                @test match_result == MatchFail("fail", (1, 1), "")
+                @test !is_successful(match_result)
+                @test match_result.message == "fail"
+                @test source_location(match_result) == (1, 1)
             end
             let
                 pattern = @pattern begin

@@ -7,7 +7,8 @@
             @test isa(match, BindingSet)
             @test isempty(match)
             no_match = syntax_match(vec, parsestmt(SyntaxNode, "a"))
-            @test no_match == MatchFail("expected vector", (1, 1), "")
+            @test no_match.message == "expected vector"
+            @test source_location(no_match) == (1, 1)
         end
         let
             funcall = Argus.SYNTAX_CLASS_REGISTRY[:funcall]
@@ -28,7 +29,8 @@
             @test kind(match_anonymous[:fun_name].src) == K"tuple"
 
             no_match = syntax_match(funcall, parsestmt(SyntaxNode, "x"))
-            @test no_match == MatchFail("expected function call", (1, 1), "")
+            @test no_match.message == "expected function call"
+            @test source_location(no_match) == (1, 1)
         end
         let
             fundef = Argus.SYNTAX_CLASS_REGISTRY[:fundef]
@@ -53,7 +55,8 @@
             @test map(s -> source_location(s), match_second[:body].src) == [(2, 5), (3, 5)]
 
             no_match = syntax_match(fundef, parsestmt(SyntaxNode, "x"))
-            @test no_match == MatchFail("expected function definition", (1, 1), "")
+            @test no_match.message == "expected function definition"
+            @test source_location(no_match) == (1, 1)
         end
         let
             macrocall = Argus.SYNTAX_CLASS_REGISTRY[:macrocall]
@@ -98,7 +101,8 @@
             @test kind(match_anonymous[:fun_name].src) == K"tuple"
 
             no_match = syntax_match(dotcall, parsestmt(SyntaxNode, "x"))
-            @test no_match == MatchFail("expected dot call", (1, 1), "")
+            @test no_match.message == "expected dot call"
+            @test source_location(no_match) == (1, 1)
         end
         let
             infix_call = Argus.SYNTAX_CLASS_REGISTRY[:infix_call]
@@ -109,7 +113,8 @@
             @test match_result[:rhs].src.data.val == :y
 
             no_match = syntax_match(infix_call, parsestmt(SyntaxNode, "+(x, y)"))
-            @test no_match == MatchFail("expected infix call", (1, 1), "")
+            @test no_match.message == "expected infix call"
+            @test source_location(no_match) == (1, 1)
         end
         let
             infix_dotcall = Argus.SYNTAX_CLASS_REGISTRY[:infix_dotcall]
@@ -120,7 +125,8 @@
             @test match_result[:rhs].src.data.val == :y
 
             no_match = syntax_match(infix_dotcall, parsestmt(SyntaxNode, ".+(x, y)"))
-            @test no_match == MatchFail("expected infix dotcall", (1, 1), "")
+            @test no_match.message == "expected infix dotcall"
+            @test source_location(no_match) == (1, 1)
         end
         let
             abstract_type = Argus.SYNTAX_CLASS_REGISTRY[:abstract_type]

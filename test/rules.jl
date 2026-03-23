@@ -68,7 +68,7 @@
                 @test length(match_result.matches) == 1
                 @test length(match_result.matches[1][1]) == 2
                 @test all(isnothing, [m[2] for m in match_result.matches])
-                @test match_result.matches[1][1].source_location == (1, 11)
+                @test source_location(match_result.matches[1][1]) == (1, 11)
                 @test match_result.matches[1][1].file_name == ""
             end
             # No match.
@@ -91,8 +91,10 @@
                 rule_match(rule, parsestmt(SyntaxNode, "a = 2"); only_matches=false)
             @test length(match_result.matches) == 1
             @test length(match_result.failures) == 2
-            @test match_result.failures[1] == MatchFail("expected identifier", (1, 1), "")
-            @test match_result.failures[2] == MatchFail("expected identifier", (1, 5), "")
+            @test match_result.failures[1].message == "expected identifier"
+            @test source_location(match_result.failures[1]) == (1, 1)
+            @test match_result.failures[2].message == "expected identifier"
+            @test source_location(match_result.failures[2]) == (1, 5)
         end
         let
             rule = @rule "" begin
@@ -351,10 +353,10 @@
                 @test match_result.failures[3].message ==
                     match_result.failures[4].message ==
                     "`~inside` pattern does not match: expected function definition"
-                @test match_result.failures[1].source_location ==
-                    match_result.failures[2].source_location ==
-                    match_result.failures[3].source_location ==
-                    match_result.failures[4].source_location ==
+                @test source_location(match_result.failures[1]) ==
+                    source_location(match_result.failures[2]) ==
+                    source_location(match_result.failures[3]) ==
+                    source_location(match_result.failures[4]) ==
                     (1, 1)
             end
             let
@@ -369,12 +371,12 @@
                 @test match_result.failures[3].message ==
                     match_result.failures[4].message ==
                     "`~inside` pattern does not match: expected function definition"
-                @test match_result.failures[1].source_location ==
-                    match_result.failures[2].source_location ==
-                    match_result.failures[3].source_location ==
-                    match_result.failures[4].source_location ==
+                @test source_location(match_result.failures[1]) ==
+                    source_location(match_result.failures[2]) ==
+                    source_location(match_result.failures[3]) ==
+                    source_location(match_result.failures[4]) ==
                     (1, 1)
-                @test match_result.failures[5].source_location == (1, 8)
+                @test source_location(match_result.failures[5]) == (1, 8)
             end
             let
                 match_result =
@@ -384,11 +386,11 @@
                 @test match_result.failures[1].message ==
                     match_result.failures[3].message ==
                     "expected identifier"
-                @test match_result.failures[1].source_location == (1, 1)
-                @test match_result.failures[3].source_location == (1, 5)
+                @test source_location(match_result.failures[1]) == (1, 1)
+                @test source_location(match_result.failures[3]) == (1, 5)
                 @test match_result.failures[2].message ==
                     "`~inside` pattern does not match: expected function definition"
-                @test match_result.failures[2].source_location == (1, 1)
+                @test source_location(match_result.failures[2]) == (1, 1)
             end
         end
         let
@@ -414,13 +416,13 @@
                                                            """);
                                       only_matches=false)
             @test length(match_result.matches) == 4
-            @test match_result.matches[1][1].source_location == (3, 5)
-            @test match_result.matches[2][1].source_location == (4, 10)
-            @test match_result.matches[3][1].source_location == (6, 1)
-            @test match_result.matches[4][1].source_location == (7, 3)
+            @test source_location(match_result.matches[1][1]) == (3, 5)
+            @test source_location(match_result.matches[2][1]) == (4, 10)
+            @test source_location(match_result.matches[3][1]) == (6, 1)
+            @test source_location(match_result.matches[4][1]) == (7, 3)
             @test length(match_result.failures) == 1
             @test match_result.failures[1].message == "`~not` subpattern match succeeded"
-            @test match_result.failures[1].source_location == (2, 4)
+            @test source_location(match_result.failures[1]) == (2, 4)
         end
     end
 
