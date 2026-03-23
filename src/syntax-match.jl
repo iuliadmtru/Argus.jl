@@ -572,9 +572,9 @@ function syntax_match_all(pattern::Pattern,
 end
 function syntax_match_all(pattern_node::SyntaxPatternNode,
                           src::JS.SyntaxNode;
+                          match_results::MatchResults=MatchResults(),
                           greedy=true,
-                          only_matches=true)
-    match_result_all = MatchResults()
+                          only_matches=true,
     bindings = BindingSet()
     # TODO: Rewrite this in a more generalised way, if possible.
     if (kind(src) == K"block" || kind(src) == K"toplevel")
@@ -590,7 +590,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                                              bindings;
                                                              recovery_stack,
                                                              greedy)
-                    push_match_result!(match_result_all,
+                    push_match_result!(match_results,
                                        partial_result,
                                        srcs[1];
                                        only_matches)
@@ -603,7 +603,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                                                fail_ret=MatchFail(fail_loc,
                                                                                   fail_file),
                                                                greedy)
-                        push_match_result!(match_result_all,
+                        push_match_result!(match_results,
                                            partial_recovered_result,
                                            srcs[1];
                                            only_matches)
@@ -613,16 +613,16 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 # Recurse on source children, if any.
                 is_leaf(src) && return match_result_all
                 for c in children(src)
-                    match_result_child =
-                        syntax_match_all(pattern_node, c; greedy, only_matches)
-                    append!(match_result_all.failures, match_result_child.failures)
-                    append!(match_result_all.matches, match_result_child.matches)
+                    # match_result_child =
+                    syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
+                    # append!(match_results.failures, match_result_child.failures)
+                    # append!(match_results.matches, match_result_child.matches)
                 end
-                return match_result_all
+                return match_results
             else
                 # The pattern doesn't have repetitions and it has the same number of
                 # children as the source. Exhaust al the possibly matching paths.
-                return match_and_recover!(match_result_all,
+                return match_and_recover!(match_results,
                                           pattern_node,
                                           src,
                                           bindings;
@@ -630,7 +630,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                                           only_matches)
             end
         elseif is_toplevel_and(pattern_node) || is_or_with_toplevel_branches(pattern_node)
-            match_and_recover!(match_result_all,
+            match_and_recover!(match_results,
                                pattern_node,
                                src,
                                bindings;
@@ -639,23 +639,23 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             # If the pattern is an `~or` pattern, only match `toplevel` branches against
             # the expressions in the source.
             pattern_node = keep_toplevel_branches_only(pattern_node)
-            isempty(children(pattern_node)) && return match_result_all
+            isempty(children(pattern_node)) && return match_results
             # The pattern is a series of expressions (grouped in a `toplevel`, `~or` or
             # `~and` node) with fail conditions attached. Match through all expressions in
             # the source until there are none left.
             #
             # Match the pattern with all source expressions except the first one.
             (isnothing(src.children) || isempty(src.children) || length(src.children) == 1) &&
-                return match_result_all
+                return match_results
             next_src = JS.SyntaxNode(src.parent, src.children[2:end], src.data)
-            match_result =
-                syntax_match_all(pattern_node, next_src; greedy, only_matches)
-            append!(match_result_all.failures, match_result.failures)
-            append!(match_result_all.matches, match_result.matches)
+            # match_result =
+            syntax_match_all(pattern_node, next_src; match_results, greedy, only_matches, recurse)
+            # append!(match_result_all.failures, match_result.failures)
+            # append!(match_result_all.matches, match_result.matches)
             # Return all accumulated match results.
-            return match_result_all
+            return match_results
         else
-            return match_and_recover!(match_result_all,
+            return match_and_recover!(match_results,
                                       pattern_node,
                                       src,
                                       bindings;
@@ -665,13 +665,13 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
     else
         # The pattern and the source are simple expressions. Exhaust all the possibly
         # matching paths.
-        match_and_recover!(match_result_all,
+        match_and_recover!(match_results,
                            pattern_node,
                            src,
                            bindings;
                            greedy,
                            only_matches)
-        return match_result_all
+        return match_results
     end
 end
 
@@ -1665,7 +1665,7 @@ end
 
 Try to match a pattern node with a source node. Recover in case of failure.
 """
-function match_and_recover!(match_all_result::MatchResults,
+function match_and_recover!(match_results::MatchResults,
                             pattern_node::SyntaxPatternNode,
                             src::JS.SyntaxNode,
                             bindings::BindingSet=BindingSet();
@@ -1674,24 +1674,24 @@ function match_and_recover!(match_all_result::MatchResults,
     recovery_stack = []
     match_result =
         _syntax_match(pattern_node, src, bindings; recovery_stack, greedy)
-    push_match_result!(match_all_result, match_result, src; only_matches)
+    push_match_result!(match_results, match_result, src; only_matches)
     while !isempty(recovery_stack)
         match_result = recover!(recovery_stack,
                                 _syntax_match;
                                 fail_ret=MatchFail(),
                                 popfirst=true,
                                 greedy)
-        push_match_result!(match_all_result, match_result, src; only_matches)
+        push_match_result!(match_results, match_result, src; only_matches)
     end
     # Recurse on the source's children, if any.
     is_leaf(src) && return match_all_result
     for c in children(src)
         rule_result_child =
-            syntax_match_all(pattern_node, c; greedy, only_matches)
-        append!(match_all_result.failures, rule_result_child.failures)
-        append!(match_all_result.matches, rule_result_child.matches)
+            syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
+        # append!(match_all_result.failures, rule_result_child.failures)
+        # append!(match_all_result.matches, rule_result_child.matches)
     end
-    return match_all_result
+    return match_results
 end
 
 """
