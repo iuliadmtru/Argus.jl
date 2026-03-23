@@ -642,6 +642,70 @@ function rule_match(rule::Rule,
     error("not a file or directory: $src")
 end
 
+"""
+    rules_match(rules::Vector{Rule},
+                src_file::AbstractString;
+                greedy=true,
+                only_matches=true)
+    rules_match(rules::Vector{Rule},
+                src::JuliaSyntax.SyntaxNode;
+                greedy=true,
+                only_matches=true)
+
+Match a set of rules against a source. Each source node is traversed once.
+"""
+function rules_match(rules::Vector{Rule},
+                     src::AbstractString;
+                     greedy=true,
+                     only_matches=true)
+    match_results = RuleGroupMatchResult()
+    sizehint!(match_results, length(rules))
+    if isfile(src)
+        src_txt = read(src, String)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        src_node = _normalise!(src_node)
+        return rules_match(rules, src_node; match_results, greedy, only_matches)
+    end
+    if isdir(src)
+        files = source_files(src)
+        for f in files
+            rules_match(rules, f; match_results, greedy, only_matches)
+        end
+        return match_results
+    end
+    error("not a file or directory: $src")
+end
+function rules_match(rules::Vector{Rule},
+                     src::JS.SyntaxNode;
+                     match_results=RuleGroupMatchResult(),
+                     greedy=true,
+                     only_matches=true)
+    kept_rules = Rule[]
+    sizehint!(kept_rules, length(rules))
+    for rule in rules
+        if !isnothing(rule.hooks)
+            for (m_name, m_args) in rule.hooks
+                m = try
+                    RULES_HOOKS[m_name]
+                catch err
+                    isa(err, KeyError) && throw(RuleHookRegistryKeyError(err.key))
+                    rethrow(err)
+                end
+                isnothing(m.pre_check) && continue
+                bound_args =
+                    syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, repr(m_args)))
+                is_successful(bound_args) ||
+                    error("Rule hook args pattern incorrect")  # TODO: Specific error.
+                skip = m.pre_check(rule, JS.filename(src), bound_args)
+                skip || push!(kept_rules, rule)
+            end
+        else
+            push!(kept_rules, rule)
+        end
+    end
+
+    return _rules_match(kept_rules, src; match_results, greedy, only_matches)
+end
 function _rules_match(rules::Vector{Rule},
                       src::JS.SyntaxNode;
                       match_results=RuleGroupMatchResult(),
@@ -674,57 +738,6 @@ function _rules_match(rules::Vector{Rule},
 
     return match_results
 end
-function rules_match(rules::Vector{Rule},
-                     src::JS.SyntaxNode;
-                     match_results=RuleGroupMatchResult(),
-                     greedy=true,
-                     only_matches=true)
-    kept_rules = Rule[]
-    for rule in rules
-        if !isnothing(rule.hooks)
-            for (m_name, m_args) in rule.hooks
-                m = try
-                    RULES_HOOKS[m_name]
-                catch err
-                    isa(err, KeyError) && throw(RuleHookRegistryKeyError(err.key))
-                    rethrow(err)
-                end
-                isnothing(m.pre_check) && continue
-                bound_args =
-                    syntax_match(m.args, JS.parsestmt(JS.SyntaxNode, repr(m_args)))
-                is_successful(bound_args) ||
-                    error("Rule hook args pattern incorrect")  # TODO: Specific error.
-                skip = m.pre_check(rule, JS.filename(src), bound_args)
-                skip || push!(kept_rules, rule)
-            end
-        else
-            push!(kept_rules, rule)
-        end
-    end
-
-    return _rules_match(kept_rules, src; match_results, greedy, only_matches)
-end
-function rules_match(rules::Vector{Rule},
-                     src::AbstractString;
-                     greedy=true,
-                     only_matches=true)
-    match_results = RuleGroupMatchResult()
-    sizehint!(match_results, length(rules))
-    if isfile(src)
-        src_txt = read(src, String)
-        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
-        src_node = _normalise!(src_node)
-        return rules_match(rules, src_node; match_results, greedy, only_matches)
-    end
-    if isdir(src)
-        files = source_files(src)
-        for f in files
-            rules_match(rules, f; match_results, greedy, only_matches)
-        end
-        return match_results
-    end
-    error("not a file or directory: $src")
-end
 
 """
     RuleGroupMatchResult
@@ -750,13 +763,7 @@ function rule_group_match(group::RuleGroup,
                           src::JS.SyntaxNode;
                           greedy=true,
                           only_matches=true)
-    match_result = RuleGroupMatchResult()
-    for (name, rule) in group
-        match_result[name] = rule_match(rule, src; greedy, only_matches)
-    end
-
-    return match_result
-    # return rules_match(collect(values(group)), src; greedy, only_matches)
+    return rules_match(collect(values(group)), src; greedy, only_matches)
 end
 function rule_group_match(group::RuleGroup,
                           src::AbstractString;
