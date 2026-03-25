@@ -869,7 +869,7 @@ end
 function _rules_match(rules::Vector{Rule},
                       src::JS.SyntaxNode;
                       disabler::RuleDisabler=default_disabler,
-                      disabled_rules=Rule[],
+                      disabled_rules=String[],
                       match_results=RuleGroupMatchResult(),
                       greedy=true,
                       only_matches=true)
@@ -886,14 +886,14 @@ function _rules_match(rules::Vector{Rule},
     # Match each rule with the current source node.
     for rule in rules
         # Disable rules.
-        if rule in disabled_rules
+        if rule.name in disabled_rules
             continue
         end
         disable = isa(disabler, CommentDisabler) ?
             disabler(rule, prev_line) :
             disabler(rule, src)
         if disable
-            push!(disabled_rules, rule)
+            push!(disabled_rules, rule.name)
             continue
         end
         match_result::MatchResults =
