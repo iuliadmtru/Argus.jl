@@ -1,10 +1,3 @@
-"""
-    AbstractBinding
-
-Sypertype for bindings.
-"""
-abstract type AbstractBinding end
-
 # Bindings
 # ========
 
@@ -13,7 +6,7 @@ const TEMPORARY_BINDING = UInt8(1)
 const INVALID_BINDING = UInt8(2)
 
 """
-    Binding <: AbstractBinding
+    Binding
 
 A bound pattern variable. Variables with ellipsis depth 0 (i.e. variables not contained
 within any ellipsis nodes) bind to single nodes. Variables with ellipsis depth `n` bind to
@@ -64,7 +57,7 @@ BindingSet @ 0:0 with 1 entries:
             ]
 ```
 """
-struct Binding{S, B} <: AbstractBinding
+struct Binding{S, B}
     bname::Symbol
     src::S
     bindings::B
@@ -466,7 +459,7 @@ A binding field is valid if any one of the following is true:
   - The binding's `src` is a macro call and the field is `name` or `args`.
 """
 struct BindingFieldError <: Exception
-    binding::AbstractBinding
+    binding::Binding
     field::Symbol
     available_fields::Vector{Symbol}
     internal_fields::Vector{Symbol}
