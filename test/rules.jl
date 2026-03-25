@@ -855,6 +855,27 @@
         @test length(match_results["rule"].matches) == 3
     end
 
+    @testset "Rule disabling" begin
+        src = """
+        f(x) = x
+        # lint-disable
+        f(x, y)
+        # lint-disable: rule
+        function g(x)
+            f(x + 1)
+        end
+        # lint-disable: another_rule
+        function g(x)
+            f(x + 1)
+        end
+        """
+        rule = Rule("rule", "", (@pattern f({_}...)))
+        match_results = rule_match(rule, parseall(SyntaxNode, src))
+        @test length(match_results.matches) == 2
+        @test source_location(match_results.matches[1][1]) == (1, 1)
+        @test source_location(match_results.matches[2][1]) == (10, 5)
+    end
+
 end
 
 function test_rule_in_group(rule_name, rule_group, test_dir, expected_matches)

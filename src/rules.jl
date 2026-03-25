@@ -552,6 +552,106 @@ end
 # Rule matching
 # =============
 
+# Rule match disabling
+# --------------------
+
+"""
+    RuleDisabler <: Function
+
+Supertype for all rule disablers.
+"""
+abstract type RuleDisabler <: Function end
+
+"""
+    CommentDisabler
+
+Supertype for all comment rule disablers.
+"""
+abstract type CommentDisabler <: RuleDisabler end
+
+"""
+    DefaultDisabler
+
+Type for the default rule disabler. See [`default_disabler`](@ref).
+"""
+struct DefaultDisabler <: CommentDisabler end
+
+const default_disabler = DefaultDisabler()
+
+"""
+    default_disabler([rule::Rule,] line::AbstractString)
+
+The default rule disabler. Allows disabling rules in source code via comments of the form
+`# lint-disable[: [<rule-name>, ]+]?`. The rules are disabled for the annotated node.
+
+# Examples:
+
+```
+julia> src = \"""
+       f(x) = x
+
+       # lint-disable
+       f(x, y)
+
+       # lint-disable: disabled_rule
+       function g(x)
+           f(x + 1)
+       end
+
+       # lint-disable: another_rule
+       function g(x)
+           f(x + 1)
+       end
+       \""";
+
+julia> rule = @rule "disabled_rule" begin
+           description = ""
+           pattern = @pattern f({_}...)
+       end;
+
+julia> rule_match(rule, parseall(SyntaxNode, src))
+RuleMatchResult with 2 matches and 0 failures:
+Matches:
+  @ :1:1
+  BindingSet()
+
+  @ :13:5
+  BindingSet()
+```
+"""
+default_disabler(line::AbstractString) = is_disable_all_comment(line)
+function default_disabler(rule::Rule, line::AbstractString)
+    is_disable_comment(line) || return false
+    is_disable_all_comment(line) && return true
+    is_disable_rule_comment(line, rule.name) && return true
+    return false
+end
+
+# Utils
+
+function previous_line(src::JS.SyntaxNode)
+    source_file = JS.sourcefile(src)
+    source_line = JS.source_location(src)[1]
+    # Check if there is a previous line.
+    source_line == JS.sourcefile(src).line_starts[1] &&
+        return ""
+    prev_line_first_byte = JS.sourcefile(src).line_starts[source_line - 1]
+    prev_line_byte_range = JS.source_line_range(JS.sourcefile(src), prev_line_first_byte)
+    return strip(view(source_file, prev_line_byte_range[1]:prev_line_byte_range[2]))
+end
+is_disable_comment(str::AbstractString) = startswith(str, "# lint-disable")
+is_disable_all_comment(str::AbstractString) = str == "# lint-disable"
+function is_disable_rule_comment(str::AbstractString, rule_name::String)
+    is_disable_comment(str) || return false
+    split_command_from_rules = split(str, ":")
+    length(split_command_from_rules) == 2 || return false
+    rules_list = strip.(split(split_command_from_rules[2], ","))
+    return rule_name in rules_list
+end
+
+# Rule matching
+# -------------
+
 """
     RuleMatchResult
 
@@ -567,18 +667,21 @@ RuleMatchResult() = RuleMatchResult([], [])
 
 """
     rule_match(rule::Rule,
-               src::Juliasyntax.SyntaxNode;
+               filename::AbstractString;
+               disabler::RuleDisabler=default_disabler,
                greedy=true,
                only_matches=true)
     rule_match(rule::Rule,
-               filename::AbstractString;
+               src::Juliasyntax.SyntaxNode;
+               disabler::RuleDisabler=default_disabler,
                greedy=true,
                only_matches=true)
 
 Match a rule against a given source code. Return the set of all matches with their
 associated refactored code, if applicable. If `only_matches` is `false` return failures
 as well. The rule pattern is matched against all children nodes in the source node, up to
-the leafs. Matching is greedy by default.
+the leafs. Matching is greedy by default. The rule disabling mechanism may be configured
+through `disabler`.
 
 !!! note
     Matching a rule with a `SyntaxNode` may return different results than matching against
@@ -589,7 +692,31 @@ the leafs. Matching is greedy by default.
 See [`syntax_match_all`](@ref).
 """
 function rule_match(rule::Rule,
+                    src::AbstractString;
+                    disabler::RuleDisabler=default_disabler,
+                    greedy=true,
+                    only_matches=true)
+    if isfile(src)
+        src_txt = read(src, String)
+        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
+        src_node = _normalise!(src_node)
+
+        return rule_match(rule, src_node; disabler, greedy, only_matches)
+    end
+    if isdir(src)
+        files = source_files(src)
+        match_results = RuleMatchResult()
+        for f in files
+            match_result = rule_match(rule, f; disabler, greedy, only_matches)
+            append!(match_results, match_result)
+        end
+        return match_results
+    end
+    error("not a file or directory: $src")
+end
+function rule_match(rule::Rule,
                     src::JS.SyntaxNode;
+                    disabler::RuleDisabler=default_disabler,
                     greedy=true,
                     only_matches=true)
     if !isnothing(rule.hooks)
@@ -611,51 +738,68 @@ function rule_match(rule::Rule,
         end
     end
 
-    match_results = syntax_match_all(rule.pattern, src; greedy, only_matches)
-    binding_sets = match_results.matches
-    matches_with_refactorings = isnothing(rule.template) ?
-        [(bs, nothing) for bs in binding_sets] :
-        [(bs, expand(rule.template, bs)) for bs in binding_sets]
-
-    return RuleMatchResult(matches_with_refactorings, match_results.failures)
+    return _rule_match(rule, src; disabler, greedy, only_matches)
 end
-function rule_match(rule::Rule,
-                    src::AbstractString;
-                    greedy=true,
-                    only_matches=true)
-    if isfile(src)
-        src_txt = read(src, String)
-        src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
-        src_node = _normalise!(src_node)
-
-        return rule_match(rule, src_node; greedy, only_matches)
+function _rule_match(rule::Rule,
+                     src::JS.SyntaxNode;
+                     disabler::RuleDisabler=default_disabler,
+                     match_results=RuleMatchResult(),
+                     greedy=true,
+                     only_matches=true)
+    disable = if isa(disabler, CommentDisabler)
+        prev_line = previous_line(src)
+        disabler(rule, prev_line)
+    else
+        disabler(rule, src)
     end
-    if isdir(src)
-        files = source_files(src)
-        match_results = RuleMatchResult()
-        for f in files
-            match_result = rule_match(rule, f; greedy, only_matches)
-            append!(match_results, match_result)
+    disable && return match_results
+    # The rule is not disabled.
+    match_result =
+        syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
+    # Add refactorings.
+    binding_sets = match_result.matches
+    if !isempty(binding_sets)
+        matches_with_refactorings = isnothing(rule.template) ?
+            [(bs, nothing) for bs in binding_sets] :
+            [(bs, expand(rule.template, bs)) for bs in binding_sets]
+        # Add the (match, refactoring) pair to the results.
+        append!(match_results.matches, matches_with_refactorings)
+    end
+    isempty(match_result.failures) ||
+        append!(match_results.failures, match_result.failures)
+    # Recurse on the source node's children, if any.
+    if !is_leaf(src)
+        for c in children(src)
+            _rule_match(rule,
+                        c;
+                        disabler,
+                        match_results,
+                        greedy,
+                        only_matches)
         end
-        return match_results
     end
-    error("not a file or directory: $src")
+
+    return match_results
 end
 
 """
     rules_match(rules::Vector{Rule},
                 src_file::AbstractString;
+                disabler::RuleDisabler=default_disabler,
                 greedy=true,
                 only_matches=true)
     rules_match(rules::Vector{Rule},
                 src::JuliaSyntax.SyntaxNode;
+                disabler::RuleDisabler=default_disabler,
                 greedy=true,
                 only_matches=true)
 
-Match a set of rules against a source. Each source node is traversed once.
+Match a set of rules against a source. Each source node is traversed once. The rule
+disabling mechanism may be configured through `disabler`.
 """
 function rules_match(rules::Vector{Rule},
                      src::AbstractString;
+                     disabler::RuleDisabler=default_disabler,
                      greedy=true,
                      only_matches=true)
     match_results = RuleGroupMatchResult()
@@ -664,12 +808,22 @@ function rules_match(rules::Vector{Rule},
         src_txt = read(src, String)
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _normalise!(src_node)
-        return rules_match(rules, src_node; match_results, greedy, only_matches)
+        return rules_match(rules,
+                           src_node;
+                           disabler,
+                           match_results,
+                           greedy,
+                           only_matches)
     end
     if isdir(src)
         files = source_files(src)
         for f in files
-            rules_match(rules, f; match_results, greedy, only_matches)
+            rules_match(rules,
+                        f;
+                        disabler,
+                        match_results,
+                        greedy,
+                        only_matches)
         end
         return match_results
     end
@@ -677,6 +831,7 @@ function rules_match(rules::Vector{Rule},
 end
 function rules_match(rules::Vector{Rule},
                      src::JS.SyntaxNode;
+                     disabler::RuleDisabler=default_disabler,
                      match_results=RuleGroupMatchResult(),
                      greedy=true,
                      only_matches=true)
@@ -704,14 +859,43 @@ function rules_match(rules::Vector{Rule},
         end
     end
 
-    return _rules_match(kept_rules, src; match_results, greedy, only_matches)
+    return _rules_match(kept_rules,
+                        src;
+                        disabler,
+                        match_results,
+                        greedy,
+                        only_matches)
 end
 function _rules_match(rules::Vector{Rule},
                       src::JS.SyntaxNode;
+                      disabler::RuleDisabler=default_disabler,
+                      disabled_rules=Rule[],
                       match_results=RuleGroupMatchResult(),
                       greedy=true,
                       only_matches=true)
+    # Skip all matching if `disabler` returns true for all rules.
+    disable = if isa(disabler, CommentDisabler)
+        prev_line = previous_line(src)
+        disabler(prev_line)
+    else
+        disabler(src)
+    end
+    disable && return match_results
+    # Skip all matching if all rules are disabled.
+    length(disabled_rules) == length(rules) && return match_results
+    # Match each rule with the current source node.
     for rule in rules
+        # Disable rules.
+        if rule in disabled_rules
+            continue
+        end
+        disable = isa(disabler, CommentDisabler) ?
+            disabler(rule, prev_line) :
+            disabler(rule, src)
+        if disable
+            push!(disabled_rules, rule)
+            continue
+        end
         match_result::MatchResults =
             syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
         # If no relevant results were found, continue to the next rule.
@@ -730,14 +914,26 @@ function _rules_match(rules::Vector{Rule},
             RuleMatchResult(matches_with_refactorings, match_result.failures)
         insert_or_append!(match_results, rule.name, rule_match_result)
     end
+    # Recurse on the source node's children, if any.
     if !is_leaf(src)
         for c in children(src)
-            _rules_match(rules, c; match_results, greedy, only_matches)
+            _rules_match(rules,
+                         c;
+                         disabler,
+                         disabled_rules,
+                         match_results,
+                         greedy,
+                         only_matches)
         end
     end
+    # Re-enable rules.
+    empty!(disabled_rules)
 
     return match_results
 end
+
+# Rule group matching
+# -------------------
 
 """
     RuleGroupMatchResult
@@ -748,38 +944,43 @@ const RuleGroupMatchResult = Dict{String, RuleMatchResult}
 
 """
     rule_group_match(group::RuleGroup,
-                     src::JuliaSyntax.SyntaxNode;
+                     src::AbstractString;
+                     disabler::RuleDisabler=default_disabler,
                      greedy=true,
                      only_matches=true)
     rule_group_match(group::RuleGroup,
-                     src::AbstractString;
+                     src::JuliaSyntax.SyntaxNode;
+                     disabler::RuleDisabler=default_disabler,
                      greedy=true,
                      only_matches=true)
 
 Match all the rules in a given group against a source node. Return a
-[`RuleGroupMatchResult`](@ref). Matching is greedy by default.
+[`RuleGroupMatchResult`](@ref). Matching is greedy by default. The rule disabling mechanism
+may be configured through `disabler`.
 """
 function rule_group_match(group::RuleGroup,
                           src::JS.SyntaxNode;
+                          disabler::RuleDisabler=default_disabler,
                           greedy=true,
                           only_matches=true)
-    return rules_match(collect(values(group)), src; greedy, only_matches)
+    return rules_match(collect(values(group)), src; disabler, greedy, only_matches)
 end
 function rule_group_match(group::RuleGroup,
                           src::AbstractString;
+                          disabler::RuleDisabler=default_disabler,
                           greedy=true,
                           only_matches=true)
     if isfile(src)
         src_txt = read(src, String)
         src_node = JS.parseall(JS.SyntaxNode, src_txt; filename=src)
         src_node = _normalise!(src_node)
-        return rule_group_match(group, src_node; greedy, only_matches)
+        return rule_group_match(group, src_node; disabler, greedy, only_matches)
     end
     if isdir(src)
         files = source_files(src)
         match_results = RuleGroupMatchResult()
         for f in files
-            match_result = rule_group_match(group, f; greedy, only_matches)
+            match_result = rule_group_match(group, f; disabler, greedy, only_matches)
             for (k, v) in match_result
                 haskey(match_results, k)         ?
                     append!(match_results[k], v) :
