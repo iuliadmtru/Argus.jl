@@ -69,7 +69,7 @@
                 @test length(match_result.matches[1][1]) == 2
                 @test all(isnothing, [m[2] for m in match_result.matches])
                 @test source_location(match_result.matches[1][1]) == (1, 11)
-                @test match_result.matches[1][1].file_name == ""
+                @test filename(match_result.matches[1][1]) == ""
             end
             # No match.
             let
@@ -125,13 +125,13 @@
             first_match = matches[1]
             @test first_match[:x].name == "a"
             @test first_match[:y].name == "f"
-            @test first_match.source_location == (3, 5)
-            @test first_match.file_name == ""
+            @test source_location(first_match) == (3, 5)
+            @test filename(first_match) == ""
             second_match = matches[2]
             @test kind(second_match[:x].src) === K"call"
             @test second_match[:y].name == "h"
-            @test second_match.source_location == (10, 9)
-            @test second_match.file_name == ""
+            @test source_location(second_match) == (10, 9)
+            @test filename(second_match) == ""
         end
         let
             rule = @rule "" begin
@@ -298,8 +298,8 @@
             write(tmp_file_path, src)
             match_result = rule_match(rule, tmp_file_path)
             @test length(match_result.matches) == 2
-            @test match_result.matches[1][1].source_location == (1, 1)
-            @test match_result.matches[2][1].source_location == (2, 1)
+            @test source_location(match_result.matches[1][1]) == (1, 1)
+            @test source_location(match_result.matches[2][1]) == (2, 1)
         end
         let
             rule = @rule "named pattern variable" begin
@@ -308,8 +308,8 @@
             end
             match_result = rule_match(rule, parseall(SyntaxNode, "@m{x}\n@m{y}"))
             @test length(match_result.matches) == 2
-            @test match_result.matches[1][1].source_location == (1, 1)
-            @test match_result.matches[2][1].source_location == (2, 1)
+            @test source_location(match_result.matches[1][1]) == (1, 1)
+            @test source_location(match_result.matches[2][1]) == (2, 1)
         end
         let
             rule = @rule "containers-with-abstract-type-params" begin
@@ -330,8 +330,8 @@
                   """
             match_result = rule_match(rule, parseall(SyntaxNode, src))
             @test length(match_result.matches) == 2
-            @test match_result.matches[1][1].source_location == (4, 9)
-            @test match_result.matches[2][1].source_location == (7, 6)
+            @test source_location(match_result.matches[1][1]) == (4, 9)
+            @test source_location(match_result.matches[2][1]) == (7, 6)
         end
         let
             rule = @rule "inside fundef" begin
@@ -345,7 +345,7 @@
                 match_result =
                     rule_match(rule, parsestmt(SyntaxNode, "f(x) = x"); only_matches=false)
                 @test length(match_result.matches) == 1
-                @test match_result.matches[1][1].source_location == (1, 8)
+                @test source_location(match_result.matches[1][1]) == (1, 8)
                 @test length(match_result.failures) == 4
                 @test match_result.failures[1].message ==
                     match_result.failures[2].message ==
@@ -879,7 +879,7 @@ end
     rule_group_match_result = rule_group_match(lang_rules, rand_bool_rule_path)
     rand_bool_rule_matches = rule_group_match_result["rand-bool"].matches
     @test length(rand_bool_rule_matches) == 3
-    @test all(m -> m[1].file_name == joinpath(dir, "rand-bool.jl"), rand_bool_rule_matches)
+    @test all(m -> filename(m[1]) == joinpath(dir, "rand-bool.jl"), rand_bool_rule_matches)
     for (rule_name, result) in filter(p -> p.first != "rand-bool", rule_group_match_result)
         @test length(result.matches) == 0
     end

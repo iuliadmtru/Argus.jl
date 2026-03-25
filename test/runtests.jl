@@ -1,7 +1,7 @@
 using Test
 using Argus
 using JuliaSyntax
-using JuliaSyntax: source_location, kind, @K_str, is_leaf, ParseError, flags
+using JuliaSyntax: source_location, filename, kind, @K_str, is_leaf, ParseError, flags
 
 include("bindings.jl")
 include("pattern.jl")

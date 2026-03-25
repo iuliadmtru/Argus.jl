@@ -319,20 +319,19 @@ Set of bindings resulted from a successful syntax match.
 """
 mutable struct BindingSet <: AbstractDict{Symbol, Binding}
     bindings::Dict{Symbol, Binding}  # TODO: Order by appearance in the source code?
-    source_location::Tuple{Int64, Int64}
-    file_name::String
+    src::Union{Nothing, JS.SyntaxNode}
     _dirty::Bool
 end
-BindingSet() = BindingSet(Dict{Symbol, Binding}(), (0, 0), "", false)
+BindingSet() = BindingSet(Dict{Symbol, Binding}(), nothing, false)
 BindingSet(bs::BindingSet; dirty::Bool=false) =
-    BindingSet(bs.bindings, bs.source_location, bs.file_name, dirty)
-BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), (0, 0), "", false)
+    BindingSet(bs.bindings, bs.src, dirty)
+BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), nothing, false)
 
 # Dict interface
 # --------------
 
 Base.isempty(bs::BindingSet) = isempty(bs.bindings)
-Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.source_location, bs.file_name, bs._dirty)
+Base.empty(bs::BindingSet) = BindingSet(empty(bs.bindings), bs.src, bs._dirty)
 Base.empty!(bs::BindingSet) = empty!(bs.bindings)
 Base.length(bs::BindingSet) = length(bs.bindings)
 
@@ -372,7 +371,9 @@ Base.valtype(bs::BindingSet) = valtype(bs.bindings)
 # JuliaSyntax overwrites
 # ----------------------
 
-JS.source_location(bs::BindingSet) = bs.source_location
+JS.source_location(bs::BindingSet) =
+    isnothing(bs.src) ? (0, 0) : JS.source_location(bs.src)
+JS.filename(bs::BindingSet) = isnothing(bs.src) ? "" : JS.filename(bs.src)
 
 # Utils
 # -----
@@ -441,8 +442,9 @@ function _show_binding_set(io::IO, bs, indent)
 end
 
 function _repr_location(bs::BindingSet)
-    file_name = isempty(bs.file_name) ? "" : bs.file_name * ":"
-    location = string(file_name, bs.source_location[1], ":", bs.source_location[2])
+    file_name = JS.filename(bs) * ":"
+    source_location = JS.source_location(bs)
+    location = string(file_name, source_location[1], ":", source_location[2])
 
     return location
 end

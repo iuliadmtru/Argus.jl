@@ -1675,8 +1675,7 @@ function push_match_result!(match_all_result::MatchResults,
         !only_matches && !is_default_match_fail(match_result) &&
             push!(match_all_result.failures, match_result)
     else
-        (match_result::BindingSet).source_location = JS.source_location(src)
-        (match_result::BindingSet).file_name = JS.filename(src)
+        (match_result::BindingSet).src = src
         push!(match_all_result.matches, make_permanent(match_result))
     end
 end
