@@ -660,7 +660,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 return match_and_recover!(match_results,
                                           pattern_node,
                                           src,
-                                          bindings;
+                                          bindings,
                                           greedy,
                                           only_matches,
                                           recurse)
@@ -669,7 +669,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             match_and_recover!(match_results,
                                pattern_node,
                                src,
-                               bindings;
+                               bindings,
                                greedy,
                                only_matches,
                                recurse)
@@ -698,7 +698,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             return match_and_recover!(match_results,
                                       pattern_node,
                                       src,
-                                      bindings;
+                                      bindings,
                                       greedy,
                                       only_matches,
                                       recurse)
@@ -709,7 +709,7 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
         match_and_recover!(match_results,
                            pattern_node,
                            src,
-                           bindings;
+                           bindings,
                            greedy,
                            only_matches,
                            recurse)
@@ -1684,7 +1684,7 @@ end
     match_and_recover!(match_all_result::MatchResults,
                        pattern_node::SyntaxPatternNode,
                        src::JS.SyntaxNode,
-                       bindings::BindingSet=BindingSet();
+                       bindings::BindingSet=BindingSet(),
                        greedy,
                        only_matches)
 
@@ -1693,10 +1693,10 @@ Try to match a pattern node with a source node. Recover in case of failure.
 function match_and_recover!(match_results::MatchResults,
                             pattern_node::SyntaxPatternNode,
                             src::JS.SyntaxNode,
-                            bindings::BindingSet=BindingSet();
-                            greedy,
-                            only_matches,
-                            recurse)
+                            bindings::BindingSet=BindingSet(),
+                            greedy=true,
+                            only_matches=true,
+                            recurse=true)
     recovery_stack = _RecoveryStack()
     match_result =
         _syntax_match(pattern_node, src, bindings; recovery_stack, greedy)
