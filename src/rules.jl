@@ -896,7 +896,7 @@ function _rules_match(rules::Vector{Rule},
             push!(disabled_rules, rule.name)
             continue
         end
-        match_result::MatchResults =
+        match_result =
             syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
         # If no relevant results were found, continue to the next rule.
         if isempty(match_result.matches) && isempty(match_result.failures)

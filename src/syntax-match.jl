@@ -617,16 +617,18 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                           only_matches=true,
                           recurse=true)
     bindings = BindingSet()
+    src_cs = children(src)
+    pattern_cs = children(pattern_node)
     # TODO: Rewrite this in a more generalised way, if possible.
     if (kind(src) == K"block" || kind(src) == K"toplevel")
         if is_toplevel(pattern_node)
             # Both the pattern and the source are series of expressions. Match the
             # pattern's expressions sequence with all the sub-sequences in the source.
-            if has_reps(pattern_node) || length(children(pattern_node)) != length(children(src))
-                srcs = children(src)
+            if has_reps(pattern_node) || length(pattern_cs) != length(src_cs)
+                srcs = src_cs
                 while !isempty(srcs)
                     recovery_stack = _RecoveryStack_vec()
-                    partial_result, _ = partial_syntax_match(children(pattern_node),
+                    partial_result, _ = partial_syntax_match(pattern_cs,
                                                              srcs,
                                                              bindings;
                                                              recovery_stack,
@@ -650,8 +652,13 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
                 end
                 # Recurse on source children, if any.
                 (is_leaf(src) || !recurse) && return match_results
-                for c in children(src)
-                    syntax_match_all(pattern_node, c; match_results, greedy, only_matches, recurse)
+                for c in src_cs
+                    syntax_match_all(pattern_node,
+                                     c;
+                                     match_results,
+                                     greedy,
+                                     only_matches,
+                                     recurse)
                 end
                 return match_results
             else
@@ -676,16 +683,15 @@ function syntax_match_all(pattern_node::SyntaxPatternNode,
             # If the pattern is an `~or` pattern, only match `toplevel` branches against
             # the expressions in the source.
             pattern_node = keep_toplevel_branches_only(pattern_node)
-            isempty(children(pattern_node)) && return match_results
+            isempty(pattern_cs) && return match_results
             # The pattern is a series of expressions (grouped in a `toplevel`, `~or` or
             # `~and` node) with fail conditions attached. Match through all expressions in
             # the source until there are none left.
             #
             # Match the pattern with all source expressions except the first one.
-            cs = src.children
-            (isnothing(cs) || isempty(cs) || length(cs) == 1) &&
+            (isnothing(src_cs) || isempty(src_cs) || length(src_cs) == 1) &&
                 return match_results
-            next_src = JS.SyntaxNode(src.parent, cs[2:end], src.data)
+            next_src = JS.SyntaxNode(src.parent, src_cs[2:end], src.data)
             syntax_match_all(pattern_node,
                              next_src;
                              match_results,
