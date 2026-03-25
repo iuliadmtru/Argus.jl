@@ -478,19 +478,18 @@ end
 # Display
 # -------
 
-function Base.showerror(io::IO, err::BindingFieldError)
-    print(io, "BindingFieldError: ")
-    println(io,
-            "binding `", err.binding.bname, "` has no field `", err.field, "` ",
-            "because ", err.reason, ".")
+Base.showerror(io::IO, err::BindingFieldError) = println(io, repr(err))
+function Base.repr(err::BindingFieldError)
+    str = "BindingFieldError: binding `$(err.binding.bname)` has no field `$(err.field)`"
+    str *= " because $(err.reason).\n"
     available = isempty(err.available_fields) ?
         "none"                                :
         join(map(s -> "`$s`", err.available_fields), ", ")
-    println(io, "Available fields: ", available)
-    println(io)
-    println(io,
-            "The following fields are internal, avoid using them in patterns: ",
-            join(map(s -> "`$s`", err.internal_fields), ", "))
+    str *= "Available fields: $(available)\n\n"
+    str *= "The following fields are internal, avoid using them in patterns: " *
+        join(map(s -> "`$s`", err.internal_fields), ", ")
+
+    return str
 end
 
 function Base.showerror(io::IO, err::BindingSetKeyError)

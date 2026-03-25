@@ -15,18 +15,19 @@
         @test isa(field_err_literal, MatchFail)
         @test field_err_literal.message ==
             """
-            BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier or a macro call.
+            BindingFieldError: binding `x` has no field `name` because the bound \
+            expression is not an identifier or a macro call.
             Available fields: `value`
 
-            The following fields are internal, avoid using them in patterns: `bname`, `src`, `bindings`
-            """
+            The following fields are internal, avoid using them in patterns: \
+            `bname`, `src`, `bindings`"""
         field_err_expr = syntax_match(pattern, parsestmt(SyntaxNode, "x = y"))
         @test isa(field_err_literal, MatchFail)
         @test startswith(field_err_expr.message,
                          """
-                         BindingFieldError: binding `x` has no field `name` because the bound expression is not an identifier or a macro call.
-                         Available fields: none
-                         """)
+                         BindingFieldError: binding `x` has no field `name` because the \
+                         bound expression is not an identifier or a macro call.
+                         Available fields: none""")
     end
     let
         pattern = @pattern begin
@@ -50,7 +51,8 @@
         @test isa(field_err, MatchFail)
         @test startswith(field_err.message,
                          """
-                         BindingFieldError: binding `rhs` has no field `value` because the bound expression is not a literal.
+                         BindingFieldError: binding `rhs` has no field `value` because \
+                         the bound expression is not a literal.
                          Available fields: `name`
                          """)
     end
@@ -63,7 +65,8 @@
         @test isa(field_err, MatchFail)
         @test startswith(field_err.message,
                          """
-                         BindingFieldError: binding `x` has no field `abc` because `abc` is not a sub-binding of `x`.
+                         BindingFieldError: binding `x` has no field `abc` because `abc` \
+                         is not a sub-binding of `x`.
                          Available fields: `name`
                          """)
     end

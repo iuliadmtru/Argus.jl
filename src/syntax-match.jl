@@ -835,7 +835,7 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
         condition(bindings)
     catch err
         if isa(err, BindingFieldError)
-            message = sprint(showerror, err)
+            message = repr(err)
             true
         else
             rethrow(err)
@@ -864,7 +864,7 @@ function syntax_match_when(when_node::SyntaxPatternNode,
         condition(bindings)
     catch err
         if isa(err, BindingFieldError)
-            message = sprint(showerror, err)
+            message = repr(err)
             false
         else
             rethrow(err)
