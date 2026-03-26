@@ -142,13 +142,23 @@ function Base.getproperty(b::Binding, name::Symbol)
     end
 end
 
-function shared_copy(b::Binding)
-    set_dirty_flag!(b.bindings)
-    Binding(b.bname, copy(b.src), shared_copy(b.bindings), b.ellipsis_depth, b._type, b._msg)
-end
-
 # Utils
 # -----
+
+function shared_copy(b::Binding)
+    set_dirty_flag!(b.bindings)
+    src_copy = copy_and_restore_parent(b.src)
+    new_b = Binding(b.bname, src_copy, shared_copy(b.bindings), b.ellipsis_depth, b._type, b._msg)
+    return new_b
+end
+
+function copy_and_restore_parent(src::JS.SyntaxNode)
+    src_copy = copy(src)
+    src_copy.parent = src.parent
+    return src_copy
+end
+copy_and_restore_parent(src::AbstractVector) =
+    return [copy_and_restore_parent(s) for s in src]
 
 # During matching, bindings may be marked as invalid or temporary.
 #
@@ -316,8 +326,7 @@ mutable struct BindingSet <: AbstractDict{Symbol, Binding}
     _dirty::Bool
 end
 BindingSet() = BindingSet(Dict{Symbol, Binding}(), nothing, false)
-BindingSet(bs::BindingSet; dirty::Bool=false) =
-    BindingSet(bs.bindings, bs.src, dirty)
+BindingSet(bs::BindingSet; dirty::Bool=false) = BindingSet(bs.bindings, bs.src, dirty)
 BindingSet(kvs...) = BindingSet(Dict{Symbol, Binding}(kvs...), nothing, false)
 
 # Dict interface
