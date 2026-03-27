@@ -840,7 +840,7 @@ function syntax_match_fail(fail_node::SyntaxPatternNode,
     fail = try
         condition(bindings)
     catch err
-        if isa(err, BindingFieldError)
+        if isa(err, BindingFieldError) || isa(err, BindingSetKeyError)
             message = repr(err)
             true
         else
@@ -869,7 +869,7 @@ function syntax_match_when(when_node::SyntaxPatternNode,
     cond = try
         condition(bindings)
     catch err
-        if isa(err, BindingFieldError)
+        if isa(err, BindingFieldError) || isa(err, BindingSetKeyError)
             message = repr(err)
             false
         else
@@ -896,7 +896,7 @@ function syntax_match_execute(execute_node::SyntaxPatternNode,
         code(bindings)
         ""
     catch err
-        if isa(err, BindingFieldError)
+        if isa(err, BindingFieldError) || isa(err, BindingSetKeyError)
             sprint(showerror, err)
         else
             rethrow(err)

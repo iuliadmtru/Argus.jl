@@ -75,8 +75,9 @@
             {x}
             @fail [:y] y.name == "y" "is y"
         end
-        dummy = parsestmt(SyntaxNode, "dummy")
-        @test_throws "BindingSetKeyError: binding y not found" syntax_match(pattern, dummy)
+        match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+        @test !is_successful(match_fail)
+        @test match_fail.message == "BindingSetKeyError: binding y not found"
     end
 
 end

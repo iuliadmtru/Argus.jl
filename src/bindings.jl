@@ -501,7 +501,5 @@ function Base.repr(err::BindingFieldError)
     return str
 end
 
-function Base.showerror(io::IO, err::BindingSetKeyError)
-    print(io, "BindingSetKeyError: ")
-    println(io, "binding ", err.key, " not found")
-end
+Base.showerror(io::IO, err::BindingSetKeyError) = println(io, repr(err))
+Base.repr(err::BindingSetKeyError) = "BindingSetKeyError: binding $(err.key) not found"

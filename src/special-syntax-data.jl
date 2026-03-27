@@ -84,11 +84,11 @@ in this evaluation context. The match behaviour is opposite to that of
 
 Pattern match time exceptions:
   - [`MatchError`](@ref)
-  - [`BindingSetKeyError`](@ref)
   - Any exception caused by the evaluation of the fail condition
 
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
+  - [`BindingSetKeyError`](@ref)
 
 See also: [`WhenSyntaxData`](@ref)
 """
@@ -112,11 +112,11 @@ context. The match behaviour is opposite to that of [`FailSyntaxData`](@ref).
 
 Pattern match time exceptions:
   - [`MatchError`](@ref)
-  - [`BindingSetKeyError`](@ref)
   - Any exception caused by the evaluation of the condition
 
 Exceptions caught and returned as a [`MatchFail`] message:
   - [`BindingFieldError`](@ref)
+  - [`BindingSetKeyError`](@ref)
 
 See also: [`FailSyntaxData`](@ref)
 """

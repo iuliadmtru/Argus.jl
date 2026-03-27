@@ -50,9 +50,9 @@
                              The last argument should be a `String`""",
                              Pattern(SyntaxPatternNode(:( ~fail([:x], x, y) ))))
                 pattern = @pattern ~fail([], x, "")
-                @test_throws BindingSetKeyError syntax_match(pattern,
-                                                             parsestmt(SyntaxNode,
-                                                                       "dummy"))
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                @test !is_successful(match_fail)
+                @test match_fail.message == "BindingSetKeyError: binding x not found"
             end
             let
                 pattern = @pattern ~fail([], :(x + 1), "")
@@ -79,9 +79,9 @@
                              The first argument should be a vector of `Symbol`s""",
                              Pattern(SyntaxPatternNode(:( ~when([x], x) ))))
                 pattern = @pattern ~when([], x)
-                @test_throws BindingSetKeyError syntax_match(pattern,
-                                                             parsestmt(SyntaxNode,
-                                                                       "dummy"))
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                @test !is_successful(match_fail)
+                @test match_fail.message == "BindingSetKeyError: binding x not found"
             end
             let
                 pattern = @pattern ~when([], :(x + 1))
@@ -108,9 +108,9 @@
                              The first argument should be a vector of `Symbol`s""",
                              Pattern(SyntaxPatternNode(:( ~execute([x], x) ))))
                 pattern = @pattern ~execute([], x)
-                @test_throws BindingSetKeyError syntax_match(pattern,
-                                                             parsestmt(SyntaxNode,
-                                                                       "dummy"))
+                match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "dummy"))
+                @test !is_successful(match_fail)
+                @test match_fail.message == "BindingSetKeyError: binding x not found\n"
             end
         end
 
