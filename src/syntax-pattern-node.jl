@@ -918,7 +918,9 @@ function _get_pattern_form_args(node::JS.SyntaxNode)
 end
 
 _strip_node(node::JS.SyntaxNode) =
-    kind(node) == K"quote" || kind(node) == K"string" ? node.children[1] : node
+    kind(node) == K"quote" || kind(node) == K"string" && length(children(node)) == 1 ?
+    node.children[1] :
+    node
 
 # The expression `module {x} end`, when desugared, interprets the `~var` call as part of
 # the module's body instead of as the module's name.
