@@ -335,9 +335,10 @@ function _syntax_match(pattern::SyntaxPatternNode,
         _pattern = SyntaxPatternNode(pattern.parent, nothing, pattern.data)
         [c.parent = _pattern for c in rec_ps]
         _pattern.children = rec_ps
-        [c.parent = src for c in rec_srcs]
-        src.children = rec_srcs
-        push!(recovery_stack, (_pattern, src, rec_bs))
+        _src = JS.SyntaxNode(src.parent, nothing, src.data)
+        [c.parent = _src for c in rec_srcs]
+        _src.children = rec_srcs
+        push!(recovery_stack, (_pattern, _src, rec_bs))
     end
 
     return match_result

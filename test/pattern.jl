@@ -150,10 +150,10 @@
                         end
                 # Match.
                 src = """
-            f() = begin 2 end
-            g(x) = begin x + 1 end
-            h(a; b::Int=2) = begin a - b end
-            """
+                f() = begin 2 end
+                g(x) = begin x + 1 end
+                h(a; b::Int=2) = begin a - b end
+                """
                 match_result = syntax_match(pattern, parseall(SyntaxNode, src))
                 @test isa(match_result, BindingSet)
                 @test length(match_result) == 2
@@ -164,10 +164,10 @@
                 @test source_location(src3[2]) == (3, 4)
                 # Fail.
                 src_fail = """
-            f() = begin 2 end
-            g(x)::Int = begin x + 1 end
-            h(a; b::Int=2) = begin a - b end
-            """
+                f() = begin 2 end
+                g(x)::Int = begin x + 1 end
+                h(a; b::Int=2) = begin a - b end
+                """
                 fail_result = syntax_match(pattern, parseall(SyntaxNode, src_fail))
                 @test isa(fail_result, MatchFail)
             end
@@ -704,6 +704,14 @@
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "x .+ 2"))
                 @test !is_successful(match_fail)
                 @test match_fail.message == "`~when` condition not satisfied"
+            end
+            let
+                pattern = @pattern "$({_}...)$({x:::identifier})$({_}...)"
+                src = parsestmt(SyntaxNode, """ "bla \$a bli \$b blu" """)
+                match_results = syntax_match_all(pattern, src)
+                @test length(match_results.matches) == 2
+                @test all(el -> el in map(m -> m[:x].name, match_results.matches),
+                          ["a", "b"])
             end
             ## Templates.
             let
