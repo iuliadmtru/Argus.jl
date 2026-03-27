@@ -124,6 +124,20 @@ function syntax_match(syntax_class::SyntaxClass,
                       keep_unexported=false)
     syntax_class_failure = MatchFail("expected " * syntax_class.description, src)
     tracked_failure = MatchFail(src)
+    # Special treatments.
+    #
+    # `:import` syntax class.
+    if syntax_class.description == "import"
+        kind(src) == K"import" || return tracked_failure
+        module_name_src, ids_src = kind(src.children[1]) == K"importpath" ?
+            (src.children[1].children[1], JS.SyntaxNode[]) :
+            (src.children[1].children[1].children[1],
+             [c.children[1] for c in src.children[1].children[2:end]])
+        module_name_binding = Binding(:module_name, module_name_src, BindingSet(), UInt8(0))
+        ids_binding = Binding(:ids, ids_src, fill(BindingSet(), length(ids_src)), UInt8(1))
+        return BindingSet(:module_name => module_name_binding,
+                          :ids => ids_binding)
+    end
     for pattern in syntax_class.pattern_alternatives
         match_result = _syntax_match(pattern, src; greedy, keep_unexported)
         # Return the first successful match.

@@ -347,4 +347,9 @@ function _register_syntax_classes()
                   "")
         end
     end
+
+    # `import`: match an `import` statement.
+    @define_syntax_class :import "import" begin
+        @pattern ǐmport({module_name}, {ids}...)  # Another hack.
+    end
 end
