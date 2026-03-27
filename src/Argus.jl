@@ -10,6 +10,12 @@ using JuliaSyntax: JuliaSyntax, head, kind, @K_str,
 
 const JS = JuliaSyntax
 
+# Part 0: AST utils
+# =================
+
+export inside_parens
+
+include("utils.jl")
 
 # Part 1: Syntax matching mechanism
 # =================================
