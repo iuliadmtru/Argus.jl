@@ -1421,6 +1421,76 @@ function _normalise!(node::JS.SyntaxNode)
         end
     elseif k == K"MacroName" && node.data.val == Symbol("@.")
         node.data = update_data_val(node.data, Symbol("@__dot__"))
+    elseif k == K"cmdstring"
+        # Change `cmdstring` nodes to `Core.@cmd` call nodes.
+        # This is necessary in order to allow pattern forms in command strings.
+        str = join([c.data.val for c in children(node)], "\n")
+        new_node = JS.parsestmt(JS.SyntaxNode, "Core.@cmd()")
+        # Make the wrapper node have the same source, position and span as the original
+        # `cmdstring` node.
+        new_node.data = update_source_position_span(new_node.data,
+                                                    node.data.source,
+                                                    node.data.position,
+                                                    node.data.raw.span)
+        rgx =
+            r"(?:\$(?P<interp>\((?:[^)(]*|(?P>interp))*\)))|(?:\$(\w+))|((?:(?!\$).)+)"
+        str_args = [_get_string_arg(str, m) for m in eachmatch(rgx, str)]
+        # Create the new `string` child node.
+        new_str_child = JS.parsestmt(JS.SyntaxNode, "\"\"")
+        new_string_child_cs = JS.SyntaxNode[]
+        new_string_child_cs_len = length(str_args)
+        # This is for "manțocăreală pe stringuri" -- hard to explain. May be wrong also.
+        pos = node.data.position + 1
+        pos_inc = 0
+        pos_str = 1
+        pos_str_inc = 0
+        for arg in str_args
+            # Parse the string argument as a `SyntaxNode`. Remove the `string` head of
+            # string nodes and correct the source, position and span.
+            c = JS.parsestmt(JS.SyntaxNode, arg)
+            span = ncodeunits(Base.unescape_string(arg))
+            # Skip closing parenthesis.
+            if str[pos_str] == ')'
+                pos += 1
+                pos_str += 1
+            end
+            if kind(c) == K"string"
+                c = c.children[1]
+                span -= 2
+                pos_str_inc = span
+                pos_inc = span
+            else
+                # Increase once for '$'.
+                pos_str += 1
+                pos += 1
+                if str[pos_str] == '('
+                    span -= 2
+                    # Increase once for '('.
+                    pos_str += 1
+                    pos += 1
+                    pos_str_inc = span
+                    pos_inc = span
+                else
+                    pos_str_inc = span
+                    pos_inc = span
+                end
+            end
+            c.data = update_source_position_span(c.data, node.data.source, pos, span)
+            c.parent = new_str_child
+            # Add it to the children of the `string` node.
+            push!(new_string_child_cs, c)
+            # Update the position for the next `string` child.
+            pos += pos_inc
+            pos_str += pos_str_inc
+        end
+        new_str_child.children = new_string_child_cs
+        # The `string` child node should also have the same source, position and span.
+        new_str_child.data = update_source_position_span(new_str_child.data,
+                                                         node.data.source,
+                                                         node.data.position,
+                                                         node.data.raw.span)
+        push!(new_node.children, new_str_child)
+        return _replace_node!(node, new_node)
     end
 
     # Recurse on children.
@@ -1442,6 +1512,26 @@ function update_position_and_span(old_data::JS.SyntaxData, new_pos, new_span)
     )
     new_data = JS.SyntaxData(
         old_data.source,
+        new_raw,
+        new_pos,
+        old_data.val
+    )
+
+    return new_data
+end
+
+function update_source_position_span(old_data::JS.SyntaxData,
+                                     new_source,
+                                     new_pos,
+                                     new_span)
+    old_raw = old_data.raw
+    new_raw = JS.GreenNode(
+        old_raw.head,
+        new_span,
+        old_raw.children
+    )
+    new_data = JS.SyntaxData(
+        new_source,
         new_raw,
         new_pos,
         old_data.val

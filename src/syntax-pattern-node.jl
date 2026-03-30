@@ -223,9 +223,28 @@ SyntaxNode:
 """
 function desugar_expr(ex)
     desugared_ex = _desugar_expr(ex)
-    return JS.parsestmt(JS.SyntaxNode, string(desugared_ex))
+    ex_str = replace(string(desugared_ex), r"[\\]+\$" => "\$")
+    return JS.parsestmt(JS.SyntaxNode, ex_str)
 end
 function _desugar_expr(ex; esc=false, esc_depth=:all, inside_fail=false)
+    # Change command strings into an explicit `Core.@cmd` call.
+    # This is necessary for correcty parsing pattern forms in command strings.
+    if is_cmdstring(ex)
+        (length(ex.args) > 3 || !isa(ex.args[3], String)) &&
+            error("Was not expecting this structure of `cmdstring` nodes...")
+        # Extract all interpolated expressions and regular strings separately.
+        rgx =
+            r"(?:\$(?P<interp>\((?:[^)(]*|(?P>interp))*\)))|(?:\$(\w+))|((?:(?!\$).)+)"
+        str = ex.args[3]
+        str_args =
+            [JS.parsestmt(Expr, _get_string_arg(str, m)) for m in eachmatch(rgx, str)]
+        # Create a new `string` expression.
+        str_ex =
+            Expr(:string, _desugar_expr.(str_args; esc, esc_depth, inside_fail)...)
+        # Wrap the `string` expression in a `Core.@cmd` call.
+        wrapper_ex = :( Core.@cmd )
+        return Expr(wrapper_ex.head, wrapper_ex.args[1], ex.args[2], str_ex)
+    end
     # Check for escaping.
     if esc
         # Return early if the entire expression is escaped.
@@ -826,6 +845,11 @@ is_sugared_var(ex) =
     isa(ex.args[1].args[1], Symbol)
 is_sugared_rep(ex) = @isexpr(ex, :..., 1)
 
+is_cmdstring(ex) =
+    @isexpr(ex, :macrocall)    &&
+    isa(ex.args[1], GlobalRef) &&
+    ex.args[1].name == Symbol("@cmd")
+
 get_pattern_variable_name(ex) = ex.args[1]
 
 function get_esc_args(ex)
@@ -851,6 +875,20 @@ get_sugared_var_syntax_class_name(ex) =
     is_pattern_variable(ex) ? :expr : ex.args[1].args[2].value
 
 _get_sugared_rep_arg(ex) = ex.args[1]
+
+_get_string_arg(str::String, m::RegexMatch) =
+    if !isnothing(m.captures[1])
+        byte_range = (m.offset + 1):(m.offset + m.captures[1].ncodeunits)
+        return view(str, byte_range)
+    elseif !isnothing(m.captures[2])
+        byte_range = (m.offset + 1):(m.offset + m.captures[2].ncodeunits)
+        return view(str, byte_range)
+    elseif !isnothing(m.captures[3])
+        byte_range = (m.offset):(m.offset + m.captures[3].ncodeunits - 1)
+        return repr(view(str, byte_range))
+    else
+        error("regex format changed without changing relevant utils")
+    end
 
 ### Pass 2 (pattern form parsing)
 

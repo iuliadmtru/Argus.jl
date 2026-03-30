@@ -713,6 +713,24 @@
                 @test all(el -> el in map(m -> m[:x].name, match_results.matches),
                           ["a", "b"])
             end
+            let
+                pattern = @pattern `$({_}...)$({x:::identifier})$({_}...)`
+                src = Argus._normalise!(parsestmt(SyntaxNode, "`bla \$a bli \$b blu`"))
+                match_results = syntax_match_all(pattern, src)
+                @test length(match_results.matches) == 2
+                @test all(el -> el in map(m -> m[:x].name, match_results.matches),
+                          ["a", "b"])
+                @test source_location(match_results.matches[1][:x].src) == (1, 14)
+            end
+            let
+                pattern = @pattern `$({_}...)$({x:::identifier})$({_}...)`
+                src = Argus._normalise!(parsestmt(SyntaxNode,
+                                                  "`cmd \"string1\" bla \"\$(x)\"`"))
+                match_results = syntax_match_all(pattern, src)
+                @test length(match_results.matches) == 1
+                @test match_results.matches[1][:x].name == "x"
+                @test source_location(match_results.matches[1][:x].src) == (1, 23)
+            end
             ## Templates.
             let
                 p = @pattern {x}
