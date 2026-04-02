@@ -348,6 +348,11 @@ function _register_syntax_classes()
         end
     end
 
+    # `using`: match a `using` statement.
+    @define_syntax_class :using "using" begin
+        @pattern ŭsing({module_name}, {ids}...)  # Another hack.
+    end
+
     # `import`: match an `import` statement.
     @define_syntax_class :import "import" begin
         @pattern ǐmport({module_name}, {ids}...)  # Another hack.

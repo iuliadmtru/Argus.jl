@@ -155,6 +155,27 @@
             end
             @test !is_successful(syntax_match(import_statement, parsestmt(SyntaxNode, "using M")))
         end
+        let
+            using_statement = Argus.SYNTAX_CLASS_REGISTRY[:using]
+
+            let
+                match_result =
+                    syntax_match(using_statement, parsestmt(SyntaxNode, "using M"))
+                @test is_successful(match_result)
+                @test match_result[:module_name].name == "M"
+                @test isempty(match_result[:ids].src)
+            end
+            let
+                match_result =
+                    syntax_match(using_statement, parsestmt(SyntaxNode, "using M: a, b"))
+                @test is_successful(match_result)
+                @test match_result[:module_name].name == "M"
+                @test length(match_result[:ids].src) == 2
+                @test match_result[:ids].src[1].data.val == :a
+                @test match_result[:ids].src[2].data.val == :b
+            end
+            @test !is_successful(syntax_match(using_statement, parsestmt(SyntaxNode, "import M")))
+        end
     end
 
     @testset "General" begin
