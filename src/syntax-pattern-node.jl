@@ -660,8 +660,7 @@ function fix_misparsed!(node::SyntaxPatternNode)
         if is_var(lhs)
             # If the node is inside a `const` it should be an assignment, not a function
             # definition.
-            !isnothing(node.parent) && kind(node.parent) == K"const" &&
-                return fundef_to_assign(lhs, rhs, node)
+            is_inside_const(node) && return fundef_to_assign(lhs, rhs, node)
             # If the lhs is constrained to `:identifier` the node should be an assignment,
             # not a function definition.
             get_var_syntax_class_name(lhs) === :identifier &&
@@ -1186,7 +1185,7 @@ function is_misparsed(node::SyntaxPatternNode)
         if is_var(lhs)
             # An `=` node inside a `const` should be interpreted as an assignment,
             # not a function definition.
-            !isnothing(node.parent) && kind(node.parent) == K"const" && return true
+            is_inside_const(node) && return true
 
             syntax_class_name = get_var_syntax_class_name(lhs)
             # An `=` node constrained to `:identifier` should be interpreted as an
@@ -1233,6 +1232,13 @@ is_quoted_dollar(node::SyntaxPatternNode) =
     kind(node) == K"quote" &&
     length(children(node)) == 1 &&
     kind(node.children[1]) == K"$"
+
+is_inside_const(node::SyntaxPatternNode) =
+    !isnothing(node.parent) &&
+    (kind(node.parent) == K"const" ||
+    kind(node.parent) == K"global" &&
+    !isnothing(node.parent.parent) &&
+    kind(node.parent.parent) == K"const")
 
 """
     fundef_to_assign(lhs::SyntaxPatternNode,
