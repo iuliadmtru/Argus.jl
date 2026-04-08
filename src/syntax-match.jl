@@ -122,13 +122,12 @@ function syntax_match(syntax_class::SyntaxClass,
                       src::JS.SyntaxNode;
                       greedy=true,
                       keep_unexported=false)
-    syntax_class_failure = MatchFail("expected " * syntax_class.description, src)
-    tracked_failure = MatchFail(src)
+    failure = MatchFail("expected " * syntax_class.description, src)
     # Special treatments.
     #
     # `:using` syntax class.
     if syntax_class.description == "using"
-        kind(src) == K"using" || return tracked_failure
+        kind(src) == K"using" || return failure
         module_src, ids_src = kind(src.children[1]) == K"importpath" ?
             (src.children[1], JS.SyntaxNode[]) :
             (src.children[1].children[1],
@@ -139,7 +138,7 @@ function syntax_match(syntax_class::SyntaxClass,
     end
     # `:import` syntax class.
     if syntax_class.description == "import"
-        kind(src) == K"import" || return tracked_failure
+        kind(src) == K"import" || return failure
         module_src, ids_src = kind(src.children[1]) == K"importpath" ?
             (src.children[1], JS.SyntaxNode[]) :
             (src.children[1].children[1],
@@ -153,12 +152,9 @@ function syntax_match(syntax_class::SyntaxClass,
         match_result = _syntax_match(pattern, src; greedy, keep_unexported)
         # Return the first successful match.
         is_successful(match_result) && return match_result
-        if !is_default_match_fail(match_result)
-            tracked_failure = match_result
-        end
     end
     # If neither of the pattern alternatives matched, `src` does not match `syntax_class`.
-    return is_default_match_fail(tracked_failure) ? syntax_class_failure : tracked_failure
+    return failure
 end
 function syntax_match(pattern_node::SyntaxPatternNode,
                       src::JS.SyntaxNode;
