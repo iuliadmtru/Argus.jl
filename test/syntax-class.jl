@@ -2,6 +2,23 @@
 
     @testset "Built in syntax classes" begin
         let
+            bool = Argus.SYNTAX_CLASS_REGISTRY[:bool]
+            @test is_successful(syntax_match(bool, parsestmt(SyntaxNode, "true")))
+            @test is_successful(syntax_match(bool, parsestmt(SyntaxNode, "false")))
+            no_match = syntax_match(bool, parsestmt(SyntaxNode, "a"))
+            @test no_match.message == "expected `Bool` literal"
+            @test source_location(no_match) == (1, 1)
+        end
+        let
+            str = Argus.SYNTAX_CLASS_REGISTRY[:string]
+            @test is_successful(syntax_match(str, parsestmt(SyntaxNode, "\"a\"")))
+            @test is_successful(syntax_match(str, parsestmt(SyntaxNode,
+                                                            "\"\"\"bla \$x bla\"\"\"")))
+            no_match = syntax_match(str, parsestmt(SyntaxNode, "a"))
+            @test no_match.message == "expected `String` literal"
+            @test source_location(no_match) == (1, 1)
+        end
+        let
             vec = Argus.SYNTAX_CLASS_REGISTRY[:vec]
             match = syntax_match(vec, parsestmt(SyntaxNode, "[1, [2]]"))
             @test isa(match, BindingSet)

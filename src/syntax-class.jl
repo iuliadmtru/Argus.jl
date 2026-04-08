@@ -266,6 +266,12 @@ function _register_syntax_classes()
             @when [:_b] _b.value == true || _b.value == false
         end
     end
+
+    # `string`: match a string literal.
+    @define_syntax_class :string "`String` literal" begin
+        @pattern begin
+            {_s}
+            @when [:_s] kind(_s.src) == K"String" || kind(_s.src) == K"string"
         end
     end
 
