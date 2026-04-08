@@ -890,7 +890,7 @@ function syntax_match_when(when_node::SyntaxPatternNode,
                            src::JS.SyntaxNode,
                            bindings::BindingSet)
     condition = get_condition(when_node)
-    message = "`~when` condition not satisfied"
+    message = "no match"
     # Evaluate the condition.
     cond = try
         condition(bindings)

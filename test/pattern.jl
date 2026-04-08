@@ -703,7 +703,7 @@
                 @test is_successful(match_result)
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "x .+ 2"))
                 @test !is_successful(match_fail)
-                @test match_fail.message == "`~when` condition not satisfied"
+                @test match_fail.message == "no match"
             end
             let
                 pattern = @pattern "$({_}...)$({x:::identifier})$({_}...)"
