@@ -247,9 +247,7 @@ function _register_syntax_classes()
     @define_syntax_class :identifier "identifier" begin
         @pattern begin
             {_id}
-            @fail [:_id] begin
-                !JuliaSyntax.is_identifier(_id.src)
-            end ""
+            @when [:_id] JuliaSyntax.is_identifier(_id.src)
         end
     end
 
@@ -257,17 +255,17 @@ function _register_syntax_classes()
     @define_syntax_class :literal "literal" begin
         @pattern begin
             {_lit}
-            @fail [:_lit] begin
-                !JuliaSyntax.is_literal(_lit.src)
-            end ""
+            @when [:_lit] JuliaSyntax.is_literal(_lit.src)
         end
     end
 
-    # `bool_literal`: match `true` or `false`.
-    @define_syntax_class :bool_literal "`Bool` literal" begin
+    # `bool`: match `true` or `false`.
+    @define_syntax_class :bool "`Bool` literal" begin
         @pattern begin
             {_b:::literal}
-            @fail [:_b] _b.value != true && _b.value != false ""
+            @when [:_b] _b.value == true || _b.value == false
+        end
+    end
         end
     end
 
@@ -296,9 +294,9 @@ function _register_syntax_classes()
     @define_syntax_class :macrocall "macro call" begin
         @pattern begin
             {_mcall}
-            @fail [:_mcall] begin
-                JuliaSyntax.kind(_mcall.src) !== JuliaSyntax.K"macrocall"
-            end ""
+            @when [:_mcall] begin
+                JuliaSyntax.kind(_mcall.src) == JuliaSyntax.K"macrocall"
+            end
         end
     end
 
@@ -306,9 +304,9 @@ function _register_syntax_classes()
     @define_syntax_class :macrodef "macro definition" begin
         @pattern begin
             {_mdef}
-            @fail [:_mdef] begin
-                JuliaSyntax.kind(_mdef.src) !== JuliaSyntax.K"macro"
-            end ""
+            @when [:_mdef] begin
+                JuliaSyntax.kind(_mdef.src) == JuliaSyntax.K"macro"
+            end
         end
     end
 
@@ -331,7 +329,7 @@ function _register_syntax_classes()
     @define_syntax_class :abstract_type "abstract type" begin
         @pattern begin
             {_t:::identifier}
-            @fail([:_t],
+            @when([:_t],
                   begin
                       builtin = [
                           "Any",
@@ -342,9 +340,8 @@ function _register_syntax_classes()
                           "Unsigned",
                           "Function",
                       ]
-                      _t.name ∉ builtin && !startswith(_t.name, "Abstract")
-                  end,
-                  "")
+                      _t.name in builtin || startswith(_t.name, "Abstract")
+                  end)
         end
     end
 
