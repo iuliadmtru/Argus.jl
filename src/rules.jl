@@ -1167,7 +1167,7 @@ function _normalise!(node::JS.SyntaxNode)
             remove_flag!(node, JS.TRAILING_COMMA_FLAG)
         # Check for `parameters` children.
         node = reorder_parameters!(node)
-    elseif k == K"tuple" && !isempty(children(node))
+    elseif k == K"tuple" && !isempty(children(node)) && !is_inside_do(node)
         num_children = length(children(node))
         if num_children == 1
             # x, = 1
@@ -1634,6 +1634,8 @@ is_var_symbol(node::JS.SyntaxNode) =
     kind(node) === K"call" &&
     node.children[1].data.val === :Symbol &&
     kind(node.children[2]) === K"string"
+is_inside_do(node::JS.SyntaxNode) =
+    !isnothing(node.parent) && kind(node.parent) == K"do"
 
 # Base overwrites
 

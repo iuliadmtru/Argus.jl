@@ -630,6 +630,19 @@
             @test is_match(rule, "(a=1,; b=2; c=3)")
         end
         let
+            rule = @rule "tuple inside `do`" begin
+                description = ""
+                pattern = @pattern {_}({_}...) do {_}...
+                    {_}...
+                end
+            end
+            @test is_match(rule, """
+                                 map(v) do x
+                                     x + 1
+                                 end
+                                 """)
+        end
+        let
             rule = @rule "ref params" begin
                 description = ""
                 pattern = @pattern {_}[a, b; {_}...; {_}...]
