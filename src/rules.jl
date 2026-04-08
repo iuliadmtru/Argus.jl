@@ -839,6 +839,7 @@ function rules_match(rules::Vector{Rule},
     sizehint!(kept_rules, length(rules))
     for rule in rules
         if !isnothing(rule.hooks)
+            skip = false
             for (m_name, m_args) in rule.hooks
                 m = try
                     RULES_HOOKS[m_name]
@@ -852,8 +853,10 @@ function rules_match(rules::Vector{Rule},
                 is_successful(bound_args) ||
                     error("Rule hook args pattern incorrect")  # TODO: Specific error.
                 skip = m.pre_check(rule, JS.filename(src), bound_args)
-                skip || push!(kept_rules, rule)
+                skip && break
             end
+            # Keep the rule only if none of its hooks returned `true`.
+            skip || push!(kept_rules, rule)
         else
             push!(kept_rules, rule)
         end
