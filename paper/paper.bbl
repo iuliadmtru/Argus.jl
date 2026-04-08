@@ -1,60 +1,66 @@
 \begin{thebibliography}{10}
 
-\bibitem{dsl}
-{Domain-specific language}.
-
 \bibitem{audit_events}
-{IBM Documentation — Audit Events}.
+{IBM Documentation — Audit Events.
+  https://www.ibm.com/docs/en/aix/7.3.0?topic=selection-audit-events}.
 
 \bibitem{julia_aot}
-{Julia Documentation — Ahead of Time Compilation}.
+{Julia Documentation — Ahead of Time Compilation.
+  https://docs.julialang.org/en/v1/devdocs/aot/}.
 
 \bibitem{compound_exprs}
-{Julia Documentation — Compound Expressions}.
+{Julia Documentation — Compound Expressions.
+  https://docs.julialang.org/en/v1/manual/control-flow/\#man-compound-expressions}.
 
 \bibitem{julia_asts}
-{Julia Documentation — Developer Documentation — Julia ASTs}.
+{Julia Documentation — Developer Documentation — Julia ASTs.
+  https://docs.julialang.org/en/v1/devdocs/ast/\#Julia-ASTs}.
 
 \bibitem{julia_metaprogramming}
-{Julia Documentation — Metaprogramming}.
+{Julia Documentation — Metaprogramming.
+  https://docs.julialang.org/en/v1/manual/metaprogramming/}.
 
 \bibitem{julia_repl}
-{Julia Documentation — The Julia REPL}.
+{Julia Documentation — The Julia REPL.
+  https://docs.julialang.org/en/v1/stdlib/REPL/}.
 
 \bibitem{juliasyntax}
-{JuliaSyntax.jl}.
+{JuliaSyntax.jl. https://julialang.github.io/JuliaSyntax.jl/dev/}.
 
 \bibitem{expr_vs_syntaxnode}
-{JuliaSyntax.jl — JuliaSyntax trees vs Expr}.
+{JuliaSyntax.jl — JuliaSyntax trees vs Expr.
+  https://julialang.github.io/JuliaSyntax.jl/dev/reference/\#JuliaSyntax-trees-vs-Expr}.
 
 \bibitem{js_kinds}
-{JuliaSyntax.jl — More about syntax kinds}.
+{JuliaSyntax.jl — More about syntax kinds.
+  https://julialang.github.io/JuliaSyntax.jl/dev/design/\#More-about-syntax-kinds}.
 
 \bibitem{syntax_parse}
-{Racket Documentation — Parsing and Specifying Syntax}.
+{Racket Documentation — Parsing and Specifying Syntax.
+  https://docs.racket-lang.org/syntax/stxparse.html}.
 
 \bibitem{resyntax}
-{Racket Documentation — Resyntax}.
+{Racket Documentation — Resyntax.
+  https://docs.racket-lang.org/resyntax/index.html}.
 
 \bibitem{syntax_class}
-{Racket Documentation — Specifying Syntax with Syntax Classes}.
+{Racket Documentation — Specifying Syntax with Syntax Classes.
+  https://docs.racket-lang.org/syntax/stxparse-specifying.html}.
 
 \bibitem{pattern_forms}
-{Racket Documentation — Syntax Patterns}.
+{Racket Documentation — Syntax Patterns.
+  https://docs.racket-lang.org/syntax/stxparse-patterns.html}.
 
 \bibitem{julia_creation}
 Jeff Bezanson, Stefan Karpinski, Viral~B. Shah, and Alan Edelman.
-{Why We Created Julia}.
-2012.
+{Why We Created Julia.
+  https://julialang.org/blog/2012/02/why-we-created-julia/}, 2012.
 
 \bibitem{fortifying_macros}
 Ryan Culpepper.
 {Fortifying Macros}.
 {\em {Journal of Functional Programming}}, 22(4-5):439–476, 2012.
-
-\bibitem{argus_overview}
-Iulia Dumitru.
-{Argus.jl — Overview}.
+\href{http://dx.doi.org/10.1017/S0956796812000275}{doi:10.1017/S0956796812000275}.
 
 \bibitem{racket_manifesto}
 Matthias Felleisen, Robert~Bruce Findler, Matthew Flatt, Shriram Krishnamurthi,
@@ -62,31 +68,37 @@ Matthias Felleisen, Robert~Bruce Findler, Matthew Flatt, Shriram Krishnamurthi,
 {The Racket Manifesto}.
 {\em {First Summit on Advances in Programming Languages (SNAPL 2015)}},
   32:113--128, 2015.
+\href{http://dx.doi.org/10.4230/LIPICS.SNAPL.2015.113.}{doi:10.4230/LIPICS.SNAPL.2015.113.}
 
 \bibitem{macro_tools}
 FluxML.
 {MacroTools.jl — A library of tools for working with Julia code and
-  expressions}.
+  expressions. https://github.com/FluxML/MacroTools.jl}.
 
 \bibitem{cthulhu}
 JuliaDebug.
-{Cthulhu.jl — The slow descent into madness}.
+{Cthulhu.jl — The slow descent into madness.
+  https://github.com/JuliaDebug/Cthulhu.jl}.
 
 \bibitem{parse_stream}
 JuliaLang.
-{JuliaSyntax.jl — Parsing with ParseStream}.
+{JuliaSyntax.jl — Parsing with ParseStream.
+  https://julialang.github.io/JuliaSyntax.jl/dev/design/\#Parsing-with-ParseStream}.
 
 \bibitem{syntax_nodes}
 JuliaLang.
-{JuliaSyntax.jl — Syntax Trees}.
+{JuliaSyntax.jl — Syntax Trees.
+  https://julialang.github.io/JuliaSyntax.jl/dev/reference/}.
 
 \bibitem{jet}
 Shuhei Kadowaki.
-{JET.jl — An experimental code analyzer for Julia}.
+{JET.jl — An experimental code analyzer for Julia.
+  https://github.com/aviatesk/JET.jl}.
 
 \bibitem{skarpinski_julia_willingness}
 Stefan Karpinski.
-{In what sense are languages like Elixir and Julia homoiconic?}, 2015.
+{In what sense are languages like Elixir and Julia homoiconic?.
+  https://stackoverflow.com/a/31734725}, 2015.
 
 \bibitem{mbe}
 Eugene~E. Kohlbecker and Mitchell Wand.
@@ -94,16 +106,18 @@ Eugene~E. Kohlbecker and Mitchell Wand.
   Specifications}.
 {\em {ACM Symposium on Principles of Programming Languages}}, pages 77--84,
   1986.
+\href{http://dx.doi.org/10.1145/41625.41632}{doi:10.1145/41625.41632}.
 
 \bibitem{lisp_paper}
 John McCarthy.
-{Recursive Functions of Symbolic Expressions and Their Computation by Machine,
-  Part I}.
-{\em {Communications of the ACM}}, 3:184--195, 1960.
+Recursive functions of symbolic expressions and their computation by machine,
+  part i.
+{\em Commun. ACM}, 3(4):184–195, April 1960.
+\href{http://dx.doi.org/10.1145/367177.367199}{doi:10.1145/367177.367199}.
 
 \bibitem{mlstyle}
 Taine Zhao.
 {MLStyle.jl — Julia functional programming infrastructures and
-  metaprogramming facilities}.
+  metaprogramming facilities. https://github.com/thautwarm/MLStyle.jl}.
 
 \end{thebibliography}

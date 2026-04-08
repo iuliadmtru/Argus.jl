@@ -1,91 +1,95 @@
 %%% Context %%%
 
-@Article{lisp_paper,
-  title =        {{Recursive Functions of Symbolic Expressions and Their
-                  Computation by Machine, Part I}},
-  author =       {John McCarthy},
-  year =         1960,
-  journal =      {{Communications of the ACM}},
-  volume =       3,
-  issue =        4,
-  pages =        {184-195},
-  url =          {https://dl.acm.org/doi/10.1145/367177.367199}
+@article{lisp_paper,
+author = {McCarthy, John},
+title = {Recursive functions of symbolic expressions and their computation by machine, Part I},
+year = {1960},
+issue_date = {April 1960},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {3},
+number = {4},
+issn = {0001-0782},
+url = {https://doi.org/10.1145/367177.367199},
+doi = {10.1145/367177.367199},
+journal = {Commun. ACM},
+month = apr,
+pages = {184–195},
+numpages = {12}
 }
 
-@Article{racket_manifesto,
+@article{racket_manifesto,
   title =        {{The Racket Manifesto}},
   author =       {Matthias Felleisen and Robert Bruce Findler and
                   Matthew Flatt and Shriram Krishnamurthi and Eli
                   Barzilay and Jay McCarthy and Sam Tobin-Hochstadto},
   year =         2015,
-  journal =      {{First Summit on Advances in Programming Languages
-                  (SNAPL 2015)}},
+  journal =      {{First Summit on Advances in Programming Languages (SNAPL 2015)}},
   volume =       32,
   pages =        {113-128},
-  url =          {https://doi.org/10.4230/LIPIcs.SNAPL.2015.113}
+  url =          {https://doi.org/10.4230/LIPIcs.SNAPL.2015.113},
+  doi = {10.4230/LIPICS.SNAPL.2015.113.}
 }
 
-@Misc{skarpinski_julia_willingness,
-  title =        {{In what sense are languages like Elixir and Julia
-                  homoiconic?}},
+@misc{skarpinski_julia_willingness,
+  title =        {{In what sense are languages like Elixir and Julia homoiconic?. https://stackoverflow.com/a/31734725}},
   author =       {Stefan Karpinski},
   year =         2015,
   url =          {https://stackoverflow.com/a/31734725},
   urldate =      {2025-06-15}
 }
 
-@Misc{julia_metaprogramming,
-  title =        {{Julia Documentation — Metaprogramming}},
+@misc{julia_metaprogramming,
+  title =        {{Julia Documentation — Metaprogramming. https://docs.julialang.org/en/v1/manual/metaprogramming/}},
   url =          {https://docs.julialang.org/en/v1/manual/metaprogramming/},
   urldate =      {2025-06-15}
 }
 
-@Article{julia_creation,
-  title =        {{Why We Created Julia}},
+@misc{julia_creation,
+  title =        {{Why We Created Julia. https://julialang.org/blog/2012/02/why-we-created-julia/}},
   author =       {Jeff Bezanson and Stefan Karpinski and Viral B. Shah and Alan Edelman},
   year =         2012,
   url =          {https://julialang.org/blog/2012/02/why-we-created-julia/}
 }
 
-@Misc{syntax_nodes,
-  title =        {{JuliaSyntax.jl — Syntax Trees}},
+@misc{syntax_nodes,
+  title =        {{JuliaSyntax.jl — Syntax Trees. https://julialang.github.io/JuliaSyntax.jl/dev/reference/}},
   author =       {JuliaLang},
   url =          {https://julialang.github.io/JuliaSyntax.jl/dev/reference/},
   urldate =      {2025-06-15}
 }
 
-@Misc{parse_stream,
-  title =        {{JuliaSyntax.jl — Parsing with ParseStream}},
+@misc{parse_stream,
+  title =        {{JuliaSyntax.jl — Parsing with ParseStream. https://julialang.github.io/JuliaSyntax.jl/dev/design/\#Parsing-with-ParseStream}},
   author =       {JuliaLang},
-  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/design/#Parsing-with-ParseStream},
+  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/design/\#Parsing-with-ParseStream},
   urldate =      {2025-06-15}
 }
 
-@Misc{jet,
-  title =        {{JET.jl — An experimental code analyzer for Julia}},
+@misc{jet,
+  title =        {{JET.jl — An experimental code analyzer for Julia. https://github.com/aviatesk/JET.jl}},
   author =       {Shuhei Kadowaki},
   url =          {https://github.com/aviatesk/JET.jl},
   urldate =      {2025-06-15}
 }
 
-@Misc{cthulhu,
-  title =        {{Cthulhu.jl — The slow descent into madness}},
+@misc{cthulhu,
+  title =        {{Cthulhu.jl — The slow descent into madness. https://github.com/JuliaDebug/Cthulhu.jl}},
   author =       {JuliaDebug},
   url =          {https://github.com/JuliaDebug/Cthulhu.jl},
   urldate =      {2025-06-15}
 }
 
-@Misc{macro_tools,
-  title =        {{MacroTools.jl — A library of tools for working with
-                  Julia code and expressions}},
+@misc{macro_tools,
+  title =        {{MacroTools.jl — A library of tools for working with Julia code and expressions. https://github.com/FluxML/MacroTools.jl}},
   author =       {FluxML},
   url =          {https://github.com/FluxML/MacroTools.jl},
   urldate =      {2025-06-15}
 }
 
-@Misc{mlstyle,
+@misc{mlstyle,
   title =        {{MLStyle.jl — Julia functional programming
-                  infrastructures and metaprogramming facilities}},
+                  infrastructures and metaprogramming facilities. https://github.com/thautwarm/MLStyle.jl}},
   author =       {Taine Zhao},
   url =          {https://github.com/thautwarm/MLStyle.jl},
   urldate =      {2025-06-15}
@@ -93,26 +97,26 @@
 
 %%% syntax/parse and Resyntax %%%
 
-@Misc{syntax_parse,
-  title =        {{Racket Documentation — Parsing and Specifying Syntax}},
+@misc{syntax_parse,
+  title =        {{Racket Documentation — Parsing and Specifying Syntax. https://docs.racket-lang.org/syntax/stxparse.html}},
   url =          {https://docs.racket-lang.org/syntax/stxparse.html},
   urldate =      {2025-06-16}
 }
 
-@Misc{syntax_class,
+@misc{syntax_class,
   title =        {{Racket Documentation — Specifying Syntax with
-                  Syntax Classes}},
+                  Syntax Classes. https://docs.racket-lang.org/syntax/stxparse-specifying.html}},
   url =          {https://docs.racket-lang.org/syntax/stxparse-specifying.html},
   urldate =      {2025-06-16}
 }
 
-@Misc{resyntax,
-  title =        {{Racket Documentation — Resyntax}},
+@misc{resyntax,
+  title =        {{Racket Documentation — Resyntax. https://docs.racket-lang.org/resyntax/index.html}},
   url =          {https://docs.racket-lang.org/resyntax/index.html},
   urldate =      {2025-06-16}
 }
 
-@Article{mbe,
+@article{mbe,
   title =        {{Macro-by-Example: Deriving Syntactic
                   Transformations from their Specifications}},
   author =       {Eugene E. Kohlbecker and Mitchell Wand},
@@ -120,16 +124,17 @@
                   Languages}},
   year =         1986,
   pages =        {77-84},
-  url =          {https://doi.org/10.1145/41625.41632}
+  url =          {https://doi.org/10.1145/41625.41632},
+  doi = {10.1145/41625.41632}
 }
 
-@Misc{rust_mbe,
-  title =        {{The Rust Reference — Macros By Example}},
+@misc{rust_mbe,
+  title =        {{The Rust Reference — Macros By Example. https://doc.rust-lang.org/reference/macros-by-example.html}},
   url =          {https://doc.rust-lang.org/reference/macros-by-example.html},
   urldate =      {2025-06-16}
 }
 
-@Article{fortifying_macros,
+@article{fortifying_macros,
   title =        {{Fortifying Macros}},
   author =       {Ryan Culpepper},
   year =         2012,
@@ -137,214 +142,71 @@
   volume =       22,
   number =       {4-5},
   pages =        {439–476},
-  url =          {doi:10.1017/S0956796812000275}
+  doi =          {10.1017/S0956796812000275}
 }
 
 %%% Argus %%%
 
-@Misc{dsl,
-  title =        {{Domain-specific language}},
-  url =          {https://en.wikipedia.org/wiki/Domain-specific_language},
+@misc{julia_asts,
+  title =        {{Julia Documentation — Developer Documentation — Julia ASTs. https://docs.julialang.org/en/v1/devdocs/ast/\#Julia-ASTs}},
+  url =          {https://docs.julialang.org/en/v1/devdocs/ast/\#Julia-ASTs},
   urldate =      {2025-06-17}
 }
 
-@Misc{julia_asts,
-  title =        {{Julia Documentation — Developer Documentation — Julia ASTs}},
-  url =          {https://docs.julialang.org/en/v1/devdocs/ast/#Julia-ASTs},
-  urldate =      {2025-06-17}
-}
-
-@Misc{julia_repl,
-  title =        {{Julia Documentation — The Julia REPL}},
+@misc{julia_repl,
+  title =        {{Julia Documentation — The Julia REPL. https://docs.julialang.org/en/v1/stdlib/REPL/}},
   url =          {https://docs.julialang.org/en/v1/stdlib/REPL/},
   urldate =      {2025-06-17}
 }
 
-@Misc{juliasyntax,
-  title =        {{JuliaSyntax.jl}},
+@misc{juliasyntax,
+  title =        {{JuliaSyntax.jl. https://julialang.github.io/JuliaSyntax.jl/dev/}},
   url =          {https://julialang.github.io/JuliaSyntax.jl/dev/},
   urldate =      {2025-06-17}
 }
 
-@Misc{js_kinds,
-  title =        {{JuliaSyntax.jl — More about syntax kinds}},
-  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/design/#More-about-syntax-kinds},
+@misc{js_kinds,
+  title =        {{JuliaSyntax.jl — More about syntax kinds. https://julialang.github.io/JuliaSyntax.jl/dev/design/\#More-about-syntax-kinds}},
+  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/design/\#More-about-syntax-kinds},
   urldate =      {2025-06-17}
 }
 
-@Misc{pattern_forms,
-  title =        {{Racket Documentation — Syntax Patterns}},
+@misc{pattern_forms,
+  title =        {{Racket Documentation — Syntax Patterns. https://docs.racket-lang.org/syntax/stxparse-patterns.html}},
   url =          {https://docs.racket-lang.org/syntax/stxparse-patterns.html},
   urldate =      {2025-06-17}
 }
 
-@Misc{ast,
-  title =        {{Abstract syntax tree}},
+@misc{ast,
+  title =        {{Abstract syntax tree. https://en.wikipedia.org/wiki/Abstract_syntax_tree}},
   url =          {https://en.wikipedia.org/wiki/Abstract_syntax_tree},
   urldate =      {2025-06-19}
 }
 
-@Misc{compound_exprs,
-  title =        {{Julia Documentation — Compound Expressions}},
-  url =          {https://docs.julialang.org/en/v1/manual/control-flow/#man-compound-expressions},
-  urldate =      {2025-06-19}
-}
-
-@Misc{argus_overview,
-  title =        {{Argus.jl — Overview}},
-  author =       {Iulia Dumitru},
-  url =          {https://github.com/iuliadmtru/Argus.jl/tree/5b2ab22708941453fc561f535e63f5b22b0994dc?tab=readme-ov-file#overview},
+@misc{compound_exprs,
+  title =        {{Julia Documentation — Compound Expressions. https://docs.julialang.org/en/v1/manual/control-flow/\#man-compound-expressions}},
+  url =          {https://docs.julialang.org/en/v1/manual/control-flow/\#man-compound-expressions},
   urldate =      {2025-06-19}
 }
 
 %%% Examples %%%
 
-@Misc{audit_events,
-  title =        {{IBM Documentation — Audit Events}},
+@misc{audit_events,
+  title =        {{IBM Documentation — Audit Events. https://www.ibm.com/docs/en/aix/7.3.0?topic=selection-audit-events}},
   url =          {https://www.ibm.com/docs/en/aix/7.3.0?topic=selection-audit-events},
   urldate =      {2025-06-19}
 }
 
 %%% Future Steps %%%
 
-@Misc{expr_vs_syntaxnode,
-  title =        {{JuliaSyntax.jl — JuliaSyntax trees vs Expr}},
-  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/reference/#JuliaSyntax-trees-vs-Expr},
+@misc{expr_vs_syntaxnode,
+  title =        {{JuliaSyntax.jl — JuliaSyntax trees vs Expr. https://julialang.github.io/JuliaSyntax.jl/dev/reference/\#JuliaSyntax-trees-vs-Expr}},
+  url =          {https://julialang.github.io/JuliaSyntax.jl/dev/reference/\#JuliaSyntax-trees-vs-Expr},
   urldate =      {2025-06-19}
 }
 
-@Misc{julia_aot,
-  title =        {{Julia Documentation — Ahead of Time Compilation}},
+@misc{julia_aot,
+  title =        {{Julia Documentation — Ahead of Time Compilation. https://docs.julialang.org/en/v1/devdocs/aot/}},
   url =          {https://docs.julialang.org/en/v1/devdocs/aot/},
   urldate =      {2025-06-19}
-}
-
-
-
-
-
-
-@Misc{clippy,
-  title =        {{Clippy Documentation}},
-  author =       {{rust-lang}},
-  url =          {https://doc.rust-lang.org/clippy/index.html},
-  urldate =      {2025-06-17}
-}
-
-@Misc{semgrep,
-  title =        {{Semgrep}},
-  author =       {{Semgrep, Inc.}},
-  url =          {https://semgrep.dev/docs/},
-  urldate =      {2025-06-17}
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@InBook{rather1996_evolution,
-  author =	 {Rather, Elizabeth D. and Colburn, Donald R. and
-                  Moore, Charles H.},
-  title =	 {The evolution of Forth},
-  year =	 1996,
-  isbn =	 0201895021,
-  publisher =	 {Association for Computing Machinery},
-  address =	 {New York, NY, USA},
-  url =		 {https://doi.org/10.1145/234286.1057832},
-  abstract =	 {Forth is unique among programming languages in that
-                  its development and proliferation has been a
-                  grass-roots effort unsupported by any major
-                  corporate or academic sponsors. Originally conceived
-                  and developed by a single individual, its later
-                  development has progressed under two significant
-                  influences: professional programmers who developed
-                  tools to solve application problems and then
-                  commercialized them, and the interests of hobbyists
-                  concerned with free distribution of Forth. These
-                  influences have produced a language markedly
-                  different from traditional programming languages.},
-  booktitle =	 {History of Programming Languages---II},
-  pages =	 {625–670},
-  numpages =	 46
-}
-
-@Book{brodie2004_thinking,
-  title =	 {{Thinking FORTH}},
-  author =	 {Brodie, Leo},
-  year =	 2004,
-  publisher =	 {Punchy Publishing},
-  url =
-                  {https://forth.com/wp-content/uploads/2018/11/thinking-forth-color.pdf}
-}
-
-@InProceedings{ertl02_variations,
-  author =	 {M. Anton Ertl},
-  title =	 {{Threaded Code Variations and Optimizations
-                  (Extended Version)}},
-  booktitle =	 {{Forth-Tagung 2002}},
-  year =	 2002,
-  address =	 {Garmisch-Partenkirchen},
-  url =
-                  {http://www.complang.tuwien.ac.at/anton/euroforth/ef01/ertl01.pdf},
-  abstract =	 {Forth has been traditionally implemented as indirect
-                  threaded code, where the code for non-primitives is
-                  the code-field address of the word. To get the
-                  maximum benefit from combining sequences of
-                  primitives into superinstructions, the code produced
-                  for a non-primitive should be a primitive followed
-                  by a parameter (e.g., \code{lit} \emph{addr} for
-                  variables). This paper takes a look at the steps
-                  from a traditional threaded-code implementation to
-                  superinstructions, and at the size and speed effects
-                  of the various steps.\comment{It also compares these
-                  variants of Gforth to various other Forth
-                  implementations on contemporary machines.} The use
-                  of superinstructions gives speedups of up to a
-                  factor of 2 on large benchmarks on processors with
-                  branch target buffers, but requires more space for
-                  the primitives and the optimization tables, and also
-                  a little more space for the threaded code.}
-}
-
-%%% System V %%%
-
-@Manual{system_v_psabi_riscv,
-  title =	 {{RISC-V ABIs Specification, Document Version 1.0}},
-  editor =	 {Kito Cheng and Jessica Clarke},
-  institution =	 {RISC-V International},
-  month =	 {November},
-  year =	 2022,
-  url =
-                  {https://github.com/riscv-non-isa/riscv-elf-psabi-doc},
-}
-
-%%% Linux %%%
-
-@Misc{linux_system_calls_table,
-  title =	 {{Linux System Call Table}},
-  institution =	 {The Chromium Projects},
-  url =
-                  {https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls/},
-}
-
-%%% x86-64 %%%
-
-@TechReport{kerner2007history,
-  title =	 {{A History of Modern 64-bit Computing}},
-  author =	 {Kerner, Matthew and Padgett, Neil},
-  institution =	 {CS Department, University of Washington},
-  url =
-                  {https://courses.cs.washington.edu/courses/csep590/06au/projects/history-64-bit.pdf},
-  month =	 {February},
-  year =	 2007
 }

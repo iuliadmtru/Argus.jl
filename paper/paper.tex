@@ -520,7 +520,7 @@ Argus can be split in two distinct components:
 \end{itemize}
 
 The former provides the necessary building blocks for defining an
-\emph{embedded domain-specific language} \cite{dsl} for syntax
+\emph{embedded domain-specific language} for syntax
 matching. It implements the fundamental concepts behind
 \texttt{syntax/parse}, borrowing syntactic representation for some of the
 constructs.
@@ -1085,8 +1085,7 @@ end
 
 A rule match recursively traverses a given unit of source code and
 collects the results of matching sub-expressions with the rule's
-pattern. Bound pattern variables are returned in corresponding binding
-sets \cite{argus_overview}.
+pattern. Bound pattern variables are returned in corresponding binding sets.
 
 \begin{lstlisting}[language=julia]
 julia> assignments = @rule "assignments" begin
