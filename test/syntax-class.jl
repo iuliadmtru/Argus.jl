@@ -141,14 +141,14 @@
                 match_result =
                     syntax_match(import_statement, parsestmt(SyntaxNode, "import M"))
                 @test is_successful(match_result)
-                @test match_result[:module_name].name == "M"
+                @test match_result[:module].module_name == "M"
                 @test isempty(match_result[:ids].src)
             end
             let
-                match_result =
-                    syntax_match(import_statement, parsestmt(SyntaxNode, "import M: a, b"))
+                match_result = syntax_match(import_statement,
+                                            parsestmt(SyntaxNode, "import M.N: a, b"))
                 @test is_successful(match_result)
-                @test match_result[:module_name].name == "M"
+                @test match_result[:module].module_name == "M.N"
                 @test length(match_result[:ids].src) == 2
                 @test match_result[:ids].src[1].data.val == :a
                 @test match_result[:ids].src[2].data.val == :b
@@ -160,16 +160,16 @@
 
             let
                 match_result =
-                    syntax_match(using_statement, parsestmt(SyntaxNode, "using M"))
+                    syntax_match(using_statement, parsestmt(SyntaxNode, "using M.N"))
                 @test is_successful(match_result)
-                @test match_result[:module_name].name == "M"
+                @test match_result[:module].module_name == "M.N"
                 @test isempty(match_result[:ids].src)
             end
             let
                 match_result =
                     syntax_match(using_statement, parsestmt(SyntaxNode, "using M: a, b"))
                 @test is_successful(match_result)
-                @test match_result[:module_name].name == "M"
+                @test match_result[:module].module_name == "M"
                 @test length(match_result[:ids].src) == 2
                 @test match_result[:ids].src[1].data.val == :a
                 @test match_result[:ids].src[2].data.val == :b

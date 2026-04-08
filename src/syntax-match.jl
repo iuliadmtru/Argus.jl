@@ -129,26 +129,24 @@ function syntax_match(syntax_class::SyntaxClass,
     # `:using` syntax class.
     if syntax_class.description == "using"
         kind(src) == K"using" || return tracked_failure
-        module_name_src, ids_src = kind(src.children[1]) == K"importpath" ?
-            (src.children[1].children[1], JS.SyntaxNode[]) :
-            (src.children[1].children[1].children[1],
+        module_src, ids_src = kind(src.children[1]) == K"importpath" ?
+            (src.children[1], JS.SyntaxNode[]) :
+            (src.children[1].children[1],
              [c.children[1] for c in src.children[1].children[2:end]])
-        module_name_binding = Binding(:module_name, module_name_src, BindingSet(), UInt8(0))
+        module_binding = Binding(:module, module_src, BindingSet(), UInt8(0))
         ids_binding = Binding(:ids, ids_src, fill(BindingSet(), length(ids_src)), UInt8(1))
-        return BindingSet(:module_name => module_name_binding,
-                          :ids => ids_binding)
+        return BindingSet(:module => module_binding, :ids => ids_binding)
     end
     # `:import` syntax class.
     if syntax_class.description == "import"
         kind(src) == K"import" || return tracked_failure
-        module_name_src, ids_src = kind(src.children[1]) == K"importpath" ?
-            (src.children[1].children[1], JS.SyntaxNode[]) :
-            (src.children[1].children[1].children[1],
+        module_src, ids_src = kind(src.children[1]) == K"importpath" ?
+            (src.children[1], JS.SyntaxNode[]) :
+            (src.children[1].children[1],
              [c.children[1] for c in src.children[1].children[2:end]])
-        module_name_binding = Binding(:module_name, module_name_src, BindingSet(), UInt8(0))
+        module_binding = Binding(:module, module_src, BindingSet(), UInt8(0))
         ids_binding = Binding(:ids, ids_src, fill(BindingSet(), length(ids_src)), UInt8(1))
-        return BindingSet(:module_name => module_name_binding,
-                          :ids => ids_binding)
+        return BindingSet(:module => module_binding, :ids => ids_binding)
     end
     # Iterate through patterns.
     for pattern in syntax_class.pattern_alternatives

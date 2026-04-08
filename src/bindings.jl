@@ -101,6 +101,7 @@ function Base.getproperty(b::Binding, name::Symbol)
     [push!(available_fields, subb) for subb in keys(bindings)]
     JS.is_identifier(src) && push!(available_fields, :name)
     JS.is_literal(src) && push!(available_fields, :value)
+    kind(src) == K"importpath" && push!(available_fields, :module_name)
     if kind(src) === K"macrocall"
         push!(available_fields, :name)
         push!(available_fields, :args)
@@ -132,6 +133,15 @@ function Base.getproperty(b::Binding, name::Symbol)
                                 available_fields,
                                 internal_fields,
                                 "the bound expression is not an identifier or a macro call"))
+    end
+    if name ===:module_name
+        kind(src) == K"importpath" && return join(children(src), ".")
+        # Only modules have a `module_name` field.
+        throw(BindingFieldError(b,
+                                :module_name,
+                                available_fields,
+                                internal_fields,
+                                "the bound expression is not a module"))
     end
     return get(bindings, name) do
         throw(BindingFieldError(b,
