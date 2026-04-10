@@ -104,18 +104,25 @@ Pkg.add("https://github.com/iuliadmtru/Argus.jl/")
 
 #### Basics
 
-The essential structures in Argus are `Pattern`s, `SyntaxClass`es and
-`Template`s.
+The essential structures in Argus are `Pattern`s, `CommentPattern`s,
+`SyntaxClass`es and `Template`s.
 
 ```julia
 julia> using Argus
 
 help?> Pattern
-search: Pattern @pattern
+search: Pattern @pattern CommentPattern
 
   Pattern
 
   Syntax pattern used for matching syntax.
+
+help?> CommentPattern
+search: CommentPattern CommentDisabler AbstractPattern Pattern
+
+  CommentPattern
+
+  Trivia pattern used for matching comments.
 
 help?> SyntaxClass
 search: SyntaxClass @syntax_class SyntaxClassRegistry SyntaxError syntax_match
@@ -124,8 +131,8 @@ search: SyntaxClass @syntax_class SyntaxClassRegistry SyntaxError syntax_match
 
   Syntax classes provide the basis for a syntax matching mechanism. A syntax class specifies a syntactic "shape" and provides a description for that shape.
 
-  Syntax class bodies can contain one or more patterns. If there are multiple patterns, the search for a syntax match stops at the first matching pattern. Pattern variables can be constrained by syntax
-  classes using the syntax <pattern_var_name>:::<syntax_class_name>. Unconstrained pattern variables are constrained by default to :::expr.
+  Syntax class bodies can contain one or more patterns. If there are multiple patterns, the search for a syntax match stops at the first matching pattern. A pattern variable can be constrained by a
+  syntax class using the syntax {<pattern_var_name>:::<syntax_class_name>}. Unconstrained pattern variables are constrained by default to :::expr.
 
   Examples
   ≡≡≡≡≡≡≡≡
@@ -158,7 +165,7 @@ search: SyntaxClass @syntax_class SyntaxClassRegistry SyntaxError syntax_match
             _:::expr                       :: ~var
 
 help?> Template
-search: Template @template replace tempname relpath keepat! replace! repeat accumulate Tuple realpath splat empty
+search: Template @template replace tempname keepat! relpath realpath Tuple repeat accumulate replace! empty splat
 
   Template
 
@@ -184,22 +191,22 @@ Patterns can be matched against Julia expressions.
 julia> using JuliaSyntax: parsestmt, SyntaxNode
 
 julia> syntax_match(expr, parsestmt(SyntaxNode, "1 + 2"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :x => Binding:
           Name: :x
           Bound source: (call-i 1 + 2) @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(expr, parsestmt(SyntaxNode, "f(x::Int) = x * 2"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :x => Binding:
           Name: :x
           Bound source: (function-= (call f (::-i x Int)) (call-i x * 2)) @ 1:1
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
 ```
 
 The result of a successful match is a `BindingSet` — a dictionary with
@@ -209,7 +216,7 @@ the matched source node.
 
 In the second example above, the pretty print tells us that the
 pattern variable `x` was bound to the function definition found at
-line 1, column 1 in the source. The third line of the pretty print
+line 1, column 1 in the source. The fifth line of the pretty print
 tells us that `x` has ellipsis depth 0. This is because `x` is not
 surrounded by any ellipses (`...`).
 
@@ -231,16 +238,16 @@ julia> syntax_match(exprs, parseall(SyntaxNode, """
                                                 b = 2
                                                 a + b
                                                 """))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :x => Binding:
           Name: :x
           Bound sources: [(= a 1) @ 1:1, (= b 2) @ 2:1, (call-i a + b) @ 3:1]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries,
-             BindingSet with 0 entries,
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
             ]
 ```
 
@@ -269,13 +276,13 @@ julia> syntax_match(function_def, parsestmt(SyntaxNode, """
                                                             return nothing
                                                         end
                                                         """))
-BindingSet with 3 entries:
+BindingSet @ 0:0 with 3 entries:
   :f => Binding:
           Name: :f
           Bound source: my_fun @ 1:10
           Ellipsis depth: 0
           Sub-bindings:
-            BindingSet with 0 entries
+            BindingSet @ 0:0 with 0 entries
   :args => Binding:
              Name: :args
              Bound sources: []
@@ -288,8 +295,8 @@ BindingSet with 3 entries:
              Ellipsis depth: 1
              Sub-bindings:
                [
-                BindingSet with 0 entries,
-                BindingSet with 0 entries
+                BindingSet @ 0:0 with 0 entries,
+                BindingSet @ 0:0 with 0 entries
                ]
 ```
 
@@ -310,7 +317,7 @@ Pattern:
         el:::expr                        :: ~var
 
 julia> syntax_match(vec_of_vecs, parsestmt(SyntaxNode, "[[1, 2], [[3]]]"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :el => Binding:
            Name: :el
            Bound sources: [[1 @ 1:3, 2 @ 1:6], [(vect 3) @ 1:11]]
@@ -318,11 +325,11 @@ BindingSet with 1 entry:
            Sub-bindings:
              [
               [
-               BindingSet with 0 entries,
-               BindingSet with 0 entries
+               BindingSet @ 0:0 with 0 entries,
+               BindingSet @ 0:0 with 0 entries
               ],
               [
-               BindingSet with 0 entries
+               BindingSet @ 0:0 with 0 entries
               ]
              ]
 ```
@@ -342,7 +349,7 @@ By default, the matching algorithm for ellipses is "greedy".
 julia> ones_vec = @pattern [1, {ones1}..., 1, {ones2}...];
 
 julia> syntax_match(ones_vec, parsestmt(SyntaxNode, "[1, 1, 1, 1]"))
-BindingSet with 2 entries:
+BindingSet @ 0:0 with 2 entries:
   :ones2 => Binding:
               Name: :ones2
               Bound sources: []
@@ -355,8 +362,8 @@ BindingSet with 2 entries:
               Ellipsis depth: 1
               Sub-bindings:
                 [
-                 BindingSet with 0 entries,
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
                 ]
 ```
 
@@ -365,15 +372,15 @@ BindingSet with 2 entries:
 
 ```julia
 julia> syntax_match(ones_vec, parsestmt(SyntaxNode, "[1, 1, 1, 1]"); greedy=false)
-BindingSet with 2 entries:
+BindingSet @ 0:0 with 2 entries:
   :ones2 => Binding:
               Name: :ones2
               Bound sources: [1 @ 1:8, 1 @ 1:11]
               Ellipsis depth: 1
               Sub-bindings:
                 [
-                 BindingSet with 0 entries,
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
                 ]
   :ones1 => Binding:
               Name: :ones1
@@ -392,26 +399,26 @@ to use `...` with the regular splat meaning, we need to escape it:
 
 ```julia
 julia> syntax_match((@pattern v...), parsestmt(SyntaxNode, "v..."))
-MatchFail("no match")
+MatchFail: no match @ :1:1
 
 julia> syntax_match((@pattern @esc(v...)), parsestmt(SyntaxNode, "v..."))
-BindingSet with 0 entries
+BindingSet @ 0:0 with 0 entries
 ```
 
 We can also escape an expression only up to a certain depth.
 
 ```julia
 julia> syntax_match((@pattern @esc([{elems}...]..., 1)), parsestmt(SyntaxNode, "[1, 2, 3]..."))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :elems => Binding:
               Name: :elems
               Bound sources: [1 @ 1:2, 2 @ 1:5, 3 @ 1:8]
               Ellipsis depth: 1
               Sub-bindings:
                 [
-                 BindingSet with 0 entries,
-                 BindingSet with 0 entries,
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
                 ]
 ```
 
@@ -446,6 +453,11 @@ them in patterns. Let's write a syntax class for vectors:
 julia> vec = @syntax_class "vector" begin
            @pattern [{_}...]
        end
+SyntaxClass: vector
+  Pattern alternative #1:
+    [vect]
+      [~rep]
+        _:::expr                         :: ~var
 ```
 
 Syntax class bodies consist of a sequence of patterns. The match
@@ -456,10 +468,10 @@ Let's test `vec`:
 
 ```julia
 julia> syntax_match(vec, parsestmt(SyntaxNode, "[]"))
-BindingSet with 0 entries
+BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(vec, parsestmt(SyntaxNode, "[1, [2]]"))
-BindingSet with 0 entries
+BindingSet @ 0:0 with 0 entries
 ```
 
 The match results are empty binding sets. This is because we used an
@@ -498,19 +510,19 @@ Pattern:
     v:::vec                              :: ~var
 
 julia> syntax_match(vec_of_vecs2, parsestmt(SyntaxNode, "[[1, 2], [[3]]]"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :v => Binding:
           Name: :v
           Bound sources: [(vect 1 2) @ 1:2, (vect (vect 3)) @ 1:10]
           Ellipsis depth: 1
           Sub-bindings:
             [
-             BindingSet with 0 entries,
-             BindingSet with 0 entries
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
             ]
 
 julia> syntax_match(vec_of_vecs2, parsestmt(SyntaxNode, "[1]"))
-MatchFail("no match")
+MatchFail: no match @ :1:2
 ```
 
 Argus's built-in implementation of the `vec` syntax class uses
@@ -536,14 +548,16 @@ matching behaviour. (They [come from
 `syntax/parse`](https://docs.racket-lang.org/syntax/stxparse-patterns.html)
 as well.)
 
-`~var` and `~fail` are _action forms_ — `~var` binds pattern variables
-and `~fail` causes the matching to fail if a given condition is
-satisfied.
+`~var` is an _active_ pattern form — apart from performing a match, it
+also _binds_ pattern variables. `~rep`, which we've seen in its
+sugared `...` form, is a _passive_ pattern form – it is only used for
+matching, not for performing actions.
 
-`~fail` expects a fail condition (given as an expression) and a
-failure message. The fail condition is evaluated during a pattern
-match using the match's `BindingSet`. If it is satisfied, the matching
-fails with the specified failure mesage.
+##### Active pattern forms
+
+There are currently four active pattern forms defined in Argus:
+`~var`, `~when`, `~fail` and `~execute`. Among these, only `~var`
+binds new pattern variables.
 
 `~var` expects a pattern variable name and a syntax class name. If the
 source matches the syntax class, it is bound to the pattern
@@ -552,12 +566,152 @@ explicitly. The `:::` syntax is an implicit `~var` form. `{x:::vec}`
 is expanded to `~var(:x, :vec)` and `{x}` to `~var(:x, :expr)`. This
 is visible in the patterns' pretty printed form.
 
-`...` is another hidden pattern form called `~rep`. `~rep` take as
-argument an expression that is to be matched zero or more
-times. `{x}...` is short for `~rep(~var(:x, :expr))`.
+```julia
+julia> x = @pattern ~var(:x, :expr)
+Pattern:
+x:::expr                                 :: ~var
 
-Two other pattern forms exist: `~or` and `~and`. These only have
-explicit forms. Both have a short-circuiting match behaviour.
+julia> syntax_match(x, parsestmt(SyntaxNode, "a + b"))
+BindingSet @ 0:0 with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound source: (call-i a + b) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+```
+
+`~when` expects a list of pattern variables (given as a list of
+`Symbol`s) and a condition that should evaluate to a boolean. The
+condition is evaluated during a pattern match using the match's
+`BindingSet`. If it is satisfied, the matching succeeds. Otherwise, it
+fails.
+
+```julia
+julia> id = @pattern begin
+           {x:::identifier}
+           @when [:x] x.name == "id"
+       end
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~when]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        "id"                             :: String
+
+julia> syntax_match(id, parsestmt(SyntaxNode, "id"))
+BindingSet @ 0:0 with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound source: id @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+
+julia> syntax_match(id, parsestmt(SyntaxNode, "not_id"))
+MatchFail: no match @ :1:1
+```
+
+**Note:** The above `id` pattern is equivalent to an `~and` between it's
+two statements, with the `~when` form written explicitly:
+
+```julia
+julia> id_and = @pattern ~and(
+           {x:::identifier},
+           ~when([:x], x.name == "id")
+       )
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~when]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        "id"                             :: String
+```
+
+`~fail` expects a list of pattern variables, a fail condition (given
+as an expression) and a failure message. It has the opposite behaviour
+of `~when`. If the fail condition is satisfied, the matching fails
+with the given failure message. Otherwise, it succeeds.
+
+```julia
+julia> not_id = @pattern begin
+           {x:::identifier}
+           @fail [:x] x.name == "id" "expected something other than \"id\""
+       end
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~fail]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        "id"                             :: String
+    "expected something other than \"id\"" :: String
+
+julia> syntax_match(not_id, parsestmt(SyntaxNode, "id"))
+MatchFail: expected something other than "id" @ :1:1
+
+julia> syntax_match(not_id, parsestmt(SyntaxNode, "not_id"))
+BindingSet @ 0:0 with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound source: not_id @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+```
+
+`~execute` expects a list of pattern variables and an expression. The
+expression is evaluated during a pattern match.
+
+```julia
+julia> log = @pattern ~and(
+           {x},
+           ~execute([:x], println("The pattern variable x is bound to: ", x.src))
+       )
+Pattern:
+[~and]
+  x:::expr                               :: ~var
+  [~execute]
+    [call]
+      println                            :: Identifier
+      [string]
+        "The pattern variable x is bound to: " :: String
+      [.]
+        x                                :: Identifier
+        src                              :: Identifier
+
+julia> syntax_match(log, parsestmt(SyntaxNode, "1 + 2"))
+The pattern variable x is bound to: (call-i 1 + 2)
+BindingSet @ 0:0 with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound source: (call-i 1 + 2) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+```
+
+##### Passive pattern forms
+
+There are currently six passive pattern forms defined in Argus: `~or`,
+`~and`, `~rep`, `~not`, `~inside` and `~contains`. These don't perform
+any actions during pattern matching, apart from the matching itself.
+
+`~or` and `~and` have a short-circuiting match behaviour:
 
 ```julia
 julia> equals_x = @pattern ~or(
@@ -576,25 +730,25 @@ Pattern:
     x                                    :: Identifier
 
 julia> syntax_match(equals_x, parsestmt(SyntaxNode, "x == 2"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :first => Binding:
               Name: :first
               Bound source: 2 @ 1:6
               Ellipsis depth: 0
               Sub-bindings:
-                BindingSet with 0 entries
+                BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(equals_x, parsestmt(SyntaxNode, "2 == x"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :second => Binding:
                Name: :second
                Bound source: 2 @ 1:1
                Ellipsis depth: 0
                Sub-bindings:
-                 BindingSet with 0 entries
+                 BindingSet @ 0:0 with 0 entries
 
 julia> syntax_match(equals_x, parsestmt(SyntaxNode, "2 == y"))
-MatchFail("no match")
+MatchFail: no match @ :1:6
 
 julia> conflicting_and = @pattern ~and({a} + 2, {a} + 3)
 Pattern:
@@ -609,16 +763,16 @@ Pattern:
     3                                    :: Integer
 
 julia> syntax_match(conflicting_and, parsestmt(SyntaxNode, "a + 2"))
-MatchFail("no match")
+MatchFail: no match @ :1:5
 ```
 
-We could be more specific with the fail message for `equals_x`. Let's
-use an implicit `~fail` form:
+**Note:** We could be more specific with the fail message for
+`equals_x`. Let's use an implicit `~fail` form:
 
 ```julia
 julia> equals_x = @pattern begin
            ~or({x} == 2, 2 == {x})
-           @fail x.name != "x" "not x"
+           @fail [:x] x.name != "x" "not x"
        end
 Pattern:
 [~and]
@@ -642,7 +796,243 @@ Pattern:
     "not x"                              :: String
 
 julia> syntax_match(equals_x, parsestmt(SyntaxNode, "2 == y"))
-MatchFail("not x")
+MatchFail: not x @ :1:1
+```
+
+`~rep` expects an expression that is to be matched zero or more
+times. `{x}...` is short for `~rep(~var(:x, :expr))`.
+
+```julia
+julia> arbitrary_rep = @pattern ~rep(({x} + 2))
+Pattern:
+[~rep]
+  [call-i]
+    x:::expr                             :: ~var
+    +                                    :: Identifier
+    2                                    :: Integer
+
+julia> syntax_match(arbitrary_rep, parseall(SyntaxNode, """
+                                                        1 + 2
+                                                        2 + 2
+                                                        """))
+BindingSet @ 0:0 with 1 entry:
+  :x => Binding:
+          Name: :x
+          Bound sources: [1 @ 1:1, 2 @ 2:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
+            ]
+```
+
+`~not` is the negation pattern form – if the enclosing pattern matches
+the source node, the `~not` pattern doesn't match, and vice-versa.
+
+```julia
+julia> not_literal = @pattern ~not({lit:::literal})
+Pattern:
+[~not]
+  lit:::literal                          :: ~var
+
+julia> syntax_match(not_literal, parsestmt(SyntaxNode, "2"))
+MatchFail: `~not` subpattern match succeeded @ :1:1
+
+julia> syntax_match(not_literal, parsestmt(SyntaxNode, "a"))
+BindingSet @ 0:0 with 0 entries
+```
+
+**Note:** The pattern enclosed in `~not` does not bind pattern variables
+outside itself.
+
+`~inside` expects a pattern expression and, optionally, a search
+level. It is meant to be used as an `~and` branch pattern where
+another branch is the main pattern. An `~inside` pattern signals that
+the main pattern should be contained in the pattern enclosed in
+`~inside`.
+
+```julia
+julia> inside_fundef = @pattern ~and(
+           {a:::assign},
+           ~inside({_:::fundef})
+       )
+Pattern:
+[~and]
+  a:::assign                             :: ~var
+  [~inside]
+    _:::fundef                           :: ~var
+
+julia> assign_in_fundef = parsestmt(SyntaxNode, "f(x) = let x = 2 end")
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  [let]
+    [block]
+      [=]
+        x                                :: Identifier
+        2                                :: Integer
+    [block]
+
+
+julia> syntax_match(inside_fundef, assign_in_fundef[2][1][1])
+BindingSet @ 0:0 with 1 entry:
+  :a => Binding:
+          Name: :a
+          Bound source: (= x 2) @ 1:11
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 2 entries:
+              :rhs => Binding:
+                        Name: :rhs
+                        Bound source: 2 @ 1:16
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+              :lhs => Binding:
+                        Name: :lhs
+                        Bound source: x @ 1:12
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+
+julia> assign = parsestmt(SyntaxNode, "x = 2")
+SyntaxNode:
+[=]
+  x                                      :: Identifier
+  2                                      :: Integer
+
+
+julia> syntax_match(inside_fundef, assign)
+MatchFail: `~inside` pattern does not match @ :1:1
+```
+
+If a search level is given, the matching stops at the main pattern's
+parent found at that level.
+
+```julia
+julia> inside_fundef_up_to_1 = @pattern ~and(
+           {a:::assign},
+           ~inside({_:::fundef}, 1)
+       )
+Pattern:
+[~and]
+  a:::assign                             :: ~var
+  [~inside]
+    _:::fundef                           :: ~var
+    1                                    :: Integer
+
+julia> syntax_match(inside_fundef_up_to_1, assign_in_fundef[2][1][1])
+MatchFail: `~inside` pattern does not match: expected function definition @ :1:11
+```
+
+`~contains` signals that the main pattern should contain the pattern
+enclosed in `~contains`. It can contain a search level as well,
+signifying that the matching should stop at the main pattern's
+children found at that level.
+
+```julia
+julia> contains_literal = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal})
+       )
+Pattern:
+[~and]
+  m:::macrocall                          :: ~var
+  [~contains]
+    l:::literal                          :: ~var
+
+julia> syntax_match(contains_literal, parsestmt(SyntaxNode, "@assert x == 2"))
+BindingSet @ 1:14 with 1 entry:
+  :l => Binding:
+          Name: :l
+          Bound source: 2 @ 1:14
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+
+julia> contains_literal_up_to_1 = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal}, 1)
+       )
+Pattern:
+[~and]
+  m:::macrocall                          :: ~var
+  [~contains]
+    l:::literal                          :: ~var
+    1                                    :: Integer
+
+julia> syntax_match(contains_literal_up_to_1, parsestmt(SyntaxNode, "@assert x == 2"))
+MatchFail: `~contains` pattern does not match: expected literal @ :1:1
+
+julia> contains_literal_up_to_2 = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal}, 2)
+       );
+
+julia> syntax_match(contains_literal_up_to_2, parsestmt(SyntaxNode, "@assert x == 2"))
+BindingSet @ 0:0 with 2 entries:
+  :l => Binding:
+          Name: :l
+          Bound source: 2 @ 1:14
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+  :m => Binding:
+          Name: :m
+          Bound source: (macrocall @assert (call-i x == 2)) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+```
+
+**Note:** `~inside` and `~contains` may also be used by themselves,
+without a main pattern:
+
+```julia
+julia> plain_inside = @pattern ~inside({i:::infix_call});
+
+julia> src = parsestmt(SyntaxNode, "a + b")
+SyntaxNode:
+[call-i]
+  a                                      :: Identifier
+  +                                      :: Identifier
+  b                                      :: Identifier
+
+
+julia> syntax_match(plain_inside, src[1])
+BindingSet @ 0:0 with 1 entry:
+  :i => Binding:
+          Name: :i
+          Bound source: (call-i a + b) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 2 entries:
+              :rhs => Binding:
+                        Name: :rhs
+                        Bound source: b @ 1:5
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+              :lhs => Binding:
+                        Name: :lhs
+                        Bound source: a @ 1:1
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+
+julia> plain_contains = @pattern ~contains({id:::identifier});
+
+julia> syntax_match(plain_contains, src)
+BindingSet @ 1:1 with 1 entry:
+  :id => Binding:
+           Name: :id
+           Bound source: a @ 1:1
+           Ellipsis depth: 0
+           Sub-bindings:
+             BindingSet @ 0:0 with 0 entries
 ```
 
 #### Templates
