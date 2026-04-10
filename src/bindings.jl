@@ -418,7 +418,8 @@ end
 
 function Base.summary(io::IO, bs::BindingSet)
     show(io, typeof(bs))
-    print(io, " @ $(_repr_location(bs)) with $(length(bs)) entries")
+    entry_no = length(bs) == 1 ? "entry" : "entries"
+    print(io, " @ $(_repr_location(bs)) with $(length(bs)) $(entry_no)")
 end
 
 Base.show(io::IO, ::MIME"text/plain", bs::BindingSet) =
@@ -457,7 +458,10 @@ function _show_binding_set(io::IO, bs, indent)
 end
 
 function _repr_location(bs::BindingSet)
-    file_name = JS.filename(bs) * ":"
+    file_name = JS.filename(bs)
+    if !isempty(file_name)
+        file_name *= ":"
+    end
     source_location = JS.source_location(bs)
     location = string(file_name, source_location[1], ":", source_location[2])
 
