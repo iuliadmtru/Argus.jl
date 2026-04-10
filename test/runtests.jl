@@ -5,5 +5,6 @@ using JuliaSyntax: source_location, filename, kind, @K_str, is_leaf, ParseError,
 
 include("bindings.jl")
 include("pattern.jl")
+include("comment-pattern.jl")
 include("syntax-class.jl")
 include("rules.jl")

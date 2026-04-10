@@ -9,3 +9,31 @@ function inside_parens(src::JS.SyntaxNode)
     view(source_file, next_byte:next_byte) == ")" || return false
     return true
 end
+
+comments(src::JS.SyntaxNode) = _comments(src.data.raw, JS.sourcetext(src))
+function _comments(node::Union{Nothing, JS.GreenNode},
+                   str::AbstractString;
+                   result::Vector{Tuple{AbstractString, UnitRange{Int}}}=
+                       Tuple{AbstractString, UnitRange{Int}}[],
+                   pos::Int64=1)
+    isnothing(node) && return result
+    if kind(node) != K"Comment"
+        is_leaf(node) && return result
+        p = pos
+        for c in children(node)
+            _comments(c, str; result, pos=p)
+            p += c.span
+        end
+        return result
+    end
+    # The node is a comment. Add the node and its byte range to the results list.
+    byte_range = pos:prevind(str, pos + node.span)
+    push!(result, (view(str, byte_range), byte_range))
+    is_leaf(node) && return result
+    p = pos
+    for c in children(node)
+        _comments(c, str; result, pos=p)
+        p += c.span
+    end
+    return result
+end

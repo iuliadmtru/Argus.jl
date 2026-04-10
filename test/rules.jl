@@ -424,6 +424,36 @@
             @test match_result.failures[1].message == "`~not` subpattern match succeeded"
             @test source_location(match_result.failures[1]) == (2, 4)
         end
+        let
+            rule = @rule "TODO" begin
+                description = ""
+                pattern = @comment r"TODO[\S\s]*"
+            end
+            source = """
+            # This is a comment
+            # continuing here
+            bla()
+
+            #= TODO: This is
+            a
+            multiline comment =#
+
+            function f(x)
+                # comment
+                x + 1  # TODO: Another comment
+                return x
+            end
+            """
+            match_result = rule_match(rule, parseall(SyntaxNode, source))
+            @test length(match_result.matches) == 2
+            @test source_location(match_result.matches[1][1]) == (5, 1)
+            @test source_location(match_result.matches[2][1]) == (11, 12)
+            # The result should be the same for `rules_match`.
+            rules_match_result = rules_match([rule], parseall(SyntaxNode, source))["TODO"]
+            @test length(rules_match_result.matches) == 2
+            @test source_location(rules_match_result.matches[1][1]) == (5, 1)
+            @test source_location(rules_match_result.matches[2][1]) == (11, 12)
+        end
     end
 
     @testset "Rule hooks" begin

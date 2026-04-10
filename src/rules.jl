@@ -10,16 +10,20 @@ Optionally, a rule can define a refactoring template and hooks that run before m
 struct Rule
     name::String
     description::String
-    pattern::Pattern
+    pattern::Union{Pattern, CommentPattern}
     template::Union{Nothing, Template}
     hooks::Union{Nothing, Dict{Symbol, Any}}
 end
-Rule(name::String, description::String, pattern::Pattern) =
+Rule(name::String, description::String, pattern::Union{Pattern, CommentPattern}) =
     Rule(name, description, pattern, nothing, nothing)
-Rule(name::String, description::String, pattern::Pattern, template::Template) =
-    Rule(name, description, pattern, template, nothing)
-Rule(name::String, description::String, pattern::Pattern, hooks::Dict) =
-    Rule(name, description, pattern, nothing, hooks)
+Rule(name::String,
+     description::String,
+     pattern::Union{Pattern, CommentPattern},
+     template::Template) = Rule(name, description, pattern, template, nothing)
+Rule(name::String,
+     description::String,
+     pattern::Union{Pattern, CommentPattern},
+     hooks::Dict) = Rule(name, description, pattern, nothing, hooks)
 
 """
     @rule(name, ex)
@@ -754,6 +758,24 @@ function _rule_match(rule::Rule,
     end
     disable && return match_results
     # The rule is not disabled.
+    #
+    # If the rule pattern is a `CommentPattern`, gather all matching comments and return
+    # without recursing.
+    if isa(rule.pattern, CommentPattern)
+        comment_match_result = comment_match_all(rule.pattern, src)
+        binding_sets = comment_match_result.matches
+        if !isempty(binding_sets)
+            matches_with_refactorings = isnothing(rule.template) ?
+                [(bs, nothing) for bs in binding_sets] :
+                [(bs, expand(rule.template, bs)) for bs in binding_sets]
+            # Add the (match, refactoring) pair to the results.
+            append!(match_results.matches, matches_with_refactorings)
+        end
+        # For now, all `comment_match_all` failures are trivial. There's no need to
+        # include them.
+        return match_results
+    end
+    # The rule pattern is a regular `Pattern`.
     match_result =
         syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
     # Add refactorings.
@@ -836,7 +858,9 @@ function rules_match(rules::Vector{Rule},
                      greedy=true,
                      only_matches=true)
     kept_rules = Rule[]
+    comment_rules = Rule[]
     sizehint!(kept_rules, length(rules))
+    sizehint!(comment_rules, length(rules))
     for rule in rules
         if !isnothing(rule.hooks)
             skip = false
@@ -856,13 +880,20 @@ function rules_match(rules::Vector{Rule},
                 skip && break
             end
             # Keep the rule only if none of its hooks returned `true`.
-            skip || push!(kept_rules, rule)
+            if !skip
+                isa(rule.pattern, CommentPattern) ?
+                    push!(comment_rules, rule) :
+                    push!(kept_rules, rule)
+            end
         else
-            push!(kept_rules, rule)
+            isa(rule.pattern, CommentPattern) ?
+                push!(comment_rules, rule) :
+                push!(kept_rules, rule)
         end
     end
 
     return _rules_match(kept_rules,
+                        comment_rules,
                         src;
                         disabler,
                         match_results,
@@ -870,6 +901,7 @@ function rules_match(rules::Vector{Rule},
                         only_matches)
 end
 function _rules_match(rules::Vector{Rule},
+                      comment_rules::Union{Nothing, Vector{Rule}},
                       src::JS.SyntaxNode;
                       disabler::RuleDisabler=default_disabler,
                       disabled_rules=String[],
@@ -884,9 +916,42 @@ function _rules_match(rules::Vector{Rule},
         disabler(src)
     end
     disable && return match_results
-    # Skip all matching if all rules are disabled.
-    length(disabled_rules) == length(rules) && return match_results
-    # Match each rule with the current source node.
+    # Match comment rules.
+    if !isnothing(comment_rules)
+        for comment_rule in comment_rules
+            # Disable rules.
+            if comment_rule.name in disabled_rules
+                continue
+            end
+            disable = isa(disabler, CommentDisabler) ?
+                disabler(comment_rule, prev_line) :
+                disabler(comment_rule, src)  # TODO: Should this be allowed?
+            if disable
+                push!(disabled_rules, comment_rule.name)
+                continue
+            end
+            # The rule is not disabled.
+            if isa(comment_rule.pattern, CommentPattern)
+                comment_match_result = comment_match_all(comment_rule.pattern, src)
+                binding_sets = comment_match_result.matches
+                if !isempty(binding_sets)
+                    matches_with_refactorings = isnothing(comment_rule.template) ?
+                        [(bs, nothing) for bs in binding_sets] :
+                        [(bs, expand(comment_rule.template, bs)) for bs in binding_sets]
+                    # Add the (match, refactoring) pair to the results dict.
+                    comment_rule_match_result =
+                        RuleMatchResult(matches_with_refactorings,
+                                        comment_match_result.failures)
+                    insert_or_append!(match_results,
+                                      comment_rule.name,
+                                      comment_rule_match_result)
+                end
+                # For now, all `comment_match_all` failures are trivial. There's no need to
+                # include them.
+            end
+        end
+    end
+    # Match each non-comment rule with the current source node.
     for rule in rules
         # Disable rules.
         if rule.name in disabled_rules
@@ -899,6 +964,7 @@ function _rules_match(rules::Vector{Rule},
             push!(disabled_rules, rule.name)
             continue
         end
+        # The rule is not disabled.
         match_result =
             syntax_match_all(rule.pattern, src; greedy, only_matches, recurse=false)
         # If no relevant results were found, continue to the next rule.
@@ -917,10 +983,11 @@ function _rules_match(rules::Vector{Rule},
             RuleMatchResult(matches_with_refactorings, match_result.failures)
         insert_or_append!(match_results, rule.name, rule_match_result)
     end
-    # Recurse on the source node's children, if any.
+    # For non-comment rules, recurse on the source node's children, if any.
     if !is_leaf(src)
         for c in children(src)
             _rules_match(rules,
+                         nothing,
                          c;
                          disabler,
                          disabled_rules,
