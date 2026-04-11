@@ -14,11 +14,17 @@ end
     @pattern(expr)
 
 Create a [`Pattern`](@ref) from the given expression. Special syntax can be escaped by
-wrapping it in an `@esc` macro. Fail conditions are defined with the `@fail` macro.
+wrapping it in an `@esc` macro. Match and fail conditions are defined with the `@when`
+and `@fail` macros respectively.
 
 `@esc` usage:
-  - `@esc(ex)`       : Escape everything inside `ex`.
+  - `@esc(ex)`: Escape everything inside `ex`.
   - `@esc(ex, depth)`: Escape `ex` only up to `depth`.
+
+`@when` usage:
+  - `@when(pattern_vars, condition)`: Match only if `condition` is satisfied. The pattern
+                                      variables found in `condition` must be given as a
+                                      vector of `Symbol`s.
 
 `@fail` usage:
   - `@fail(pattern_vars, condition, msg)`: Fail with the message `msg` if `condition`
@@ -121,9 +127,14 @@ BindingSet @ 0:0 with 1 entries:
             BindingSet @ 0:0 with 0 entries
 ```
 
-Note: `@fail` and `@esc` macros only exist inside `@pattern` bodies.
+Note: `@when`, `@fail` and `@esc` macros only exist inside `@pattern` bodies.
 
 ```
+julia> @when [] :false
+ERROR: LoadError: UndefVarError: `@when` not defined in `Main`
+Suggestion: check for spelling errors or missing imports.
+in expression starting at ...
+
 julia> @fail [] :false ""
 ERROR: LoadError: UndefVarError: `@fail` not defined in `Main`
 Suggestion: check for spelling errors or missing imports.
