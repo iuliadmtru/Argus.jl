@@ -13,7 +13,7 @@ const JS = JuliaSyntax
 # Part 0: AST utils
 # =================
 
-export inside_parens
+export previous_line, inside_parens, comments
 
 include("utils.jl")
 

@@ -648,16 +648,6 @@ end
 
 # Utils
 
-function previous_line(src::JS.SyntaxNode)
-    source_file = JS.sourcefile(src)
-    source_line = JS.source_location(src)[1]
-    # Check if there is a previous line.
-    source_line == JS.sourcefile(src).line_starts[1] &&
-        return ""
-    prev_line_first_byte = JS.sourcefile(src).line_starts[source_line - 1]
-    prev_line_byte_range = JS.source_line_range(JS.sourcefile(src), prev_line_first_byte)
-    return strip(view(source_file, prev_line_byte_range[1]:prev_line_byte_range[2]))
-end
 is_disable_comment(str::AbstractString) = startswith(str, "# lint-disable")
 is_disable_all_comment(str::AbstractString) = str == "# lint-disable"
 function is_disable_rule_comment(str::AbstractString, rule_name::String)
