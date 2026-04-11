@@ -1770,3 +1770,8 @@ function Base.show(io::IO, ::MIME"text/plain", res::RuleMatchResult)
 end
 
 Base.show(io::IO, ::Type{RuleGroupMatchResult}) = "RuleGroupMatchResult"
+
+function Base.summary(io::IO, res::RuleGroupMatchResult)
+    entries_no = length(res) == 1 ? "entry" : "entries"
+    print(io, "RuleGroupMatchResult with $(length(res)) $(entries_no)")
+end
