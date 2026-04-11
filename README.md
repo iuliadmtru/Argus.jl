@@ -1052,15 +1052,15 @@ Pattern:
     vs:::expr                            :: ~var
 
 julia> bindings = syntax_match(pattern, parsestmt(SyntaxNode, "append!([1, 2, 3], 4)"))
-BindingSet with 1 entry:
+BindingSet @ 0:0 with 1 entry:
   :vs => Binding:
            Name: :vs
            Bound sources: [(vect 1 2 3) @ 1:9, 4 @ 1:20]
            Ellipsis depth: 1
            Sub-bindings:
              [
-              BindingSet with 0 entries,
-              BindingSet with 0 entries
+              BindingSet @ 0:0 with 0 entries,
+              BindingSet @ 0:0 with 0 entries
              ]
 ```
 
@@ -1068,6 +1068,17 @@ Then, we write the template and expand it using the bindings obtained
 after matching:
 
 ```julia
+julia> template = @template vcat({vs}...)
+SyntaxPatternNode:
+[call]
+  vcat                                   :: Identifier
+  [~rep]
+    [~var]
+      [quote-:]
+        vs                               :: Identifier
+      [quote-:]
+        expr                             :: Identifier
+
 julia> expand(template, bindings)
 SyntaxNode:
 [call]
@@ -1108,6 +1119,12 @@ Assignment here.
 Pattern:
 a:::assign                               :: ~var
 
+Template:
+<no template>
+
+Hooks:
+<no hooks>
+
 julia> src = """
        x = 2
        y = x + 1
@@ -1120,14 +1137,14 @@ julia> src = """
 julia> match_result = rule_match(assignments, parseall(SyntaxNode, src))
 RuleMatchResult with 3 matches and 0 failures:
 Matches:
-  BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
-  nothing
+  @ 1:1
+  BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet()))))
 
-  BindingSet(:a => Binding(:a, (= y (call-i x + 1)) @ 2:1, BindingSet(:rhs => Binding(:rhs, (call-i x + 1) @ 2:5, BindingSet()), :lhs => Binding(:lhs, y @ 2:1, BindingSet(:_id => Binding(:_id, y @ 2:1, BindingSet()))))))
-  nothing
+  @ 2:1
+  BindingSet(:a => Binding(:a, (= y (call-i x + 1)) @ 2:1, BindingSet(:rhs => Binding(:rhs, (call-i x + 1) @ 2:5, BindingSet()), :lhs => Binding(:lhs, y @ 2:1, BindingSet()))))
 
-  BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet(:_id => Binding(:_id, z @ 4:5, BindingSet()))))))
-  nothing
+  @ 4:5
+  BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet()))))
 ```
 
 The `assignments` rule above matches all the assignments in the
@@ -1142,21 +1159,20 @@ julia> lit_assignments = @rule "assignments" begin
            description = "Assignment here."
            pattern = @pattern begin
                {a:::assign}
-               @fail begin
-                   using JuliaSyntax: is_literal
-                   !is_literal(a.rhs.src)
-               end "rhs not a literal"
+               @fail [:a] begin
+                   !JuliaSyntax.is_literal(a.rhs.src)
+               end "expected literal rhs"
            end
        end;
 
 julia> match_result = rule_match(lit_assignments, parseall(SyntaxNode, src))
 RuleMatchResult with 2 matches and 0 failures:
 Matches:
-  BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet(:_id => Binding(:_id, x @ 1:1, BindingSet()))))))
-  nothing
+  @ 1:1
+  BindingSet(:a => Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs => Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs => Binding(:lhs, x @ 1:1, BindingSet()))))
 
-  BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet(:_id => Binding(:_id, z @ 4:5, BindingSet()))))))
-  nothing
+  @ 4:5
+  BindingSet(:a => Binding(:a, (= z true) @ 4:5, BindingSet(:rhs => Binding(:rhs, true @ 4:9, BindingSet()), :lhs => Binding(:lhs, z @ 4:5, BindingSet()))))
 ```
 
 `rule_match` can keep track of all non-trivial failed matches as well
@@ -1166,35 +1182,31 @@ useful for debugging a rule.
 ```julia
 julia> rule_match(lit_assignments, parseall(SyntaxNode, src); only_matches=false).failures
 21-element Vector{MatchFail}:
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("rhs not a literal")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
- MatchFail("expected assignment")
+ MatchFail: expected assignment @ :1:1
+ MatchFail: expected assignment @ :1:1
+ MatchFail: expected assignment @ :1:5
+ MatchFail: expected literal rhs @ :2:1
+ MatchFail: expected assignment @ :2:1
+ MatchFail: expected assignment @ :2:5
+ MatchFail: expected assignment @ :2:5
+ MatchFail: expected assignment @ :2:7
+ MatchFail: expected assignment @ :2:9
+ MatchFail: expected assignment @ :3:1
+ MatchFail: expected assignment @ :3:3
+ MatchFail: expected assignment @ :3:4
+ MatchFail: expected assignment @ :3:6
+ MatchFail: expected assignment @ :3:9
+ MatchFail: expected assignment @ :3:10
+ MatchFail: expected assignment @ :4:5
+ MatchFail: expected assignment @ :4:9
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:7
 ```
 
-At least it would be useful if the failure would contain other
-information such as the source location of the failure... This is in
-plan for the future :).
-
 The result of a rule match consists of two vectors: one with all
-non-trivial failures and one with all matches with their associated
+non-trivial failures and one with all matches and their associated
 template expansions, if applicable. The above rules don't have
 templates, so they have `nothing` as template expansions. A rule with
 a template is created using the `template` argument in the `@rule`
@@ -1211,45 +1223,49 @@ julia> rand_bool = @rule "rand-bool" begin
 
            pattern = @pattern begin
                {randf}() < 0.5
-               @fail match(r"^(Base.)?rand$", randf.name) === nothing "not `rand` call"
+               @when [:randf] match(r"^(Base.)?rand$", randf.name) !== nothing
            end
 
            template = @template rand(Bool)
        end;
 ```
 
-We could match this rule against a file called `"rand-bool.jl"` with
-the following content:
-
-```
-# Match.
-rand() < 0.5
-
-function some_rand_function(x)
-    # Match.
-    if rand() < 0.5
-        println("Random")
-    end
-end
-
-# Match.
-if some_flag && rand() < 0.5 || other_flag
-    println("Random")
-end
-```
-
-The result would be:
+We could match this rule against a file:
 
 ```julia
-julia> rule_match(rand_bool, "rand-bool.jl")
+julia> f = tempname();
+
+julia> src = """
+           # Match.
+           rand() < 0.5
+
+           function some_rand_function(x)
+               # Match.
+               if rand() < 0.5
+                   println("Random")
+               end
+           end
+
+           # Match.
+           if some_flag && rand() < 0.5 || other_flag
+               println("Random")
+           end
+           """;
+
+julia> write(f, src);
+
+julia> rule_match(rand_bool, f)
 RuleMatchResult with 3 matches and 0 failures:
 Matches:
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:2:1
   BindingSet(:randf => Binding(:randf, rand @ 2:1, BindingSet()))
   (call rand Bool)
 
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:6:7
   BindingSet(:randf => Binding(:randf, rand @ 6:8, BindingSet()))
   (call rand Bool)
 
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:12:16
   BindingSet(:randf => Binding(:randf, rand @ 12:17, BindingSet()))
   (call rand Bool)
 ```
@@ -1283,7 +1299,7 @@ julia> @define_rule_in_group style_rules "lowercase-const" begin
 
            pattern = @pattern begin
                const {x:::identifier} = {_}
-               @fail all(isuppercase, x.name) "`const` variable with all-uppercase name"
+               @when [:x] any(islowercase, x.name)
            end
        end;
 ```
@@ -1300,28 +1316,33 @@ julia> write(f, """
        """);
 
 julia> rule_group_match(style_rules, f; only_matches=false)
-RuleGroupMatchResults with 2 entries:
+RuleGroupMatchResult with 2 entries:
   "useless-equals"  => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, a @ 1:6, BindingSet())), nothing)], MatchFail[])
-  "lowercase-const" => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet(:_id => Binding(:_id, low @ 2:7, BindingSet())))), nothing)], MatchF…
+  "lowercase-const" => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet())), nothing)], MatchFail[])
 ```
 
 ## Notes
 
-Argus is the final project for my Computer Science and Engineering
-degree at University Politehnica of Bucharest. The paper is attached
-in the repo (Thesis.pdf).
+Argus started as the final project for my Computer Science and
+Engineering degree at University Politehnica of Bucharest. The paper
+is attached in the repo (Thesis.pdf).
 
 ## Acknowledgements
-
-[JuliaHub](https://juliahub.com) in general and Avik Sengupta in
-particular for allowing me to partly work on this project during my
-internship and for guiding me in the process.
 
 [Andrei Duma](https://github.com/AndreiDuma) for being providing me
 with reading recommendations, feedback and constant motivation. Thank
 you for telling me about the amazing `syntax/parse` library and for
 spending so many hours with me discussing software design,
 metaprogramming and more.
+
+[JuliaHub](https://juliahub.com) in general and Avik Sengupta in
+particular for allowing me to partly work on this project during my
+internship and for guiding me in the process.
+
+[RelationalAI](https://www.relational.ai) in general and Niko Göbel
+and Alexandre Bergel in particular for pushing forward the project and
+its integration with
+[ReLint.jl](https://github.com/RelationalAI-oss/ReLint.jl).
 
 ## References
 
