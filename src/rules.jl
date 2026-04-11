@@ -818,6 +818,45 @@ end
 
 Match a set of rules against a source. Each source node is traversed once. The rule
 disabling mechanism may be configured through `disabler`.
+
+# Examples
+
+```julia
+julia> compare_nothing = @rule "compare-nothing" begin
+           description = \"\"\"
+           Comparisons of `nothing` should be made with === or !== or with isnothing().
+           \"\"\"
+
+           pattern = @pattern begin
+               ~or(
+                   nothing == {_},
+                   {_} == nothing,
+                   nothing != {_},
+                   {_} != nothing
+               )
+           end
+       end;
+
+julia> useless_equals = @rule "useless-equals" begin
+           description = \"\"\"
+           Comparing the same object in the RHS and LHS is pointless.
+           \"\"\"
+
+           pattern = @pattern begin
+               ~or(
+                   {x} ==  {x},
+                   {x} !=  {x},
+                   {x} === {x},
+                   {x} !== {x}
+               )
+           end
+       end;
+
+julia> rules_match([compare_nothing, useless_equals], parsestmt(SyntaxNode, "nothing == nothing"))
+RuleGroupMatchResult with 2 entries:
+  "useless-equals"  => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, nothing @ 1:12, BindingSet())), nothing)], MatchFail[])
+  "compare-nothing" => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(), nothing), (BindingSet(), nothing)], MatchFail[])
+```
 """
 function rules_match(rules::Vector{Rule},
                      src::AbstractString;
