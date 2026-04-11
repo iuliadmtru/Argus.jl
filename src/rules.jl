@@ -164,14 +164,25 @@ macro rule(name, ex)
     end
     # If there is one, get the fourth argument, which should be the hooks.
     if length(ex.args) == 8
-        line_number_arg4 = ex.args[7]
+        line_number_arg3 = ex.args[5]
         arg3_name = ex.args[6].args[1]
         arg3_name === :hooks &&
             throw(SyntaxError("""
                               invalid `@rule` syntax.
                               `hooks` should be the last argument of `@rule`.""",
-                              line_number_arg4.file,
-                              line_number_arg4.line))
+                              line_number_arg3.file,
+                              line_number_arg3.line))
+        # Parse template.
+        arg3_name === :template ||
+            throw(SyntaxError("""
+                              invalid `@rule` syntax.
+                              The third argument of `@rule` should be `template`.""",
+                              line_number_arg3.file,
+                              line_number_arg3.line))
+        arg3 = ex.args[6]
+        template_expr = arg3.args[2]
+        # Parse hooks.
+        line_number_arg4 = ex.args[7]
         arg4 = ex.args[8]
         @isexpr(arg4, :(=), 2) ||
             throw(SyntaxError(err_msg_invalid_arg_syntax,
