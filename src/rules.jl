@@ -563,6 +563,12 @@ end
     RuleDisabler <: Function
 
 Supertype for all rule disablers.
+
+`RuleDisabler`s other than `CommentDisabler`s must define the following methods:
+```julia
+disabler(src::JuliaSyntax.SyntaxNode)
+disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)
+```
 """
 abstract type RuleDisabler <: Function end
 
@@ -570,6 +576,15 @@ abstract type RuleDisabler <: Function end
     CommentDisabler
 
 Supertype for all comment rule disablers.
+
+Rules are disabled by comments attached to AST nodes. `CommentDisabler`s disable rules for
+the entire AST node that follows the disabling comment.
+
+`CommentDisabler`s must define the following methods:
+```julia
+disabler(line::AbstractString)
+disabler(rule::Rule, line::AbstractString)
+```
 """
 abstract type CommentDisabler <: RuleDisabler end
 
