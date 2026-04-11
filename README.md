@@ -374,7 +374,7 @@ Matches:
   BindingSet(:x => Binding(:x, 2 @ 1:5, BindingSet()))
 ```
 
-#### Comment patterns
+#### Comment Patterns
 
 Regular patterns match `SyntaxNode`s, but ignore trivia nodes such as
 comments. The `@comment` macro allows defining patterns that match
@@ -644,7 +644,7 @@ Pattern:
 ```
 
 
-#### Syntax classes
+#### Syntax Classes
 
 We saw that a pattern variable is printed as `x:::expr`. This means
 that `x` is constrained by the _syntax class_ `expr`.
@@ -748,7 +748,7 @@ SyntaxClass: vector
         _:::expr                         :: ~var
 ```
 
-#### Pattern forms
+#### Pattern Forms
 
 We have come across pattern nodes preceeded by `~`, such as
 `~var`. There are called _pattern forms_. A pattern form is a special
@@ -762,7 +762,7 @@ also _binds_ pattern variables. `~rep`, which we've seen in its
 sugared `...` form, is a _passive_ pattern form – it is only used for
 matching, not for performing actions.
 
-##### Active pattern forms
+##### Active Pattern Forms
 
 There are currently four active pattern forms defined in Argus:
 `~var`, `~when`, `~fail` and `~execute`. Among these, only `~var`
@@ -914,7 +914,7 @@ BindingSet @ 0:0 with 1 entry:
             BindingSet @ 0:0 with 0 entries
 ```
 
-##### Passive pattern forms
+##### Passive Pattern Forms
 
 There are currently six passive pattern forms defined in Argus: `~or`,
 `~and`, `~rep`, `~not`, `~inside` and `~contains`. These don't perform
@@ -1569,7 +1569,7 @@ RuleGroupMatchResult with 2 entries:
   "lowercase-const" => RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=>Binding(:x, low @ 2:7, BindingSet())), nothing)], MatchFail[])
 ```
 
-##### Disabling rules
+##### Disabling Rules
 
 Linters provide a set of built-in linting rules. For a given code
 base, not all of them may be useful in every case. That is why linters
@@ -1646,7 +1646,7 @@ code. A disabling annotation disables the specified rules (or all
 rules if no rule name is given) for the AST node that follows it. This
 is the behaviour of all `CommentDisabler`s.
 
-##### Rule hooks
+##### Rule Hooks
 
 > [!WARNING]
 > Rule hooks will most likely change both behaviour and structure in
