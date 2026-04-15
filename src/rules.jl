@@ -577,7 +577,19 @@ Supertype for all rule disablers.
 
 `RuleDisabler`s other than `CommentDisabler`s must define the following methods:
 ```julia
+\"\"\"
+    disabler(src::JuliaSyntax.SyntaxNode)::Bool
+
+Disable all rules for the given three.
+\"\"\"
 disabler(src::JuliaSyntax.SyntaxNode)
+
+
+\"\"\"
+    disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)::Bool
+
+Disable the given rule for the given three.
+\"\"\"
 disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)
 ```
 """
@@ -593,7 +605,20 @@ the entire AST node that follows the disabling comment.
 
 `CommentDisabler`s must define the following methods:
 ```julia
+\"\"\"
+    disabler(line::AbstractString)::Bool
+
+Return `true` if `line` is a comment that disables all rules for the AST it annotates.
+Return `false` otherwise.
+\"\"\"
 disabler(line::AbstractString)
+
+\"\"\"
+    disabler(rule::Rule, line::AbstractString)::Bool
+
+Return `true` if `line` is a comment that disables the given rule for the AST it annotates.
+Return `false` otherwise.
+\"\"\"
 disabler(rule::Rule, line::AbstractString)
 ```
 """

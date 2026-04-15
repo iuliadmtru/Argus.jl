@@ -1586,7 +1586,19 @@ search: RuleDisabler CommentDisabler
 
   RuleDisablers other than CommentDisablers must define the following methods:
 
+  """
+      disabler(src::JuliaSyntax.SyntaxNode)::Bool
+
+  Disable all rules for the given three.
+  """
   disabler(src::JuliaSyntax.SyntaxNode)
+
+
+  """
+      disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)::Bool
+
+  Disable the given rule for the given three.
+  """
   disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)
 ```
 
