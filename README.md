@@ -1734,8 +1734,7 @@ Matches:
 
 Matching utils can be used by action pattern forms that execute code,
 such as `~when`, `~fail` and `~execute`. For now, only three such
-utils exist: `previous_line`, `inside_parens` and `comments`. Users
-can define their own matching utils and use them in patterns.
+utils exist: `previous_line`, `inside_parens` and `comments`.
 
 ```julia
 help?> previous_line
