@@ -11,6 +11,7 @@ RuntimeGeneratedFunctions = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
+julia = "1.12"
 InteractiveUtils = "1.11.0"
 JuliaSyntax = "1.0.0"
 MacroTools = "0.5.15"
