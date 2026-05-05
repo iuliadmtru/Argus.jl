@@ -17,3 +17,6 @@ JuliaSyntax = "1.0.0"
 MacroTools = "0.5.15"
 RuntimeGeneratedFunctions = "0.5.17"
 Test = "1.11.0"
+
+[workspace]
+projects = ["docs"]

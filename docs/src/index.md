@@ -1,8 +1,3 @@
-[![][docs-dev-img]][docs-dev-url]  [![codecov](https://codecov.io/gh/iuliadmtru/Argus.jl/graph/badge.svg?token=Z79DY1TSL4)](https://codecov.io/gh/iuliadmtru/Argus.jl)
-
-[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://cuda.juliagpu.org/dev/
-
 # Argus.jl
 
 Matching syntax and writing static analysis rules for Julia. Heavily
