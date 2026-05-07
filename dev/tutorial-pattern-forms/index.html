@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Pattern Forms · Argus.jl</title><meta name="title" content="Pattern Forms · Argus.jl"/><meta property="og:title" content="Pattern Forms · Argus.jl"/><meta property="twitter:title" content="Pattern Forms · Argus.jl"/><meta name="description" content="Documentation for Argus.jl."/><meta property="og:description" content="Documentation for Argus.jl."/><meta property="twitter:description" content="Documentation for Argus.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Argus.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial-basics/">Basics</a></li><li><a class="tocitem" href="../tutorial-patterns/">Patterns</a></li><li><a class="tocitem" href="../tutorial-comment-patterns/">Comment Patterns</a></li><li><a class="tocitem" href="../tutorial-ellipses/">Ellipses</a></li><li><a class="tocitem" href="../tutorial-syntax-classes/">Syntax Classes</a></li><li class="is-active"><a class="tocitem" href>Pattern Forms</a><ul class="internal"><li><a class="tocitem" href="#Active-Pattern-Forms"><span>Active Pattern Forms</span></a></li><li><a class="tocitem" href="#Passive-Pattern-Forms"><span>Passive Pattern Forms</span></a></li></ul></li><li><a class="tocitem" href="../tutorial-templates/">Templates</a></li><li><a class="tocitem" href="../tutorial-rules/">Rules</a></li></ul></li><li><span class="tocitem">Further Reading</span><ul><li><a class="tocitem" href="../further-reading-matching-utils/">Matching Utils</a></li><li><a class="tocitem" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorial</a></li><li class="is-active"><a href>Pattern Forms</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Pattern Forms</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl/blob/main/docs/src/tutorial-pattern-forms.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Pattern-Forms"><a class="docs-heading-anchor" href="#Pattern-Forms">Pattern Forms</a><a id="Pattern-Forms-1"></a><a class="docs-heading-anchor-permalink" href="#Pattern-Forms" title="Permalink"></a></h1><p>We have come across pattern nodes preceeded by <code>~</code>, such as <code>~var</code>. There are called <em>pattern forms</em>. A pattern form is a special syntax form that performs actions on patterns or enables special matching behaviour. (They <a href="https://docs.racket-lang.org/syntax/stxparse-patterns.html">come from <code>syntax/parse</code></a> as well.)</p><p><code>~var</code> is an <em>active</em> pattern form — apart from performing a match, it also <em>binds</em> pattern variables. <code>~rep</code>, which we&#39;ve seen in its sugared <code>...</code> form, is a <em>passive</em> pattern form – it is only used for matching, not for performing actions.</p><h2 id="Active-Pattern-Forms"><a class="docs-heading-anchor" href="#Active-Pattern-Forms">Active Pattern Forms</a><a id="Active-Pattern-Forms-1"></a><a class="docs-heading-anchor-permalink" href="#Active-Pattern-Forms" title="Permalink"></a></h2><p>There are currently four active pattern forms defined in Argus: <code>~var</code>, <code>~when</code>, <code>~fail</code> and <code>~execute</code>. Among these, only <code>~var</code> binds new pattern variables.</p><p><code>~var</code> expects a pattern variable name and a syntax class name. If the source matches the syntax class, it is bound to the pattern variable. We have seen <code>~var</code> forms before quite a lot, but not explicitly. The <code>:::</code> syntax is an implicit <code>~var</code> form. <code>{x:::vec}</code> is expanded to <code>~var(:x, :vec)</code> and <code>{x}</code> to <code>~var(:x, :expr)</code>. This is visible in the patterns&#39; pretty printed form.</p><pre><code class="language-julia hljs">julia&gt; x = @pattern ~var(:x, :expr)
+Pattern:
+x:::expr                                 :: ~var
+
+julia&gt; syntax_match(x, parsestmt(SyntaxNode, &quot;a + b&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: (call-i a + b) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries</code></pre><p><code>~when</code> expects a list of pattern variables (given as a list of <code>Symbol</code>s) and a condition that should evaluate to a boolean. The condition is evaluated during a pattern match using the match&#39;s <code>BindingSet</code>. If it is satisfied, the matching succeeds. Otherwise, it fails.</p><pre><code class="language-julia hljs">julia&gt; id = @pattern begin
+           {x:::identifier}
+           @when [:x] x.name == &quot;id&quot;
+       end
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~when]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        &quot;id&quot;                             :: String
+
+julia&gt; syntax_match(id, parsestmt(SyntaxNode, &quot;id&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: id @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+
+julia&gt; syntax_match(id, parsestmt(SyntaxNode, &quot;not_id&quot;))
+MatchFail: no match @ :1:1</code></pre><p><strong>Note:</strong> The above <code>id</code> pattern is equivalent to an <code>~and</code> between it&#39;s two statements, with the <code>~when</code> form written explicitly:</p><pre><code class="language-julia hljs">julia&gt; id_and = @pattern ~and(
+           {x:::identifier},
+           ~when([:x], x.name == &quot;id&quot;)
+       )
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~when]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        &quot;id&quot;                             :: String</code></pre><p><code>~fail</code> expects a list of pattern variables, a fail condition (given as an expression) and a failure message. It has the opposite behaviour of <code>~when</code>. If the fail condition is satisfied, the matching fails with the given failure message. Otherwise, it succeeds.</p><pre><code class="language-julia hljs">julia&gt; not_id = @pattern begin
+           {x:::identifier}
+           @fail [:x] x.name == &quot;id&quot; &quot;expected something other than \&quot;id\&quot;&quot;
+       end
+Pattern:
+[~and]
+  x:::identifier                         :: ~var
+  [~fail]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      ==                                 :: Identifier
+      [string]
+        &quot;id&quot;                             :: String
+    &quot;expected something other than \&quot;id\&quot;&quot; :: String
+
+julia&gt; syntax_match(not_id, parsestmt(SyntaxNode, &quot;id&quot;))
+MatchFail: expected something other than &quot;id&quot; @ :1:1
+
+julia&gt; syntax_match(not_id, parsestmt(SyntaxNode, &quot;not_id&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: not_id @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries</code></pre><p><code>~execute</code> expects a list of pattern variables and an expression. The expression is evaluated during a pattern match.</p><pre><code class="language-julia hljs">julia&gt; log = @pattern ~and(
+           {x},
+           ~execute([:x], println(&quot;The pattern variable x is bound to: &quot;, x.src))
+       )
+Pattern:
+[~and]
+  x:::expr                               :: ~var
+  [~execute]
+    [call]
+      println                            :: Identifier
+      [string]
+        &quot;The pattern variable x is bound to: &quot; :: String
+      [.]
+        x                                :: Identifier
+        src                              :: Identifier
+
+julia&gt; syntax_match(log, parsestmt(SyntaxNode, &quot;1 + 2&quot;))
+The pattern variable x is bound to: (call-i 1 + 2)
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: (call-i 1 + 2) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries</code></pre><h2 id="Passive-Pattern-Forms"><a class="docs-heading-anchor" href="#Passive-Pattern-Forms">Passive Pattern Forms</a><a id="Passive-Pattern-Forms-1"></a><a class="docs-heading-anchor-permalink" href="#Passive-Pattern-Forms" title="Permalink"></a></h2><p>There are currently six passive pattern forms defined in Argus: <code>~or</code>, <code>~and</code>, <code>~rep</code>, <code>~not</code>, <code>~inside</code> and <code>~contains</code>. These don&#39;t perform any actions during pattern matching, apart from the matching itself.</p><p><code>~or</code> and <code>~and</code> have a short-circuiting match behaviour:</p><pre><code class="language-julia hljs">julia&gt; equals_x = @pattern ~or(
+           x == {first},
+           {second} == x
+       )
+Pattern:
+[~or]
+  [call-i]
+    x                                    :: Identifier
+    ==                                   :: Identifier
+    first:::expr                         :: ~var
+  [call-i]
+    second:::expr                        :: ~var
+    ==                                   :: Identifier
+    x                                    :: Identifier
+
+julia&gt; syntax_match(equals_x, parsestmt(SyntaxNode, &quot;x == 2&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :first =&gt; Binding:
+              Name: :first
+              Bound source: 2 @ 1:6
+              Ellipsis depth: 0
+              Sub-bindings:
+                BindingSet @ 0:0 with 0 entries
+
+julia&gt; syntax_match(equals_x, parsestmt(SyntaxNode, &quot;2 == x&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :second =&gt; Binding:
+               Name: :second
+               Bound source: 2 @ 1:1
+               Ellipsis depth: 0
+               Sub-bindings:
+                 BindingSet @ 0:0 with 0 entries
+
+julia&gt; syntax_match(equals_x, parsestmt(SyntaxNode, &quot;2 == y&quot;))
+MatchFail: no match @ :1:6
+
+julia&gt; conflicting_and = @pattern ~and({a} + 2, {a} + 3)
+Pattern:
+[~and]
+  [call-i]
+    a:::expr                             :: ~var
+    +                                    :: Identifier
+    2                                    :: Integer
+  [call-i]
+    a:::expr                             :: ~var
+    +                                    :: Identifier
+    3                                    :: Integer
+
+julia&gt; syntax_match(conflicting_and, parsestmt(SyntaxNode, &quot;a + 2&quot;))
+MatchFail: no match @ :1:5</code></pre><p><strong>Note:</strong> We could be more specific with the fail message for <code>equals_x</code>. Let&#39;s use an implicit <code>~fail</code> form:</p><pre><code class="language-julia hljs">julia&gt; equals_x = @pattern begin
+           ~or({x} == 2, 2 == {x})
+           @fail [:x] x.name != &quot;x&quot; &quot;not x&quot;
+       end
+Pattern:
+[~and]
+  [~or]
+    [call-i]
+      x:::expr                           :: ~var
+      ==                                 :: Identifier
+      2                                  :: Integer
+    [call-i]
+      2                                  :: Integer
+      ==                                 :: Identifier
+      x:::expr                           :: ~var
+  [~fail]
+    [call-i]
+      [.]
+        x                                :: Identifier
+        name                             :: Identifier
+      !=                                 :: Identifier
+      [string]
+        &quot;x&quot;                              :: String
+    &quot;not x&quot;                              :: String
+
+julia&gt; syntax_match(equals_x, parsestmt(SyntaxNode, &quot;2 == y&quot;))
+MatchFail: not x @ :1:1</code></pre><p><code>~rep</code> expects an expression that is to be matched zero or more times. <code>{x}...</code> is short for <code>~rep(~var(:x, :expr))</code>.</p><pre><code class="language-julia hljs">julia&gt; arbitrary_rep = @pattern ~rep(({x} + 2))
+Pattern:
+[~rep]
+  [call-i]
+    x:::expr                             :: ~var
+    +                                    :: Identifier
+    2                                    :: Integer
+
+julia&gt; syntax_match(arbitrary_rep, parseall(SyntaxNode, &quot;&quot;&quot;
+                                                        1 + 2
+                                                        2 + 2
+                                                        &quot;&quot;&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound sources: [1 @ 1:1, 2 @ 2:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
+            ]</code></pre><p><code>~not</code> is the negation pattern form – if the enclosing pattern matches the source node, the <code>~not</code> pattern doesn&#39;t match, and vice-versa.</p><pre><code class="language-julia hljs">julia&gt; not_literal = @pattern ~not({lit:::literal})
+Pattern:
+[~not]
+  lit:::literal                          :: ~var
+
+julia&gt; syntax_match(not_literal, parsestmt(SyntaxNode, &quot;2&quot;))
+MatchFail: `~not` subpattern match succeeded @ :1:1
+
+julia&gt; syntax_match(not_literal, parsestmt(SyntaxNode, &quot;a&quot;))
+BindingSet @ 0:0 with 0 entries</code></pre><p><strong>Note:</strong> The pattern enclosed in <code>~not</code> does not bind pattern variables outside itself.</p><p><code>~inside</code> expects a pattern expression and, optionally, a search level. It is meant to be used as an <code>~and</code> branch pattern where another branch is the main pattern. An <code>~inside</code> pattern signals that the main pattern should be contained in the pattern enclosed in <code>~inside</code>.</p><pre><code class="language-julia hljs">julia&gt; inside_fundef = @pattern ~and(
+           {a:::assign},
+           ~inside({_:::fundef})
+       )
+Pattern:
+[~and]
+  a:::assign                             :: ~var
+  [~inside]
+    _:::fundef                           :: ~var
+
+julia&gt; assign_in_fundef = parsestmt(SyntaxNode, &quot;f(x) = let x = 2 end&quot;)
+SyntaxNode:
+[function-=]
+  [call]
+    f                                    :: Identifier
+    x                                    :: Identifier
+  [let]
+    [block]
+      [=]
+        x                                :: Identifier
+        2                                :: Integer
+    [block]
+
+
+julia&gt; syntax_match(inside_fundef, assign_in_fundef[2][1][1])
+BindingSet @ 0:0 with 1 entry:
+  :a =&gt; Binding:
+          Name: :a
+          Bound source: (= x 2) @ 1:11
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 2 entries:
+              :rhs =&gt; Binding:
+                        Name: :rhs
+                        Bound source: 2 @ 1:16
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+              :lhs =&gt; Binding:
+                        Name: :lhs
+                        Bound source: x @ 1:12
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+
+julia&gt; assign = parsestmt(SyntaxNode, &quot;x = 2&quot;)
+SyntaxNode:
+[=]
+  x                                      :: Identifier
+  2                                      :: Integer
+
+
+julia&gt; syntax_match(inside_fundef, assign)
+MatchFail: `~inside` pattern does not match @ :1:1</code></pre><p>If a search level is given, the matching stops at the main pattern&#39;s parent found at that level.</p><pre><code class="language-julia hljs">julia&gt; inside_fundef_up_to_1 = @pattern ~and(
+           {a:::assign},
+           ~inside({_:::fundef}, 1)
+       )
+Pattern:
+[~and]
+  a:::assign                             :: ~var
+  [~inside]
+    _:::fundef                           :: ~var
+    1                                    :: Integer
+
+julia&gt; syntax_match(inside_fundef_up_to_1, assign_in_fundef[2][1][1])
+MatchFail: `~inside` pattern does not match: expected function definition @ :1:11</code></pre><p><code>~contains</code> signals that the main pattern should contain the pattern enclosed in <code>~contains</code>. It can contain a search level as well, signifying that the matching should stop at the main pattern&#39;s children found at that level.</p><pre><code class="language-julia hljs">julia&gt; contains_literal = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal})
+       )
+Pattern:
+[~and]
+  m:::macrocall                          :: ~var
+  [~contains]
+    l:::literal                          :: ~var
+
+julia&gt; syntax_match(contains_literal, parsestmt(SyntaxNode, &quot;@assert x == 2&quot;))
+BindingSet @ 1:14 with 1 entry:
+  :l =&gt; Binding:
+          Name: :l
+          Bound source: 2 @ 1:14
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+
+julia&gt; contains_literal_up_to_1 = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal}, 1)
+       )
+Pattern:
+[~and]
+  m:::macrocall                          :: ~var
+  [~contains]
+    l:::literal                          :: ~var
+    1                                    :: Integer
+
+julia&gt; syntax_match(contains_literal_up_to_1, parsestmt(SyntaxNode, &quot;@assert x == 2&quot;))
+MatchFail: `~contains` pattern does not match: expected literal @ :1:1
+
+julia&gt; contains_literal_up_to_2 = @pattern ~and(
+           {m:::macrocall},
+           ~contains({l:::literal}, 2)
+       );
+
+julia&gt; syntax_match(contains_literal_up_to_2, parsestmt(SyntaxNode, &quot;@assert x == 2&quot;))
+BindingSet @ 0:0 with 2 entries:
+  :l =&gt; Binding:
+          Name: :l
+          Bound source: 2 @ 1:14
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+  :m =&gt; Binding:
+          Name: :m
+          Bound source: (macrocall @assert (call-i x == 2)) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries</code></pre><p><strong>Note:</strong> <code>~inside</code> and <code>~contains</code> may also be used by themselves, without a main pattern:</p><pre><code class="language-julia hljs">julia&gt; plain_inside = @pattern ~inside({i:::infix_call});
+
+julia&gt; src = parsestmt(SyntaxNode, &quot;a + b&quot;)
+SyntaxNode:
+[call-i]
+  a                                      :: Identifier
+  +                                      :: Identifier
+  b                                      :: Identifier
+
+
+julia&gt; syntax_match(plain_inside, src[1])
+BindingSet @ 0:0 with 1 entry:
+  :i =&gt; Binding:
+          Name: :i
+          Bound source: (call-i a + b) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 2 entries:
+              :rhs =&gt; Binding:
+                        Name: :rhs
+                        Bound source: b @ 1:5
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+              :lhs =&gt; Binding:
+                        Name: :lhs
+                        Bound source: a @ 1:1
+                        Ellipsis depth: 0
+                        Sub-bindings:
+                          BindingSet @ 0:0 with 0 entries
+
+julia&gt; plain_contains = @pattern ~contains({id:::identifier});
+
+julia&gt; syntax_match(plain_contains, src)
+BindingSet @ 1:1 with 1 entry:
+  :id =&gt; Binding:
+           Name: :id
+           Bound source: a @ 1:1
+           Ellipsis depth: 0
+           Sub-bindings:
+             BindingSet @ 0:0 with 0 entries</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial-syntax-classes/">« Syntax Classes</a><a class="docs-footer-nextpage" href="../tutorial-templates/">Templates »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 7 May 2026 20:24">Thursday 7 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

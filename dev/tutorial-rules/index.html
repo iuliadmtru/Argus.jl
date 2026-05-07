@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Rules · Argus.jl</title><meta name="title" content="Rules · Argus.jl"/><meta property="og:title" content="Rules · Argus.jl"/><meta property="twitter:title" content="Rules · Argus.jl"/><meta name="description" content="Documentation for Argus.jl."/><meta property="og:description" content="Documentation for Argus.jl."/><meta property="twitter:description" content="Documentation for Argus.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Argus.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial-basics/">Basics</a></li><li><a class="tocitem" href="../tutorial-patterns/">Patterns</a></li><li><a class="tocitem" href="../tutorial-comment-patterns/">Comment Patterns</a></li><li><a class="tocitem" href="../tutorial-ellipses/">Ellipses</a></li><li><a class="tocitem" href="../tutorial-syntax-classes/">Syntax Classes</a></li><li><a class="tocitem" href="../tutorial-pattern-forms/">Pattern Forms</a></li><li><a class="tocitem" href="../tutorial-templates/">Templates</a></li><li class="is-active"><a class="tocitem" href>Rules</a><ul class="internal"><li><a class="tocitem" href="#Disabling-Rules"><span>Disabling Rules</span></a></li><li><a class="tocitem" href="#Rule-Hooks"><span>Rule Hooks</span></a></li></ul></li></ul></li><li><span class="tocitem">Further Reading</span><ul><li><a class="tocitem" href="../further-reading-matching-utils/">Matching Utils</a></li><li><a class="tocitem" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorial</a></li><li class="is-active"><a href>Rules</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Rules</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl/blob/main/docs/src/tutorial-rules.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Rules"><a class="docs-heading-anchor" href="#Rules">Rules</a><a id="Rules-1"></a><a class="docs-heading-anchor-permalink" href="#Rules" title="Permalink"></a></h1><p>Now we&#39;re ready to write some rules!</p><p>A <em>rule</em> is useful for matching all apparitions of a pattern in a source.</p><pre><code class="language-julia hljs">julia&gt; assignments = @rule &quot;assignments&quot; begin
+           description = &quot;Assignment here.&quot;
+           pattern = @pattern {a:::assign}
+       end
+assignments:
+Assignment here.
+
+Pattern:
+a:::assign                               :: ~var
+
+Template:
+&lt;no template&gt;
+
+Hooks:
+&lt;no hooks&gt;
+
+julia&gt; src = &quot;&quot;&quot;
+       x = 2
+       y = x + 1
+       if y == x
+           z = true
+       end
+       f() = 4
+       &quot;&quot;&quot;;
+
+julia&gt; match_result = rule_match(assignments, parseall(SyntaxNode, src))
+RuleMatchResult with 3 matches and 0 failures:
+Matches:
+  @ 1:1
+  BindingSet(:a =&gt; Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs =&gt; Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs =&gt; Binding(:lhs, x @ 1:1, BindingSet()))))
+
+  @ 2:1
+  BindingSet(:a =&gt; Binding(:a, (= y (call-i x + 1)) @ 2:1, BindingSet(:rhs =&gt; Binding(:rhs, (call-i x + 1) @ 2:5, BindingSet()), :lhs =&gt; Binding(:lhs, y @ 2:1, BindingSet()))))
+
+  @ 4:5
+  BindingSet(:a =&gt; Binding(:a, (= z true) @ 4:5, BindingSet(:rhs =&gt; Binding(:rhs, true @ 4:9, BindingSet()), :lhs =&gt; Binding(:lhs, z @ 4:5, BindingSet()))))</code></pre><p>The <code>assignments</code> rule above matches all the assignments in the source. The <code>assign</code> built-in syntax class uses the pattern variables <code>lhs</code> and <code>rhs</code>, which appear as sub-bindings for the rule pattern variable <code>a</code>. We can access sub-bindings of a bound pattern variable inside the pattern. Let&#39;s say we want to only match assignments with literals on the rhs:</p><pre><code class="language-julia hljs">julia&gt; lit_assignments = @rule &quot;assignments&quot; begin
+           description = &quot;Assignment here.&quot;
+           pattern = @pattern begin
+               {a:::assign}
+               @fail [:a] begin
+                   !JuliaSyntax.is_literal(a.rhs.src)
+               end &quot;expected literal rhs&quot;
+           end
+       end;
+
+julia&gt; match_result = rule_match(lit_assignments, parseall(SyntaxNode, src))
+RuleMatchResult with 2 matches and 0 failures:
+Matches:
+  @ 1:1
+  BindingSet(:a =&gt; Binding(:a, (= x 2) @ 1:1, BindingSet(:rhs =&gt; Binding(:rhs, 2 @ 1:5, BindingSet()), :lhs =&gt; Binding(:lhs, x @ 1:1, BindingSet()))))
+
+  @ 4:5
+  BindingSet(:a =&gt; Binding(:a, (= z true) @ 4:5, BindingSet(:rhs =&gt; Binding(:rhs, true @ 4:9, BindingSet()), :lhs =&gt; Binding(:lhs, z @ 4:5, BindingSet()))))</code></pre><p><code>rule_match</code> can keep track of all non-trivial failed matches as well by setting the <code>only_matches</code> keyword argument to <code>false</code>. This can be useful for debugging a rule.</p><pre><code class="language-julia hljs">julia&gt; rule_match(lit_assignments, parseall(SyntaxNode, src); only_matches=false).failures
+21-element Vector{MatchFail}:
+ MatchFail: expected assignment @ :1:1
+ MatchFail: expected assignment @ :1:1
+ MatchFail: expected assignment @ :1:5
+ MatchFail: expected literal rhs @ :2:1
+ MatchFail: expected assignment @ :2:1
+ MatchFail: expected assignment @ :2:5
+ MatchFail: expected assignment @ :2:5
+ MatchFail: expected assignment @ :2:7
+ MatchFail: expected assignment @ :2:9
+ MatchFail: expected assignment @ :3:1
+ MatchFail: expected assignment @ :3:3
+ MatchFail: expected assignment @ :3:4
+ MatchFail: expected assignment @ :3:6
+ MatchFail: expected assignment @ :3:9
+ MatchFail: expected assignment @ :3:10
+ MatchFail: expected assignment @ :4:5
+ MatchFail: expected assignment @ :4:9
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:1
+ MatchFail: expected assignment @ :6:7</code></pre><p>The result of a rule match consists of two vectors: one with all non-trivial failures and one with all matches and their associated template expansions, if applicable. The above rules don&#39;t have templates, so they have <code>nothing</code> as template expansions. A rule with a template is created using the <code>template</code> argument in the <code>@rule</code> macro.</p><p>Say we want to replace all apparitions of <code>rand() &lt; 0.5</code> with the call <code>rand(Bool)</code>.</p><pre><code class="language-julia hljs">julia&gt; rand_bool = @rule &quot;rand-bool&quot; begin
+           description = &quot;&quot;&quot;
+           To get a random Boolean, use `rand(Bool)`.
+           &quot;&quot;&quot;
+
+           pattern = @pattern begin
+               {randf}() &lt; 0.5
+               @when [:randf] match(r&quot;^(Base.)?rand$&quot;, randf.name) !== nothing
+           end
+
+           template = @template rand(Bool)
+       end;</code></pre><p>We could match this rule against a file:</p><pre><code class="language-julia hljs">julia&gt; f = tempname();
+
+julia&gt; src = &quot;&quot;&quot;
+           # Match.
+           rand() &lt; 0.5
+
+           function some_rand_function(x)
+               # Match.
+               if rand() &lt; 0.5
+                   println(&quot;Random&quot;)
+               end
+           end
+
+           # Match.
+           if some_flag &amp;&amp; rand() &lt; 0.5 || other_flag
+               println(&quot;Random&quot;)
+           end
+           &quot;&quot;&quot;;
+
+julia&gt; write(f, src);
+
+julia&gt; rule_match(rand_bool, f)
+RuleMatchResult with 3 matches and 0 failures:
+Matches:
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:2:1
+  BindingSet(:randf =&gt; Binding(:randf, rand @ 2:1, BindingSet()))
+  (call rand Bool)
+
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:6:7
+  BindingSet(:randf =&gt; Binding(:randf, rand @ 6:8, BindingSet()))
+  (call rand Bool)
+
+  @ /var/folders/4p/xtm72jnx4654xybjwm1mpd0h0000gn/T/jl_OBsPMZSfGH:12:16
+  BindingSet(:randf =&gt; Binding(:randf, rand @ 12:17, BindingSet()))
+  (call rand Bool)</code></pre><p>Rules can also be bulk-matched using <code>rules_match</code>:</p><pre><code class="language-julia hljs">julia&gt; compare_nothing = @rule &quot;compare-nothing&quot; begin
+           description = &quot;&quot;&quot;
+           Comparisons of `nothing` should be made with === or !== or with isnothing().
+           &quot;&quot;&quot;
+
+           pattern = @pattern begin
+               ~or(
+                   nothing == {_},
+                   {_} == nothing,
+                   nothing != {_},
+                   {_} != nothing
+               )
+           end
+       end;
+
+julia&gt; useless_equals = @rule &quot;useless-equals&quot; begin
+           description = &quot;&quot;&quot;
+           Comparing the same object in the RHS and LHS is pointless.
+           &quot;&quot;&quot;
+
+           pattern = @pattern begin
+               ~or(
+                   {x} ==  {x},
+                   {x} !=  {x},
+                   {x} === {x},
+                   {x} !== {x}
+               )
+           end
+       end;
+
+julia&gt; rules_match([compare_nothing, useless_equals], parsestmt(SyntaxNode, &quot;nothing == nothing&quot;))
+RuleGroupMatchResult with 2 entries:
+  &quot;useless-equals&quot;  =&gt; RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=&gt;Binding(:x, nothing @ 1:12, BindingSet())), nothing)], MatchFail[])
+  &quot;compare-nothing&quot; =&gt; RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(), nothing), (BindingSet(), nothing)], MatchFail[])</code></pre><p>Sometimes it is useful to group rules by category. We can define a rule group and store rules inside it:</p><pre><code class="language-julia hljs">julia&gt; style_rules = RuleGroup(&quot;style&quot;)
+RuleGroup(&quot;style&quot;)
+
+julia&gt; @define_rule_in_group style_rules &quot;useless-equals&quot; begin
+           description = &quot;&quot;&quot;
+           Comparing an object with itself always returns `true`.
+           &quot;&quot;&quot;
+
+           pattern = @pattern begin
+               ~or(
+                   {x} ==  {x},
+                   {x} !=  {x},
+                   {x} === {x},
+                   {x} !== {x}
+               )
+           end
+       end;
+
+julia&gt; @define_rule_in_group style_rules &quot;lowercase-const&quot; begin
+           description = &quot;&quot;&quot;
+           Prefer writing `const` variables in all-uppercase.
+           &quot;&quot;&quot;
+
+           pattern = @pattern begin
+               const {x:::identifier} = {_}
+               @when [:x] any(islowercase, x.name)
+           end
+       end;</code></pre><p>To check if the rules are correct, let&#39;s try them on a source file:</p><pre><code class="language-julia hljs">julia&gt; f = tempname();
+
+julia&gt; write(f, &quot;&quot;&quot;
+       a == a
+       const low = 2
+       const OK = true
+       &quot;&quot;&quot;);
+
+julia&gt; rule_group_match(style_rules, f; only_matches=false)
+RuleGroupMatchResult with 2 entries:
+  &quot;useless-equals&quot;  =&gt; RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=&gt;Binding(:x, a @ 1:6, BindingSet())), nothing)], MatchFail[])
+  &quot;lowercase-const&quot; =&gt; RuleMatchResult(Tuple{BindingSet, Union{Nothing, SyntaxNode}}[(BindingSet(:x=&gt;Binding(:x, low @ 2:7, BindingSet())), nothing)], MatchFail[])</code></pre><h2 id="Disabling-Rules"><a class="docs-heading-anchor" href="#Disabling-Rules">Disabling Rules</a><a id="Disabling-Rules-1"></a><a class="docs-heading-anchor-permalink" href="#Disabling-Rules" title="Permalink"></a></h2><p>Linters provide a set of built-in linting rules. For a given code base, not all of them may be useful in every case. That is why linters generally also provide a mechanism for disabling rules. Argus&#39; consists of a user-defined <code>RuleDisabler</code>.</p><pre><code class="language-julia hljs">help?&gt; RuleDisabler
+search: RuleDisabler CommentDisabler
+
+  RuleDisabler &lt;: Function
+
+  Supertype for all rule disablers.
+
+  RuleDisablers other than CommentDisablers must define the following methods:
+
+  &quot;&quot;&quot;
+      disabler(src::JuliaSyntax.SyntaxNode)::Bool
+
+  Disable all rules for the given three.
+  &quot;&quot;&quot;
+  disabler(src::JuliaSyntax.SyntaxNode)
+
+
+  &quot;&quot;&quot;
+      disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)::Bool
+
+  Disable the given rule for the given three.
+  &quot;&quot;&quot;
+  disabler(rule::Rule, src::JuliaSyntax.SyntaxNode)</code></pre><p>Argus defines <code>CommentDisabler</code> as an abstract subtype of <code>RuleDisabler</code>, and <code>DefaultDisabler</code> as the concrete type for the built-in disabler.</p><pre><code class="language-julia hljs">help?&gt; Argus.default_disabler
+  │ Warning
+  │
+  │  The following bindings may be internal; they may change or be removed in future versions:
+  │
+  │    •  Argus.default_disabler
+
+  default_disabler([rule::Rule,] line::AbstractString)
+
+  The default rule disabler. Allows disabling rules in source code via comments of the form # lint-disable[: [&lt;rule-name&gt;, ]+]?. The rules are disabled for the annotated node.
+
+  Examples:
+  ≡≡≡≡≡≡≡≡≡
+
+  julia&gt; src = &quot;&quot;&quot;
+         f(x) = x
+
+         # lint-disable
+         f(x, y)
+
+         # lint-disable: disabled_rule
+         function g(x)
+             f(x + 1)
+         end
+
+         # lint-disable: another_rule
+         function g(x)
+             f(x + 1)
+         end
+         &quot;&quot;&quot;;
+
+  julia&gt; rule = @rule &quot;disabled_rule&quot; begin
+             description = &quot;&quot;
+             pattern = @pattern f({_}...)
+         end;
+
+  julia&gt; rule_match(rule, parseall(SyntaxNode, src))
+  RuleMatchResult with 2 matches and 0 failures:
+  Matches:
+    @ :1:1
+    BindingSet()
+
+    @ :13:5
+    BindingSet()</code></pre><p>The default disabler works on entire AST nodes rather than on lines of code. A disabling annotation disables the specified rules (or all rules if no rule name is given) for the AST node that follows it. This is the behaviour of all <code>CommentDisabler</code>s.</p><h2 id="Rule-Hooks"><a class="docs-heading-anchor" href="#Rule-Hooks">Rule Hooks</a><a id="Rule-Hooks-1"></a><a class="docs-heading-anchor-permalink" href="#Rule-Hooks" title="Permalink"></a></h2><blockquote><p>[!WARNING] Rule hooks will most likely change both behaviour and structure in the future.</p></blockquote><p>It may be useful to define pre- and post-match hooks for certain rules. For example, it might be necessary for some rules to only run in certain directories or not to run in some files. For these cases, it is possible to define <code>RuleHook</code>s:</p><pre><code class="language-julia hljs">julia&gt; @define_rule_hook :only_in_dirs begin
+    args = @pattern [{dirs}...]
+
+    pre_check = @check [:dirs] begin
+        dir_names = map(s -&gt; s.children[1].val, dirs.src)
+        if !any(contains.(current_file(), dir_names))
+            skip_match()
+        end
+    end
+
+    post_check = nothing
+end;
+
+julia&gt; is_nothing = @rule &quot;isnothing&quot; begin
+           description = &quot;Don&#39;t use `isnothing` in performance-critical code.&quot;
+
+           pattern = @pattern isnothing({x})
+
+           template = @template {x} === nothing
+
+           hooks = Dict(
+               :only_in_dirs =&gt; [&quot;performance/&quot;, &quot;critical/&quot;]
+           )
+       end
+isnothing:
+Don&#39;t use `isnothing` in performance-critical code.
+
+Pattern:
+[call]
+  isnothing                              :: Identifier
+  x:::expr                               :: ~var
+
+Template:
+SyntaxPatternNode:
+[call-i]
+  [~var]
+    [quote-:]
+      x                                  :: Identifier
+    [quote-:]
+      expr                               :: Identifier
+  ===                                    :: Identifier
+  nothing                                :: Identifier
+
+Hooks:
+  :only_in_dirs =&gt; [&quot;performance/&quot;, &quot;critical/&quot;]
+
+
+julia&gt; rule_match(is_nothing, parsestmt(SyntaxNode, &quot;isnothing(x)&quot;))
+RuleMatchResult with 0 matches and 0 failures
+
+julia&gt; rule_match(is_nothing, parsestmt(SyntaxNode, &quot;isnothing(x)&quot;; filename=&quot;performance/f.jl&quot;))
+RuleMatchResult with 1 matches and 0 failures:
+Matches:
+  @ performance/f.jl:1:1
+  BindingSet(:x =&gt; Binding(:x, x @ 1:11, BindingSet()))
+  (call-i x === nothing)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial-templates/">« Templates</a><a class="docs-footer-nextpage" href="../further-reading-matching-utils/">Matching Utils »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 7 May 2026 20:24">Thursday 7 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

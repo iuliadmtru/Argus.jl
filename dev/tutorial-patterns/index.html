@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Patterns · Argus.jl</title><meta name="title" content="Patterns · Argus.jl"/><meta property="og:title" content="Patterns · Argus.jl"/><meta property="twitter:title" content="Patterns · Argus.jl"/><meta name="description" content="Documentation for Argus.jl."/><meta property="og:description" content="Documentation for Argus.jl."/><meta property="twitter:description" content="Documentation for Argus.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Argus.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial-basics/">Basics</a></li><li class="is-active"><a class="tocitem" href>Patterns</a></li><li><a class="tocitem" href="../tutorial-comment-patterns/">Comment Patterns</a></li><li><a class="tocitem" href="../tutorial-ellipses/">Ellipses</a></li><li><a class="tocitem" href="../tutorial-syntax-classes/">Syntax Classes</a></li><li><a class="tocitem" href="../tutorial-pattern-forms/">Pattern Forms</a></li><li><a class="tocitem" href="../tutorial-templates/">Templates</a></li><li><a class="tocitem" href="../tutorial-rules/">Rules</a></li></ul></li><li><span class="tocitem">Further Reading</span><ul><li><a class="tocitem" href="../further-reading-matching-utils/">Matching Utils</a></li><li><a class="tocitem" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorial</a></li><li class="is-active"><a href>Patterns</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Patterns</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl/blob/main/docs/src/tutorial-patterns.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Patterns"><a class="docs-heading-anchor" href="#Patterns">Patterns</a><a id="Patterns-1"></a><a class="docs-heading-anchor-permalink" href="#Patterns" title="Permalink"></a></h1><p>Patterns are defined with the <code>@pattern</code> macro.</p><pre><code class="language-julia hljs">help?&gt; @pattern
+  @pattern(expr)
+
+  Create a Pattern from the given expression. Special syntax can be escaped by wrapping it in an @esc macro. Match and fail conditions are defined with the @when and @fail macros respectively.
+
+  @esc usage:
+
+    •  @esc(ex): Escape everything inside ex.
+    •  @esc(ex, depth): Escape ex only up to depth.
+
+  @when usage:
+
+    •  @when(pattern_vars, condition): Match only if condition is satisfied. The pattern variables found in condition must be given as a vector of Symbols.
+
+  @fail usage:
+
+    •  @fail(pattern_vars, condition, msg): Fail with the message msg if condition is satisfied. The pattern variables found in condition must be given as a vector of Symbols.
+
+  Examples
+  ≡≡≡≡≡≡≡≡
+
+  julia&gt; @pattern a + b  # Simple expression with no pattern variables.
+  Pattern:
+  [call-i]
+    a                                      :: Identifier
+    +                                      :: Identifier
+    b                                      :: Identifier
+
+  julia&gt; assign_to_x = @pattern begin
+             {x:::assign}                                    # Pattern variable matching an assignment.
+             @fail [:x] x.lhs.name == &quot;x&quot; &quot;assignment to x&quot;  # The matching fails if the rhs variable&#39;s name is &quot;x&quot;.
+         end
+  Pattern:
+  [~and]
+    x:::assign                             :: ~var
+    [~fail]
+      [vect]
+        [quote-:]
+          x                                :: Identifier
+      [call-i]
+        [.]
+          [.]
+            x                              :: Identifier
+            lhs                            :: Identifier
+          name                             :: Identifier
+        ==                                 :: Identifier
+        [string]
+          &quot;x&quot;                              :: String
+
+  julia&gt; syntax_match(assign_to_x, JuliaSyntax.parsestmt(JuliaSyntax.SyntaxNode, &quot;x = 2&quot;))
+  MatchFail(&quot;assignment to x&quot;)
+
+  julia&gt; const_reassign = @pattern begin
+             const {a:::identifier} = {_}
+             {_}...
+             const {a:::identifier} = {_}  # Reassignment of `const`.
+         end
+  Pattern:
+  [toplevel]
+    [const]
+      [=]
+        a:::identifier                     :: ~var
+        _:::expr                           :: ~var
+    [~rep]
+      _:::expr                             :: ~var
+    [const]
+      [=]
+        a:::identifier                     :: ~var
+        _:::expr                           :: ~var
+
+  julia&gt; syntax_match(const_reassign, parseall(SyntaxNode,
+                                               &quot;&quot;&quot;
+                                               const x = 2
+                                               other_ex
+                                               const x = 3
+                                               &quot;&quot;&quot;))
+  BindingSet @ 0:0 with 1 entries:
+    :a =&gt; Binding:
+            Name: :a
+            Bound source: x @ 3:7
+            Ellipsis depth: 0
+            Sub-bindings:
+              BindingSet @ 0:0 with 1 entries:
+                :_id =&gt; Binding:
+                          Name: :_id
+                          Bound source: x @ 3:7
+                          Ellipsis depth: 0
+                          Sub-bindings:
+                            BindingSet @ 0:0 with 0 entries
+
+  julia&gt; esc_pattern = @pattern @esc(x...)
+  Pattern:
+  [...]
+    x                                      :: Identifier
+
+  julia&gt; syntax_match(esc_pattern, parsestmt(SyntaxNode, &quot;x...&quot;))
+  BindingSet @ 0:0 with 0 entries
+
+  julia&gt; esc1_pattern = @pattern @esc({x}..., 1)
+  Pattern:
+  [...]
+    x:::expr                               :: ~var
+
+  julia&gt; syntax_match(esc1_pattern, parsestmt(SyntaxNode, &quot;x...&quot;))
+  BindingSet @ 0:0 with 1 entries:
+    :x =&gt; Binding:
+            Name: :x
+            Bound source: x @ 1:1
+            Ellipsis depth: 0
+            Sub-bindings:
+              BindingSet @ 0:0 with 0 entries
+
+  Note: @when, @fail and @esc macros only exist inside @pattern bodies.
+
+  julia&gt; @when [] :false
+  ERROR: LoadError: UndefVarError: `@when` not defined in `Main`
+  Suggestion: check for spelling errors or missing imports.
+  in expression starting at ...
+
+  julia&gt; @fail [] :false &quot;&quot;
+  ERROR: LoadError: UndefVarError: `@fail` not defined in `Main`
+  Suggestion: check for spelling errors or missing imports.
+  in expression starting at ...
+
+  julia&gt; @esc
+  ERROR: LoadError: UndefVarError: `@esc` not defined in `Main`
+  Suggestion: check for spelling errors or missing imports.
+  Hint: a global variable of this name also exists in MacroTools.
+  in expression starting at ...</code></pre><p>A simple pattern to experiment with is the match-all pattern:</p><pre><code class="language-julia hljs">julia&gt; expr = @pattern {x}
+Pattern:
+x:::expr                                 :: ~var</code></pre><p>This pattern matches any Julia expression. It has one pattern variable: <code>x</code>. The pretty print tells us that the pattern consists of a <code>~var</code> node which constraints <code>x</code> to be an <code>expr</code>. <code>~var</code> and <code>expr</code> are explained later (see <a href="https://github.com/iuliadmtru/Argus.jl?tab=readme-ov-file#pattern-forms">Pattern forms</a> and <a href="https://github.com/iuliadmtru/Argus.jl?tab=readme-ov-file#syntax-classes">Syntax classes</a>).</p><p>Patterns can be matched against Julia expressions.</p><pre><code class="language-julia hljs">julia&gt; using JuliaSyntax: parsestmt, SyntaxNode
+
+julia&gt; syntax_match(expr, parsestmt(SyntaxNode, &quot;1 + 2&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: (call-i 1 + 2) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+
+julia&gt; syntax_match(expr, parsestmt(SyntaxNode, &quot;f(x::Int) = x * 2&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound source: (function-= (call f (::-i x Int)) (call-i x * 2)) @ 1:1
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries</code></pre><p>The result of a successful match is a <code>BindingSet</code> — a dictionary with bound pattern variables (<code>Binding</code>s). A <code>Binding</code> contains information about a pattern variable that matched (part of) the source, as well as the matched source node.</p><p>In the second example above, the pretty print tells us that the pattern variable <code>x</code> was bound to the function definition found at line 1, column 1 in the source. The fifth line of the pretty print tells us that <code>x</code> has ellipsis depth 0. This is because <code>x</code> is not surrounded by any ellipses (<code>...</code> – see <a href="https://github.com/iuliadmtru/Argus.jl?tab=readme-ov-file#ellipses">Ellipses</a>).</p><p><code>syntax_match</code> matches a pattern with a source node exactly. It may also be useful to extract all the pattern&#39;s occurences in a source node. <code>syntax_match_all</code> does just that:</p><pre><code class="language-julia hljs">julia&gt; syntax_match_all(expr, parsestmt(SyntaxNode, &quot;1 + 2&quot;))
+MatchResults with 4 matches and 0 failures:
+Matches:
+  BindingSet(:x =&gt; Binding(:x, (call-i 1 + 2) @ 1:1, BindingSet()))
+  BindingSet(:x =&gt; Binding(:x, 1 @ 1:1, BindingSet()))
+  BindingSet(:x =&gt; Binding(:x, + @ 1:3, BindingSet()))
+  BindingSet(:x =&gt; Binding(:x, 2 @ 1:5, BindingSet()))</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial-basics/">« Basics</a><a class="docs-footer-nextpage" href="../tutorial-comment-patterns/">Comment Patterns »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 7 May 2026 20:24">Thursday 7 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

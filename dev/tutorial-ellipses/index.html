@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Ellipses · Argus.jl</title><meta name="title" content="Ellipses · Argus.jl"/><meta property="og:title" content="Ellipses · Argus.jl"/><meta property="twitter:title" content="Ellipses · Argus.jl"/><meta name="description" content="Documentation for Argus.jl."/><meta property="og:description" content="Documentation for Argus.jl."/><meta property="twitter:description" content="Documentation for Argus.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Argus.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial-basics/">Basics</a></li><li><a class="tocitem" href="../tutorial-patterns/">Patterns</a></li><li><a class="tocitem" href="../tutorial-comment-patterns/">Comment Patterns</a></li><li class="is-active"><a class="tocitem" href>Ellipses</a></li><li><a class="tocitem" href="../tutorial-syntax-classes/">Syntax Classes</a></li><li><a class="tocitem" href="../tutorial-pattern-forms/">Pattern Forms</a></li><li><a class="tocitem" href="../tutorial-templates/">Templates</a></li><li><a class="tocitem" href="../tutorial-rules/">Rules</a></li></ul></li><li><span class="tocitem">Further Reading</span><ul><li><a class="tocitem" href="../further-reading-matching-utils/">Matching Utils</a></li><li><a class="tocitem" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorial</a></li><li class="is-active"><a href>Ellipses</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Ellipses</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl/blob/main/docs/src/tutorial-ellipses.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Ellipses"><a class="docs-heading-anchor" href="#Ellipses">Ellipses</a><a id="Ellipses-1"></a><a class="docs-heading-anchor-permalink" href="#Ellipses" title="Permalink"></a></h1><p>A pattern followed by an ellipsis means that the pattern repeats zero or more times. </p><pre><code class="language-julia hljs">julia&gt; exprs = @pattern {x}...
+Pattern:
+[~rep]
+  x:::expr                               :: ~var
+
+julia&gt; using JuliaSyntax: parseall
+
+julia&gt; syntax_match(exprs, parseall(SyntaxNode, &quot;&quot;&quot;
+                                                a = 1
+                                                b = 2
+                                                a + b
+                                                &quot;&quot;&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :x =&gt; Binding:
+          Name: :x
+          Bound sources: [(= a 1) @ 1:1, (= b 2) @ 2:1, (call-i a + b) @ 3:1]
+          Ellipsis depth: 1
+          Sub-bindings:
+            [
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries,
+             BindingSet @ 0:0 with 0 entries
+            ]</code></pre><p>This is useful in many situations. For example, when defining a pattern that matches a function definition:</p><pre><code class="language-julia hljs">julia&gt; function_def = @pattern begin
+           function {f}({args}...)
+               {body}...
+           end
+       end
+Pattern:
+[function]
+  [call]
+    f:::expr                             :: ~var
+    [~rep]
+      args:::expr                        :: ~var
+  [block]
+    [~rep]
+      body:::expr                        :: ~var
+
+julia&gt; syntax_match(function_def, parsestmt(SyntaxNode, &quot;&quot;&quot;
+                                                        function my_fun()
+                                                            println(&quot;My fun!&quot;)
+                                                            return nothing
+                                                        end
+                                                        &quot;&quot;&quot;))
+BindingSet @ 0:0 with 3 entries:
+  :f =&gt; Binding:
+          Name: :f
+          Bound source: my_fun @ 1:10
+          Ellipsis depth: 0
+          Sub-bindings:
+            BindingSet @ 0:0 with 0 entries
+  :args =&gt; Binding:
+             Name: :args
+             Bound sources: []
+             Ellipsis depth: 1
+             Sub-bindings:
+               []
+  :body =&gt; Binding:
+             Name: :body
+             Bound sources: [(call println (string &quot;My fun!&quot;)) @ 2:5, (return nothing) @ 3:5]
+             Ellipsis depth: 1
+             Sub-bindings:
+               [
+                BindingSet @ 0:0 with 0 entries,
+                BindingSet @ 0:0 with 0 entries
+               ]</code></pre><p><code>args</code> and <code>body</code> both bind to sequences of expressions. You can see this by looking at their ellipsis depth, which is 1, or by noting that they are bound to vectors of source nodes instead of just source nodes, like <code>f</code> is.</p><p>Ellipses can be nested to match sequences of any depth.</p><pre><code class="language-julia hljs">julia&gt; vec_of_vecs = @pattern [[{el}...]...]
+Pattern:
+[vect]
+  [~rep]
+    [vect]
+      [~rep]
+        el:::expr                        :: ~var
+
+julia&gt; syntax_match(vec_of_vecs, parsestmt(SyntaxNode, &quot;[[1, 2], [[3]]]&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :el =&gt; Binding:
+           Name: :el
+           Bound sources: [[1 @ 1:3, 2 @ 1:6], [(vect 3) @ 1:11]]
+           Ellipsis depth: 2
+           Sub-bindings:
+             [
+              [
+               BindingSet @ 0:0 with 0 entries,
+               BindingSet @ 0:0 with 0 entries
+              ],
+              [
+               BindingSet @ 0:0 with 0 entries
+              ]
+             ]</code></pre><p><code>el</code> has ellipsis depth 2, so it binds to a sequence of sequences of expressions. In the example above, it binds to a sequence containing two sequences: the sequence with <code>1</code> and <code>2</code> and the sequence with the vector <code>[3]</code>.</p><p>You can read the pattern <code>vec_of_vecs</code> more intuitively as: <em>A vector that contains any number of elements. Its elements need to be vectors that have any number of elements of any kind.</em></p><p>By default, the matching algorithm for ellipses is &quot;greedy&quot;.</p><pre><code class="language-julia hljs">julia&gt; ones_vec = @pattern [1, {ones1}..., 1, {ones2}...];
+
+julia&gt; syntax_match(ones_vec, parsestmt(SyntaxNode, &quot;[1, 1, 1, 1]&quot;))
+BindingSet @ 0:0 with 2 entries:
+  :ones2 =&gt; Binding:
+              Name: :ones2
+              Bound sources: []
+              Ellipsis depth: 1
+              Sub-bindings:
+                []
+  :ones1 =&gt; Binding:
+              Name: :ones1
+              Bound sources: [1 @ 1:5, 1 @ 1:8]
+              Ellipsis depth: 1
+              Sub-bindings:
+                [
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
+                ]</code></pre><p><code>ones1</code> consumes all the expressions it can, leaving none for <code>ones2</code>. We can choose to match with a non-&quot;greedy&quot; algorithm:</p><pre><code class="language-julia hljs">julia&gt; syntax_match(ones_vec, parsestmt(SyntaxNode, &quot;[1, 1, 1, 1]&quot;); greedy=false)
+BindingSet @ 0:0 with 2 entries:
+  :ones2 =&gt; Binding:
+              Name: :ones2
+              Bound sources: [1 @ 1:8, 1 @ 1:11]
+              Ellipsis depth: 1
+              Sub-bindings:
+                [
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
+                ]
+  :ones1 =&gt; Binding:
+              Name: :ones1
+              Bound sources: []
+              Ellipsis depth: 1
+              Sub-bindings:
+                []</code></pre><p>This is useful if we expect a non-greedy approach to be more efficient in a particular case.</p><p>Argus hijacks Julia&#39;s <a href="https://docs.julialang.org/en/v1/base/base/#...">splat operator</a>. If we want to use <code>...</code> with the regular splat meaning, we need to escape it:</p><pre><code class="language-julia hljs">julia&gt; syntax_match((@pattern v...), parsestmt(SyntaxNode, &quot;v...&quot;))
+MatchFail: no match @ :1:1
+
+julia&gt; syntax_match((@pattern @esc(v...)), parsestmt(SyntaxNode, &quot;v...&quot;))
+BindingSet @ 0:0 with 0 entries</code></pre><p>We can also escape an expression only up to a certain depth.</p><pre><code class="language-julia hljs">julia&gt; syntax_match((@pattern @esc([{elems}...]..., 1)), parsestmt(SyntaxNode, &quot;[1, 2, 3]...&quot;))
+BindingSet @ 0:0 with 1 entry:
+  :elems =&gt; Binding:
+              Name: :elems
+              Bound sources: [1 @ 1:2, 2 @ 1:5, 3 @ 1:8]
+              Ellipsis depth: 1
+              Sub-bindings:
+                [
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries,
+                 BindingSet @ 0:0 with 0 entries
+                ]</code></pre><p>Without specifying an escape depth, <code>@esc</code> would have escaped the entire expression:</p><pre><code class="language-julia hljs">julia&gt; @pattern @esc([{elems}...])
+Pattern:
+[vect]
+  [...]
+    [braces]
+      elems                              :: Identifier</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial-comment-patterns/">« Comment Patterns</a><a class="docs-footer-nextpage" href="../tutorial-syntax-classes/">Syntax Classes »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 7 May 2026 20:24">Thursday 7 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

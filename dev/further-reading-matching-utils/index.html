@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Matching Utils · Argus.jl</title><meta name="title" content="Matching Utils · Argus.jl"/><meta property="og:title" content="Matching Utils · Argus.jl"/><meta property="twitter:title" content="Matching Utils · Argus.jl"/><meta name="description" content="Documentation for Argus.jl."/><meta property="og:description" content="Documentation for Argus.jl."/><meta property="twitter:description" content="Documentation for Argus.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Argus.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial-basics/">Basics</a></li><li><a class="tocitem" href="../tutorial-patterns/">Patterns</a></li><li><a class="tocitem" href="../tutorial-comment-patterns/">Comment Patterns</a></li><li><a class="tocitem" href="../tutorial-ellipses/">Ellipses</a></li><li><a class="tocitem" href="../tutorial-syntax-classes/">Syntax Classes</a></li><li><a class="tocitem" href="../tutorial-pattern-forms/">Pattern Forms</a></li><li><a class="tocitem" href="../tutorial-templates/">Templates</a></li><li><a class="tocitem" href="../tutorial-rules/">Rules</a></li></ul></li><li><span class="tocitem">Further Reading</span><ul><li class="is-active"><a class="tocitem" href>Matching Utils</a></li><li><a class="tocitem" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Further Reading</a></li><li class="is-active"><a href>Matching Utils</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Matching Utils</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/iuliadmtru/Argus.jl/blob/main/docs/src/further-reading-matching-utils.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Matching-Utils"><a class="docs-heading-anchor" href="#Matching-Utils">Matching Utils</a><a id="Matching-Utils-1"></a><a class="docs-heading-anchor-permalink" href="#Matching-Utils" title="Permalink"></a></h1><p>Matching utils can be used by action pattern forms that execute code, such as <code>~when</code>, <code>~fail</code> and <code>~execute</code>. For now, only three such utils exist: <code>previous_line</code>, <code>inside_parens</code> and <code>comments</code>.</p><pre><code class="language-julia hljs">help?&gt; previous_line
+search: previous_line
+
+  previous_line(src::SyntaxNode)
+
+  Return the line previous to src as a string. If src is at the first line, return the empty string.
+
+  Examples
+  ≡≡≡≡≡≡≡≡
+
+  julia&gt; src = parsestmt(SyntaxNode, &quot;&quot;&quot;
+                                     function f(x)
+                                         x += 1
+                                         return x
+                                     end
+                                     &quot;&quot;&quot;)
+  SyntaxNode:
+  [function]
+    [call]
+      f                                    :: Identifier
+      x                                    :: Identifier
+    [block]
+      [op=]
+        x                                  :: Identifier
+        +                                  :: Identifier
+        1                                  :: Integer
+      [return]
+        x                                  :: Identifier
+
+
+  julia&gt; src[2][1]
+  SyntaxNode:
+  [op=]
+    x                                      :: Identifier
+    +                                      :: Identifier
+    1                                      :: Integer
+
+
+  julia&gt; previous_line(src[2][1])
+  &quot;function f(x)&quot;
+
+  julia&gt; src[2][2]
+  SyntaxNode:
+  [return]
+    x                                      :: Identifier
+
+
+  julia&gt; previous_line(src[2][2])
+  &quot;x += 1&quot;
+
+help?&gt; inside_parens
+search: inside_parens include_string
+
+  inside_parens(src::SyntaxNode)
+
+  Returns true if src is enclosed in parentheses and false otherwise.
+
+  Examples
+  ≡≡≡≡≡≡≡≡
+
+  julia&gt; src = parsestmt(SyntaxNode, &quot;&quot;&quot; &quot;interpolated $x&quot; &quot;&quot;&quot;)
+  SyntaxNode:
+  [string]
+    &quot;interpolated &quot;                        :: String
+    x                                      :: Identifier
+
+
+  julia&gt; inside_parens(src[2])
+  false
+
+  julia&gt; src = parsestmt(SyntaxNode, &quot;&quot;&quot; &quot;interpolated $(x)&quot; &quot;&quot;&quot;)
+  SyntaxNode:
+  [string]
+    &quot;interpolated &quot;                        :: String
+    x                                      :: Identifier
+
+
+  julia&gt; inside_parens(src[2])
+  true
+
+  julia&gt; string_interpolation = @pattern ~and(
+             &quot;$({_}...)$({x:::identifier})$({_}...)&quot;,
+             ~when([:x], !inside_parens(x.src))
+         );
+
+  julia&gt; syntax_match(string_interpolation, parsestmt(SyntaxNode, &quot;&quot;&quot; &quot;interpolated $x&quot; &quot;&quot;&quot;))
+  BindingSet @ 0:0 with 1 entry:
+    :x =&gt; Binding:
+            Name: :x
+            Bound source: x @ 1:17
+            Ellipsis depth: 0
+            Sub-bindings:
+              BindingSet @ 0:0 with 0 entries
+
+  julia&gt; syntax_match(string_interpolation, parsestmt(SyntaxNode, &quot;&quot;&quot; &quot;interpolated $(x)&quot; &quot;&quot;&quot;))
+  MatchFail: no match @ :1:2
+
+help?&gt; comments
+search: comments @comment codeunits convert count ncodeunits const collect count!
+
+  comments(src::SyntaxNode)
+
+  Returns a list of comments found in src with their associated byte ranges.
+
+  Examples
+  ≡≡≡≡≡≡≡≡
+
+  julia&gt; src = parsestmt(SyntaxNode, &quot;x #=commented=# + 1&quot;);
+
+  julia&gt; comments(src)
+  1-element Vector{Tuple{AbstractString, UnitRange{Int64}}}:
+   (&quot;#=commented=#&quot;, 3:15)
+
+  julia&gt; no_comments = @pattern ~and(
+             {s},
+             ~when([:s], isempty(comments(s.src)))
+         );
+
+  julia&gt; syntax_match(no_comments, parsestmt(SyntaxNode, &quot;x #=commented=# + 1&quot;))
+  MatchFail: no match @ :1:1
+
+  julia&gt; syntax_match(no_comments, parsestmt(SyntaxNode, &quot;x + 1&quot;))
+  BindingSet @ 0:0 with 1 entry:
+    :s =&gt; Binding:
+            Name: :s
+            Bound source: (call-i x + 1) @ 1:1
+            Ellipsis depth: 0
+            Sub-bindings:
+              BindingSet @ 0:0 with 0 entries</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial-rules/">« Rules</a><a class="docs-footer-nextpage" href="../further-reading-replacing-macros-with-function-calls/">Replacing Macros With Function Calls »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 7 May 2026 20:24">Thursday 7 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
