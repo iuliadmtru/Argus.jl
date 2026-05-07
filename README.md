@@ -1,7 +1,10 @@
-[![][docs-dev-img]][docs-dev-url]  [![codecov](https://codecov.io/gh/iuliadmtru/Argus.jl/graph/badge.svg?token=Z79DY1TSL4)](https://codecov.io/gh/iuliadmtru/Argus.jl)
+[![][docs-dev-img]][docs-dev-url] [![][codecov-img]][codecov-url]
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://cuda.juliagpu.org/dev/
+[docs-dev-url]: http://iuliadmtru.ro/Argus.jl/dev/
+
+[codecov-img]: https://codecov.io/gh/iuliadmtru/Argus.jl/graph/badge.svg?token=Z79DY1TSL4
+[codecov-url]: https://codecov.io/gh/iuliadmtru/Argus.jl
 
 # Argus.jl
 
