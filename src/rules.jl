@@ -1381,59 +1381,80 @@ function _normalise!(node::JS.SyntaxNode)
         isnothing(node.children) && return node
         args = node.children[1]
         args_num = length(children(args))
-        if kind(args) == K"tuple" && JS.has_flags(args, JS.PARENS_FLAG)
-            if args_num == 1 &&
-                !JS.has_flags(args, JS.TRAILING_COMMA_FLAG) &&
-                kind(args.children[1]) != K"parameters"
-                # (x) -> y
-                #
-                # Through `Expr`:
-                # [->]
-                #   [tuple]
-                #     x                                    :: Identifier
-                #   [block]
-                #     y                                    :: Identifier
-                #
-                # Through `SyntaxNode`:
-                # [->]
-                #   [tuple-p]
-                #     x                                    :: Identifier
-                #   [block]
-                #     y                                    :: Identifier
-                remove_flag!(node.children[1], JS.PARENS_FLAG)
-            elseif args_num == 2 && kind(args.children[2]) == K"parameters"
-                # (x; y=1) -> z
-                #
-                # Through `Expr`:
-                # [->]
-                #   [tuple]
-                #     [block]
-                #       x                                  :: Identifier
-                #       [=]
-                #         y                                :: Identifier
-                #         1                                :: Integer
-                #   [block]
-                #     z                                    :: Identifier
-                #
-                # Through `SyntaxNode`:
-                # [->]
-                #   [tuple-p]
-                #     x                                    :: Identifier
-                #     [parameters]
-                #       [=]
-                #         y                                :: Identifier
-                #         1                                :: Integer
-                #   z                                      :: Identifier
-                remove_flag!(node.children[1], JS.PARENS_FLAG)
-                # Add `block` node and remove `parameters` node.
-                block_args = _wrap_node(node.children[1].children[1], "begin end")
-                node.children[1].children[1].parent = block_args
-                node.children[1].children[2].children[1].parent = block_args
-                block_args.children = [node.children[1].children[1],
-                                       node.children[1].children[2].children[1]]
-                node.children[1].children = [block_args]
+        @static if v"1.10" <= VERSION < v"1.11"
+            if kind(args) == K"tuple" && JS.has_flags(args, JS.PARENS_FLAG) &&
+                !is_empty_parameters(args.children[1])
+                JS.has_flags(args, JS.TRAILING_COMMA_FLAG) ||
+                    remove_flag!(node.children[1], JS.PARENS_FLAG)
+                if args_num > 1 && kind(args.children[2]) == K"parameters"
+                    # Replace `parameters` nodes with their children.
+                    for (i, arg) in enumerate(args.children[2:end])
+                        kind(arg) == K"parameters" || error("don't know how to parse")
+                        arg.children[1].parent = arg.parent
+                        args.children[1 + i] = arg.children[1]
+                    end
+                    # Wrap arguments in a `block` node.
+                    block_args = _wrap_node(args.children[1], "begin end")
+                    [arg.parent = block_args for arg in args.children]
+                    block_args.children = args.children
+                    args.children = [block_args]
+                end
             end
-            node.children[1] = reorder_parameters!(node.children[1])
+        else
+            if kind(args) == K"tuple" && JS.has_flags(args, JS.PARENS_FLAG)
+                if args_num == 1 &&
+                    !JS.has_flags(args, JS.TRAILING_COMMA_FLAG) &&
+                    kind(args.children[1]) != K"parameters"
+                    # (x) -> y
+                    #
+                    # Through `Expr`:
+                    # [->]
+                    #   [tuple]
+                    #     x                                    :: Identifier
+                    #   [block]
+                    #     y                                    :: Identifier
+                    #
+                    # Through `SyntaxNode`:
+                    # [->]
+                    #   [tuple-p]
+                    #     x                                    :: Identifier
+                    #   [block]
+                    #     y                                    :: Identifier
+                    remove_flag!(node.children[1], JS.PARENS_FLAG)
+                elseif args_num == 2 && kind(args.children[2]) == K"parameters"
+                    # (x; y=1) -> z
+                    #
+                    # Through `Expr`:
+                    # [->]
+                    #   [tuple]
+                    #     [block]
+                    #       x                                  :: Identifier
+                    #       [=]
+                    #         y                                :: Identifier
+                    #         1                                :: Integer
+                    #   [block]
+                    #     z                                    :: Identifier
+                    #
+                    # Through `SyntaxNode`:
+                    # [->]
+                    #   [tuple-p]
+                    #     x                                    :: Identifier
+                    #     [parameters]
+                    #       [=]
+                    #         y                                :: Identifier
+                    #         1                                :: Integer
+                    #   z                                      :: Identifier
+                    remove_flag!(node.children[1], JS.PARENS_FLAG)
+                    # Add `block` node and remove `parameters` node.
+                    block_args = _wrap_node(node.children[1].children[1], "begin end")
+                    node.children[1].children[1].parent = block_args
+                    node.children[1].children[2].children[1].parent = block_args
+                    block_args.children = [node.children[1].children[1],
+                                           node.children[1].children[2].children[1]]
+                    node.children[1].children = [block_args]
+                end
+                node.children[1] = reorder_parameters!(node.children[1])
+            end
         end
         if kind(node.children[2]) != K"block"
             new_body = _wrap_node(node.children[2], "begin end")
@@ -1653,6 +1674,9 @@ is_operator(node::JS.SyntaxNode) =
     haskey(JS._kind_str_to_int, string(node.data.val)) &&
     JS.is_operator(JS.Kind(string(node.data.val)))
 
+is_empty_parameters(node::JS.SyntaxNode) =
+    kind(node) == K"parameters" && isempty(node.children)
+
 function update_position_and_span(old_data::JS.SyntaxData, new_pos, new_span)
     old_raw = old_data.raw
     new_raw = JS.GreenNode(
@@ -1757,7 +1781,11 @@ function squash_parameters!(nodes::T) where T <: AbstractVector{JS.SyntaxNode}
     # Squash the `parameters` nodes into one node.
     node = nodes[1]
     new_children = node.children
-    map!(n -> n.parent = node, nodes[2:end])
+    @static if VERSION < v"1.12"
+        map!(n -> n.parent = node, nodes[2:end], copy(nodes[2:end]))
+    else
+        map!(n -> n.parent = node, nodes[2:end])
+    end
     pushfirst!(new_children, squash_parameters!(@views nodes[2:end]))
     node.children = new_children
 

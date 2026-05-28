@@ -1,7 +1,7 @@
 name = "Argus"
 uuid = "e39743ec-b2cc-45ef-a990-b666fc093538"
-version = "0.1.0"
 authors = ["Iulia Dumitru <iuliadmtru@gmail.com>"]
+version = "0.2.0"
 
 [deps]
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -11,12 +11,12 @@ RuntimeGeneratedFunctions = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
-julia = "1.12"
-InteractiveUtils = "1.11.0"
+julia = "1.10"
+InteractiveUtils = "1.10"
 JuliaSyntax = "1.0.0"
 MacroTools = "0.5.15"
 RuntimeGeneratedFunctions = "0.5.17"
-Test = "1.11.0"
+Test = "1.10"
 
 [workspace]
 projects = ["docs"]
