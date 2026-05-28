@@ -1381,7 +1381,7 @@ function _normalise!(node::JS.SyntaxNode)
         isnothing(node.children) && return node
         args = node.children[1]
         args_num = length(children(args))
-        @static if v"1.10" <= VERSION < v"1.11"
+        @static if VERSION < v"1.12"
             if kind(args) == K"tuple" && JS.has_flags(args, JS.PARENS_FLAG) &&
                 !is_empty_parameters(args.children[1])
                 JS.has_flags(args, JS.TRAILING_COMMA_FLAG) ||
