@@ -13,10 +13,12 @@
             # another bla
             """
             comment = @comment "bla"
-            matches = comment_match_all(comment, parseall(SyntaxNode, src)).matches
+            src = parseall(SyntaxNode, src; filename="bla.jl")
+            matches = comment_match_all(comment, src).matches
             @test length(matches) == 2
             @test source_location(matches[1]) == (2, 1)
             @test source_location(matches[2]) == (3, 5)
+            @test filename(matches[1]) == filename(matches[2]) == "bla.jl"
         end
         let
             src = """

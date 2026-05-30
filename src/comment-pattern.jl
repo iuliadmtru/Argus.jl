@@ -97,6 +97,7 @@ function comment_match_all(c::CommentPattern, src::JS.SyntaxNode)
         if is_successful(match_result)
             (match_result::BindingSet)._comment_location =
                 JS.source_location(JS.sourcefile(src), range[1])
+            (match_result::BindingSet)._comment_file_name = JS.filename(src)
             push!(match_results.matches, match_result)
         end
     end
