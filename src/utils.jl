@@ -157,7 +157,7 @@ function _comments(node::Union{Nothing, JS.GreenNode},
                    str::AbstractString;
                    result::Vector{Tuple{AbstractString, UnitRange{Int}}}=
                        Tuple{AbstractString, UnitRange{Int}}[],
-                   pos::Int64=1)
+                   pos::Int=1)
     isnothing(node) && return result
     if kind(node) != K"Comment"
         is_leaf(node) && return result
