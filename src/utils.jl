@@ -164,7 +164,7 @@ function _comments(node::Union{Nothing, JS.GreenNode},
         p = pos
         for c in children(node)
             _comments(c, str; result, pos=p)
-            p += c.span
+            p += convert(Int, c.span)
         end
         return result
     end
@@ -175,7 +175,7 @@ function _comments(node::Union{Nothing, JS.GreenNode},
     p = pos
     for c in children(node)
         _comments(c, str; result, pos=p)
-        p += c.span
+        p += convert(Int, c.span)
     end
     return result
 end
