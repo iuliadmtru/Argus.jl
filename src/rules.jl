@@ -1248,7 +1248,7 @@ function _normalise!(node::JS.SyntaxNode)
             if is_operator(node.children[1]) && !JS.has_flags(node, JS.INFIX_FLAG)
                 if length(node.children) == 2
                     add_flag!(node, JS.PREFIX_OP_FLAG)
-                else
+                elseif length(node.children) > 2
                     # +(x, y)
                     #
                     # Through `Expr`:

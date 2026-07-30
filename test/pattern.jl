@@ -770,6 +770,11 @@
                 s = Argus._normalise!(parsestmt(SyntaxNode, "g = (x=1;)->(x,x)"))
                 @test is_successful(syntax_match(p, s))
             end
+            let
+                p = @pattern ===()
+                s = Argus._normalise!(parsestmt(SyntaxNode, "===()"))
+                @test is_successful(syntax_match(p, s))
+            end
         end
     end
 end
