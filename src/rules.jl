@@ -1448,9 +1448,14 @@ function _normalise!(node::JS.SyntaxNode)
                     # Add `block` node and remove `parameters` node.
                     block_args = _wrap_node(node.children[1].children[1], "begin end")
                     node.children[1].children[1].parent = block_args
-                    node.children[1].children[2].children[1].parent = block_args
-                    block_args.children = [node.children[1].children[1],
-                                           node.children[1].children[2].children[1]]
+                    if isempty(node.children[1].children[2].children)
+                        # `parameters` node has no children.
+                        block_args.children = [node.children[1].children[1]]
+                    else
+                        node.children[1].children[2].children[1].parent = block_args
+                        block_args.children = [node.children[1].children[1],
+                                               node.children[1].children[2].children[1]]
+                    end
                     node.children[1].children = [block_args]
                 end
                 node.children[1] = reorder_parameters!(node.children[1])

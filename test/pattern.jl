@@ -764,6 +764,12 @@
                 p = @pattern f.$x
                 @test is_successful(syntax_match(p, parsestmt(SyntaxNode, "f.\$x")))
             end
+            let
+                # Empty `parameters` node in `->`.
+                p = @pattern g = (x=1;)->(x,x)
+                s = Argus._normalise!(parsestmt(SyntaxNode, "g = (x=1;)->(x,x)"))
+                @test is_successful(syntax_match(p, s))
+            end
         end
     end
 end
