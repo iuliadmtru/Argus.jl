@@ -128,10 +128,40 @@ function syntax_match(syntax_class::SyntaxClass,
     # `:using` syntax class.
     if syntax_class.description == "using"
         kind(src) == K"using" || return failure
-        module_src, ids_src = kind(src.children[1]) == K"importpath" ?
-            (src.children[1], JS.SyntaxNode[]) :
-            (src.children[1].children[1],
-             [c.children[1] for c in src.children[1].children[2:end]])
+        # Store source location information.
+        file_name = JS.filename(src)
+        line_number = JS.source_location(src)[1]
+        col_number = JS.source_location(src)[2]
+        # Get the module and ids sources.
+        module_src, ids_src =
+            if kind(src.children[1]) == K"importpath"
+                (src.children[1], JS.SyntaxNode[])
+            elseif kind(src.children[1]) == K":"
+                length(src.children[1].children) > 1 ||
+                    return error(string("don't know how to parse `using` statement at ",
+                                        file_name, ":", line_number, ":", col_number, "\n",
+                                        src))
+                ids = JS.SyntaxNode[]
+                for id in src.children[1].children[2:end]
+                    if kind(id) == K"importpath"
+                        push!(ids, id.children[1])
+                    elseif kind(id) == K"as"
+                        push!(ids, id)
+                    else
+                        return error(string("don't know how to parse `using` statement at ",
+                                            file_name, ":",
+                                            line_number, ":", col_number, "\n",
+                                            src))
+                    end
+                end
+
+                (src.children[1].children[1], ids)
+            else
+                return error(string("don't know how to parse `using` statement at ",
+                                    file_name, ":", line_number, ":", col_number, "\n",
+                                    src))
+            end
+        # Bind the sources to the corresponding pattern variables.
         module_binding = Binding(:module, module_src, BindingSet(), UInt8(0))
         ids_binding = Binding(:ids, ids_src, fill(BindingSet(), length(ids_src)), UInt8(1))
         return BindingSet(:module => module_binding, :ids => ids_binding)
@@ -139,10 +169,42 @@ function syntax_match(syntax_class::SyntaxClass,
     # `:import` syntax class.
     if syntax_class.description == "import"
         kind(src) == K"import" || return failure
-        module_src, ids_src = kind(src.children[1]) == K"importpath" ?
-            (src.children[1], JS.SyntaxNode[]) :
-            (src.children[1].children[1],
-             [c.children[1] for c in src.children[1].children[2:end]])
+        # Store source location information.
+        file_name = JS.filename(src)
+        line_number = JS.source_location(src)[1]
+        col_number = JS.source_location(src)[2]
+        # Get the module and ids sources.
+        module_src, ids_src =
+            if kind(src.children[1]) == K"importpath"
+                (src.children[1], JS.SyntaxNode[])
+            elseif kind(src.children[1]) == K"as"
+                (src.children[1], JS.SyntaxNode[])
+            elseif kind(src.children[1]) == K":"
+                length(src.children[1].children) > 1 ||
+                    return error(string("don't know how to parse `using` statement at ",
+                                        file_name, ":", line_number, ":", col_number, "\n",
+                                        src))
+                ids = JS.SyntaxNode[]
+                for id in src.children[1].children[2:end]
+                    if kind(id) == K"importpath"
+                        push!(ids, id.children[1])
+                    elseif kind(id) == K"as"
+                        push!(ids, id)
+                    else
+                        return error(string("don't know how to parse `using` statement at ",
+                                            file_name, ":",
+                                            line_number, ":", col_number, "\n",
+                                            src))
+                    end
+                end
+
+                (src.children[1].children[1], ids)
+            else
+                return error(string("don't know how to parse `using` statement at ",
+                                    file_name, ":", line_number, ":", col_number, "\n",
+                                    src))
+            end
+        # Bind the sources to the corresponding pattern variables.
         module_binding = Binding(:module, module_src, BindingSet(), UInt8(0))
         ids_binding = Binding(:ids, ids_src, fill(BindingSet(), length(ids_src)), UInt8(1))
         return BindingSet(:module => module_binding, :ids => ids_binding)

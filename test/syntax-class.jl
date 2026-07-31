@@ -170,6 +170,25 @@
                 @test match_result[:ids].src[1].data.val == :a
                 @test match_result[:ids].src[2].data.val == :b
             end
+            let
+                match_result =
+                    syntax_match(import_statement,
+                                 parsestmt(SyntaxNode, "import M: a, b as c, d"))
+                @test is_successful(match_result)
+                @test match_result[:module].module_name == "M"
+                @test length(match_result[:ids].src) == 3
+                @test match_result[:ids].src[1].data.val == :a
+                @test kind(match_result[:ids].src[2]) == K"as"
+                @test match_result[:ids].src[3].data.val == :d
+            end
+            let
+                match_result =
+                    syntax_match(import_statement,
+                                 parsestmt(SyntaxNode, "import M.N.Q as Q"))
+                @test is_successful(match_result)
+                @test match_result[:module].module_name == "M.N.Q as Q"
+                @test isempty(match_result[:ids].src)
+            end
             @test !is_successful(syntax_match(import_statement, parsestmt(SyntaxNode, "using M")))
         end
         let
@@ -190,6 +209,16 @@
                 @test length(match_result[:ids].src) == 2
                 @test match_result[:ids].src[1].data.val == :a
                 @test match_result[:ids].src[2].data.val == :b
+            end
+            let
+                match_result = syntax_match(using_statement,
+                                            parsestmt(SyntaxNode, "using M: a, b as c, d"))
+                @test is_successful(match_result)
+                @test match_result[:module].module_name == "M"
+                @test length(match_result[:ids].src) == 3
+                @test match_result[:ids].src[1].data.val == :a
+                @test kind(match_result[:ids].src[2]) == K"as"
+                @test match_result[:ids].src[3].data.val == :d
             end
             @test !is_successful(syntax_match(using_statement, parsestmt(SyntaxNode, "import M")))
         end

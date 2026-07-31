@@ -136,6 +136,12 @@ function Base.getproperty(b::Binding, name::Symbol)
     end
     if name ===:module_name
         kind(src) == K"importpath" && return join(children(src), ".")
+        if kind(src) == K"as"
+            # TODO: Better module name for renamed imports?
+            imported = join(children(src.children[1]), ".")
+            renamed = string(src.children[2].val)
+            return imported * " as " * renamed
+        end
         # Only modules have a `module_name` field.
         throw(BindingFieldError(b,
                                 :module_name,
