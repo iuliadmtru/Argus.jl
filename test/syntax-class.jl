@@ -222,6 +222,22 @@
             end
             @test !is_successful(syntax_match(using_statement, parsestmt(SyntaxNode, "import M")))
         end
+        let
+            module_sc = Argus.SYNTAX_CLASS_REGISTRY[:module]
+            match_result =
+                syntax_match(module_sc, parsestmt(SyntaxNode, """
+                                                              module M
+                                                              bla1
+                                                              bla2
+                                                              end
+                                                              """))
+            @test is_successful(match_result)
+            @test match_result[:module_name].src.data.val == :M
+            @test source_location(match_result[:module_name].src) == (1, 8)
+            @test length(match_result[:body].src) == 2
+            @test match_result[:body].src[1].data.val == :bla1
+            @test match_result[:body].src[2].data.val == :bla2
+        end
     end
 
     @testset "General" begin

@@ -542,6 +542,13 @@
                 @test !is_successful(syntax_match(pattern,
                                                   parsestmt(SyntaxNode, "f(x)::T = x")))
             end
+            let
+                pattern = @pattern ~and({m:::module}, ~when([:m], m.module_name == "M"))
+                @test is_successful(syntax_match(pattern,
+                                                 parsestmt(SyntaxNode, "module M end")))
+                @test !is_successful(syntax_match(pattern,
+                                                  parsestmt(SyntaxNode, "module N end")))
+            end
             ## Multiple pattern expressions.
             let
                 pattern = @pattern begin

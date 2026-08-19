@@ -141,6 +141,23 @@ function Base.getproperty(b::Binding, name::Symbol)
             imported = join(children(src.children[1]), ".")
             renamed = string(src.children[2].val)
             return imported * " as " * renamed
+        elseif kind(src) == K"module"
+            # Directly access the module name as a string, without passing through the
+            # identifier node.
+            #
+            # Usage:
+            # `@pattern ~and({m:::module}), ~execute([:m], println(m.module_name))`
+            #
+            # instead of:
+            # `@pattern ~and({m:::module}), ~execute([:m], println(m.module_name.name))`
+            module_name = get(bindings, name) do
+                throw(BindingFieldError(b,
+                                        name,
+                                        available_fields,
+                                        internal_fields,
+                                        "`$name` is not a sub-binding of `$(b.bname)`"))
+            end
+            return string(module_name.src.val)
         end
         # Only modules have a `module_name` field.
         throw(BindingFieldError(b,

@@ -360,4 +360,9 @@ function _register_syntax_classes()
     @define_syntax_class :import "import" begin
         @pattern ǐmport({module_name}, {ids}...)  # Another hack.
     end
+
+    # `module`: match a module definition.
+    @define_syntax_class :module "module" begin
+        @pattern module {module_name} {body}... end
+    end
 end
