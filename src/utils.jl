@@ -2,6 +2,35 @@
 # ==============
 
 """
+    first_line(src::SyntaxNode)
+
+Return the first line that `src` is on.
+"""
+function first_line(src::JS.SyntaxNode)
+    source_file = JS.sourcefile(src)
+    source_first_line = JS.source_location(src)[1]
+    line_first_byte = source_file.line_starts[source_first_line]
+    line_byte_range = JS.source_line_range(source_file, line_first_byte)
+    return rstrip(view(source_file, line_byte_range[1]:line_byte_range[2]), '\n')
+end
+
+"""
+    last_line(src::SyntaxNode)
+
+Return the last line that `src` is on.
+"""
+function last_line(src::JS.SyntaxNode)
+    source_file = JS.sourcefile(src)
+    source_line_starts = source_file.line_starts
+    # Get the last line.
+    source_last_byte = JS.byte_range(src).stop
+    line_first_byte =
+        source_line_starts[findlast(b -> b <= source_last_byte, source_line_starts)]
+    line_byte_range = JS.source_line_range(source_file, line_first_byte)
+    return rstrip(view(source_file, line_byte_range[1]:line_byte_range[2]), '\n')
+end
+
+"""
     previous_line(src::SyntaxNode)
 
 Return the line previous to `src` as a string. If `src` is at the first line, return the

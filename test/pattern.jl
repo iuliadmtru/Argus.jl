@@ -743,6 +743,42 @@
             let
                 pattern = @pattern ~and(
                     {e},
+                    ~when([:e], startswith(first_line(e.src), "\t"))
+                )
+                src_no_tab = parseall(SyntaxNode, """
+                                                  function f(x)
+                                                      x + 1
+                                                  end
+                                                  """)[1][2][1]
+                @test !is_successful(syntax_match(pattern, src_no_tab))
+                src_tab = parseall(SyntaxNode, """
+                                                  function f(x)
+                                                  \tx + 1
+                                                  end
+                                                  """)[1][2][1]
+                @test is_successful(syntax_match(pattern, src_tab))
+            end
+            let
+                pattern = @pattern ~and(
+                    {m:::module},
+                    ~when([:m], !endswith(last_line(m.src), "# $(m.module_name)"))
+                )
+                src_no_comment = parseall(SyntaxNode, """
+                                                      module M
+                                                      bla
+                                                      end
+                                                      """)[1]
+                @test is_successful(syntax_match(pattern, src_no_comment))
+                src_comment = parseall(SyntaxNode, """
+                                                   module M
+                                                   bla
+                                                   end # M
+                                                   """)[1]
+                @test !is_successful(syntax_match(pattern, src_comment))
+            end
+            let
+                pattern = @pattern ~and(
+                    {e},
                     ~execute([:e], println(previous_line(e.src)))
                 )
                 src = parsestmt(SyntaxNode, """
