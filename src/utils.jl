@@ -48,7 +48,7 @@ SyntaxNode:
 
 
 julia> previous_line(src[2][2])
-"x += 1"
+"    x += 1"
 ```
 """
 function previous_line(src::JS.SyntaxNode)
@@ -58,7 +58,7 @@ function previous_line(src::JS.SyntaxNode)
     source_line == source_file.line_starts[1] && return ""
     prev_line_first_byte = source_file.line_starts[source_line - 1]
     prev_line_byte_range = JS.source_line_range(source_file, prev_line_first_byte)
-    return strip(view(source_file, prev_line_byte_range[1]:prev_line_byte_range[2]))
+    return rstrip(view(source_file, prev_line_byte_range[1]:prev_line_byte_range[2]), '\n')
 end
 
 """

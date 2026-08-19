@@ -738,6 +738,27 @@
                 @test match_results.matches[1][:x].name == "x"
                 @test source_location(match_results.matches[1][:x].src) == (1, 23)
             end
+            ## Pattern utils.
+            let
+                pattern = @pattern ~and(
+                    {e},
+                    ~execute([:e], println(previous_line(e.src)))
+                )
+                src = parsestmt(SyntaxNode, """
+                                            function f(x)
+                                                x += 1
+                                                return x
+                                            end
+                                            """)
+                original_stdout = stdout
+                (read_pipe, write_pipe) = redirect_stdout()
+                syntax_match(pattern, src[2][1])
+                syntax_match(pattern, src[2][2])
+                redirect_stdout(original_stdout)
+                close(write_pipe)
+                @test readline(read_pipe) == "function f(x)"
+                @test readline(read_pipe) == "    x += 1"
+            end
             ## Templates.
             let
                 p = @pattern {x}
