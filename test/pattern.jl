@@ -700,7 +700,7 @@
                 pattern = @pattern ~and(
                     {i:::infix_dotcall},
                     ~when([:i], JuliaSyntax.is_identifier(i.rhs.src)),
-                    ~execute([:i], println(i.rhs.name))
+                    ~execute([:i], print(i.rhs.name))
                 )
                 original_stdout = stdout
                 (read_pipe, write_pipe) = redirect_stdout()
@@ -708,6 +708,7 @@
                 redirect_stdout(original_stdout)
                 close(write_pipe)
                 @test is_successful(match_result)
+                @test read(read_pipe, String) == "y"
                 match_fail = syntax_match(pattern, parsestmt(SyntaxNode, "x .+ 2"))
                 @test !is_successful(match_fail)
                 @test match_fail.message == "no match"
