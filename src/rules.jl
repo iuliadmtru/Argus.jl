@@ -674,8 +674,9 @@ Matches:
   BindingSet()
 ```
 """
-default_disabler(line::AbstractString) = is_disable_all_comment(line)
+default_disabler(line::AbstractString) = is_disable_all_comment(strip(line))
 function default_disabler(rule::Rule, line::AbstractString)
+    line = strip(line)
     is_disable_comment(line) || return false
     is_disable_all_comment(line) && return true
     is_disable_rule_comment(line, rule.name) && return true
