@@ -722,7 +722,7 @@ function fix_misparsed!(node::SyntaxPatternNode)
         node_head = node.children[1].children[2].children[1].data.val
         kind_from_head = node_head == :kw ?
             K"=" :
-            JS.Kind(string(node_head))  # TODO: Error handling.
+            JS.Kind(string(node_head)::String)  # TODO: Error handling.
         new_flags::JS.RawFlags = 0
         # Change the kind for short form function definition.
         first_arg = node.children[1].children[3].children[1]
@@ -1360,9 +1360,9 @@ function _get_fail_args(args::T) where T <: AbstractVector{JS.SyntaxNode}
                           JS.filename(args[3]),
                           JS.source_location(args[3])[1],
                           JS.source_location(args[3])[2] - 1))
-    return [_get_symbols(args[1], "~fail"),
-            JS.to_expr(args[2]),
-            fail_message]
+    return Any[_get_symbols(args[1], "~fail"),
+               JS.to_expr(args[2]),
+               fail_message]
 end
 function _get_code_args(args::T,
                         pattern_form_name) where T <: AbstractVector{JS.SyntaxNode}
@@ -1374,7 +1374,7 @@ function _get_code_args(args::T,
                           JS.filename(args[1]),
                           JS.source_location(args[1])[1],
                           JS.source_location(args[1])[2] - 1))
-    return [_get_symbols(args[1], pattern_form_name), JS.to_expr(args[2])]
+    return Any[_get_symbols(args[1], pattern_form_name), JS.to_expr(args[2])]
 end
 function _get_symbols(node::JS.SyntaxNode, pattern_form_name::String)
     error = SyntaxError("""
