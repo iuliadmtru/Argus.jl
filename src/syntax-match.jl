@@ -1493,12 +1493,12 @@ function _infix_ops(ex1::Union{JS.SyntaxNode, SyntaxPatternNode},
         JS.is_identifier(ex2) || return false
         # We know we are inside an infix call, so it is not possible for this to fail
         # (I think/hope). Hopefully, there will be a better way to do this in the future.
-        JS.is_operator(JS.Kind(string(ex2.data.val))) || return false
+        JS.is_operator(JS.Kind(string(ex2.data.val)::String)) || return false
     else  # TODO: Remove duplicate code?
         isa(ex2, SyntaxPatternNode) || return false
         ex2.data.val == :≎ || return false
         JS.is_identifier(ex1) || return false
-        JS.is_operator(JS.Kind(string(ex1.data.val))) || return false
+        JS.is_operator(JS.Kind(string(ex1.data.val)::String)) || return false
     end
     return true
 end

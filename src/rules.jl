@@ -1678,7 +1678,7 @@ end
 
 is_operator(node::JS.SyntaxNode) =
     haskey(JS._kind_str_to_int, string(node.data.val)) &&
-    JS.is_operator(JS.Kind(string(node.data.val)))
+    JS.is_operator(JS.Kind(string(node.data.val)::String))
 
 is_empty_parameters(node::JS.SyntaxNode) =
     kind(node) == K"parameters" && isempty(node.children)
